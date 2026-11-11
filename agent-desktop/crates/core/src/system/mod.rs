@@ -2,6 +2,7 @@ pub(crate) mod app_info;
 pub(crate) mod app_inventory;
 pub(crate) mod app_inventory_query;
 pub(crate) mod app_lookup;
+pub(crate) mod capture_token;
 pub mod cdp_endpoint;
 pub mod display_info;
 pub(crate) mod image_buffer;

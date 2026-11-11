@@ -270,6 +270,7 @@ pub(crate) mod fixture {
     }
 }
 
+pub(crate) mod mouse_background;
 pub(super) mod mouse_click_guard;
 pub(super) mod mouse_coord;
 pub(super) mod mouse_modifier;

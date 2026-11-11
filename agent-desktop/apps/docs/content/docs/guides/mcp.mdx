@@ -33,6 +33,8 @@ Each tool is one command, named `desktop_` plus the command with hyphens as unde
 
 A tool's arguments are its command's arguments, with hyphens as underscores: `snapshot --app Finder -i` is `desktop_snapshot` with `{ "app": "Finder", "interactive_only": true }`. Positional arguments use their names too, such as `ref_id` for `click`. A null argument counts as omitted.
 
+On Windows, a background click is the same `desktop_mouse_click` tool with `background`, `window_id` and `capture_id`: `{ "background": true, "window_id": "w-123", "capture_id": "eyJ...", "xy": "195,139" }`. The screenshot's `capture_id` and `capture_bounds` stay in the structured result when its image becomes an image block.
+
 The tool list is read from the CLI's own command definitions, so it always matches the installed binary.
 
 ## Apply global flags once

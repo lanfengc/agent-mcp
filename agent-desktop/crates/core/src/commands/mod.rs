@@ -36,6 +36,7 @@ pub mod list_windows;
 pub mod maximize;
 pub mod minimize;
 pub mod mouse_click;
+pub mod mouse_click_background;
 pub mod mouse_down;
 pub mod mouse_move;
 pub mod mouse_up;

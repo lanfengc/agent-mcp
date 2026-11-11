@@ -12,6 +12,7 @@ const NON_COMMAND_MODULES: &[&str] = &[
     "input_hold_policy",
     "launch_cdp_test_support",
     "mod",
+    "mouse_click_background",
     "notification_identity",
     "notification_policy",
     "operation_response",

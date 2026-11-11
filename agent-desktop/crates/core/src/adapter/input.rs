@@ -1,6 +1,6 @@
 use crate::{
     AdapterError, ClipboardContent, ClipboardFormat, Deadline, DragParams, InteractionLease,
-    KeyCombo, MouseEvent, OperationReport,
+    KeyCombo, MouseButton, MouseEvent, OperationReport, Point, WindowInfo,
 };
 
 /// `get_clipboard`/`set_clipboard` were removed pre-1.0 in favor of
@@ -30,6 +30,20 @@ pub trait InputOps: Send + Sync {
         _lease: &InteractionLease,
     ) -> Result<OperationReport, AdapterError> {
         Err(AdapterError::not_supported("mouse_event"))
+    }
+
+    /// Delivers a click to `window` by posting window messages instead of
+    /// synthesizing pointer input. The point is in screen coordinates; a
+    /// platform adapter owns the conversion to its native client space.
+    fn background_click(
+        &self,
+        _window: &WindowInfo,
+        _point: Point,
+        _button: MouseButton,
+        _count: u32,
+        _lease: &InteractionLease,
+    ) -> Result<OperationReport, AdapterError> {
+        Err(AdapterError::not_supported("background_click"))
     }
 
     fn key_event(

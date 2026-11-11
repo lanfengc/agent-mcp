@@ -1,7 +1,7 @@
 //! Screenshot orchestration: target dispatch, identity sandwich, precedence.
 
 use agent_desktop_core::{
-    AdapterError, Deadline, DeliverySemantics, DisplayInfo, ErrorCode, ImageBuffer,
+    AdapterError, Deadline, DeliverySemantics, DisplayInfo, ErrorCode, ImageBuffer, Rect,
     ScreenshotTarget, WindowInfo,
 };
 
@@ -114,6 +114,56 @@ pub(crate) fn capture_window(
         resolve_window_strict(&verified, deadline)?;
     }
     Ok(captured)
+}
+
+pub(crate) fn capture_bounds(
+    window: &WindowInfo,
+    image_width: u32,
+    image_height: u32,
+) -> Option<Rect> {
+    let handle = parse_handle(&window.id);
+    if handle.is_null() {
+        return None;
+    }
+    if let Some(extended) = extended_frame_bounds(handle)
+        && matches_image(extended, image_width, image_height)
+    {
+        return Some(extended);
+    }
+    window
+        .bounds
+        .filter(|bounds| matches_image(*bounds, image_width, image_height))
+}
+
+fn extended_frame_bounds(handle: crate::system::window::window_enum::WindowHandle) -> Option<Rect> {
+    use windows_sys::Win32::Foundation::RECT;
+    use windows_sys::Win32::Graphics::Dwm::{DWMWA_EXTENDED_FRAME_BOUNDS, DwmGetWindowAttribute};
+
+    let mut rect = RECT::default();
+    let result = unsafe {
+        DwmGetWindowAttribute(
+            handle,
+            DWMWA_EXTENDED_FRAME_BOUNDS as u32,
+            (&mut rect as *mut RECT).cast(),
+            size_of::<RECT>() as u32,
+        )
+    };
+    if result != 0 {
+        return None;
+    }
+    Some(Rect {
+        x: f64::from(rect.left),
+        y: f64::from(rect.top),
+        width: f64::from(rect.right.saturating_sub(rect.left)),
+        height: f64::from(rect.bottom.saturating_sub(rect.top)),
+    })
+}
+
+fn matches_image(bounds: Rect, image_width: u32, image_height: u32) -> bool {
+    bounds.width > 0.0
+        && bounds.height > 0.0
+        && (bounds.width - f64::from(image_width)).abs() <= 1.0
+        && (bounds.height - f64::from(image_height)).abs() <= 1.0
 }
 
 #[cfg(test)]

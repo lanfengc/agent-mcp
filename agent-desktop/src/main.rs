@@ -106,19 +106,27 @@ fn run() -> ExitCode {
     };
 
     let cmd_name = cmd.name();
+    let safety = match command_policy::safety::SafetyPolicy::from_env() {
+        Ok(policy) => policy,
+        Err(error) => return finish(cmd_name, Err(error)),
+    };
     if let Commands::Sandbox(args) = &cmd
         && let SandboxActionCli::Exec(exec) = &args.action
     {
+        if let Err(error) = safety.check(&cmd) {
+            return finish(cmd_name, Err(error));
+        }
         return dispatch::sandbox::run_exec(&cli, exec, cmd_name, &build_adapter());
     }
-    let stdin = cli_args::stdin::input(&mut cmd).is_some();
-    if let Err(error) = cli_args::stdin::resolve_stdin_text(&mut cmd, std::io::stdin().lock()) {
-        return finish(cmd_name, Err(error));
-    }
-    finish(
-        cmd_name,
-        cli_args::stdin::redact_result(execute(cli, cmd), stdin),
-    )
+    let started = std::time::Instant::now();
+    let result = (|| {
+        safety.check(&cmd)?;
+        let stdin = cli_args::stdin::input(&mut cmd).is_some();
+        cli_args::stdin::resolve_stdin_text(&mut cmd, std::io::stdin().lock())?;
+        cli_args::stdin::redact_result(execute(cli, cmd), stdin)
+    })();
+    safety.audit(cmd_name, &result, started.elapsed());
+    finish(cmd_name, result)
 }
 
 /// The parsed command tree: every `Commands` variant plus `mcp`, which serves them.

@@ -11,6 +11,9 @@ symptom first.
 | Node count frozen at a small number however long you wait | Other windows fully cover the target during the settle | Bring the target to the foreground or minimize the covering windows, then snapshot again |
 | WPF app: one node, `ClassName` like `HwndWrapper[...]`, zero children | A read before the automation peer existed bound the generic HWND provider permanently | Take a fresh snapshot. In-process retries never recover |
 | Custom-rendered UI or a game returns nothing meaningful | No accessibility exposure at all | Out of scope. Use screenshots for verification only |
+| `mouse-click --background` returns `ok` but the app does nothing | The app ignores posted window messages, or (WinForms) checks the physical cursor position | Use a UIA ref action when one exists; otherwise verify from fresh state. Do not retry blindly: the disposition is `delivered_unverified` with `retry: unsafe` |
+| Background click fails `STALE_REF` with `details.kind: stale_capture` | The window moved or resized, the process restarted, or the capture is older than 10 seconds | Take a new `screenshot --window-id` and pass its new `capture_id` |
+| Background click fails `PERM_DENIED` | The target runs at a higher integrity level (UIPI) | Run agent-desktop at the same integrity level as the target |
 
 ## PERM_DENIED with an E_ACCESSDENIED Detail
 

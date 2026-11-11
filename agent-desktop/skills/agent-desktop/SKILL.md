@@ -68,6 +68,10 @@ Action results carry `data.disposition` and errors carry `error.disposition`, ea
 - Branch on `error.code` and `error.disposition`. Message and suggestion text can change.
 - `details.retryable: false` means waiting cannot change the outcome. Try a different approach.
 
+## Execution policy
+
+A restrictive environment policy is checked before any command reaches an application. `AGENT_DESKTOP_READ_ONLY=1` refuses mutating commands with `POLICY_DENIED`; `AGENT_DESKTOP_ALLOWED_COMMANDS=a,b,c` admits only those names and disables `batch`; `AGENT_DESKTOP_AUDIT_LOG` appends one JSON line per command with time, name, `ok`, error code and duration, without arguments or output. An invalid policy value is `INVALID_ARGS` and nothing runs. The policy is per process, so start and use the same environment deliberately; do not unset it to recover from a refusal.
+
 ## Headless and headed
 
 Ref actions are headless by default. They use semantic accessibility calls and do not take focus, move the cursor, synthesize keys or use the clipboard. If no semantic path exists, the action fails closed. Use the global `--headed` flag only when the user explicitly permits physical input, such as double-click, hover, drag, or focus. Never switch to headed mode to recover from a headless failure. Raw coordinates (`--xy`) never imply focus. Which actions need `--headed` differs by OS: read the platform skill.

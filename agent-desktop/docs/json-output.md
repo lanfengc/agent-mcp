@@ -141,6 +141,14 @@ On macOS, application-owned `menu` and `menubar` snapshots omit `data.window`. `
 
 A complete macOS menu lookup with no surface returns `ELEMENT_NOT_FOUND` with `details.kind: "surface_absent"`, `details.surface: "menu"` or `"menubar"`, and `details.complete: true`. That is completed absence evidence. An absent `menubar` can mean the application exposes no menu bar. A `menu` lookup requires an open menu: snapshot `menubar` when it exists, click its owning item without `--headed`, then snapshot `--surface menu`. Missing `complete`, `complete: false`, a timeout, or an incomplete AX read leaves the result unknown, not absent. If a prior action has `delivery_uncertain` and `retry: unsafe`, inspect the current UI before any action; do not repeat the action.
 
+## Background click and capture metadata
+
+A window screenshot adds `data.capture_id`, `data.window_id`, `data.window_bounds`, `data.capture_bounds` and `data.capture_time_ms` when the window has bounds. `capture_bounds` is the screen rectangle that the image pixels cover; it is not always `window_bounds` (on Windows it is the DWM extended frame). Pass `capture_id` unchanged to `mouse-click --background` to make `--xy` image pixels.
+
+A background click returns the adapter report with `details.method: "PostMessage"`, `details.background: true`, `details.target_hwnd` and `details.client_x`/`details.client_y`. Its disposition is always `delivered_unverified` with `retry: "unsafe"`: window messages were accepted, not proven to have changed the app. A capture that no longer matches the window, its process instance, its bounds or the capture-age limit (default 10 seconds, `AGENT_DESKTOP_MAX_CAPTURE_AGE_MS`) fails with `STALE_REF` and `details.kind: "stale_capture"`.
+
+## Headed action verification
+
 - Focus and preparatory scrolling can change coordinates. Stability is verified against fresh live observations, not by requiring coordinates to remain equal to the original snapshot.
 - On macOS, clicking an item in the native menu bar uses `AXPress`. It works headless, and under `--headed` it does not move the pointer. A headless `right-click` can use `AXShowMenu` when the target provides it.
 

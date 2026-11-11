@@ -235,7 +235,7 @@ pub(crate) struct MouseMoveArgs {
 pub(crate) struct MouseClickArgs {
     #[arg(
         long,
-        help = "Absolute coordinates as x,y; requires --headed; write a negative value with = (--xy=-100,50)"
+        help = "Coordinates as x,y: absolute screen coordinates, or image pixels with --capture-id; write a negative value with = (--xy=-100,50)"
     )]
     pub xy: String,
     #[arg(
@@ -251,10 +251,28 @@ pub(crate) struct MouseClickArgs {
     #[arg(
         long,
         value_name = "MODIFIER",
-        help = "Held modifiers: shift, meta, ctrl, alt (repeatable; cmd is accepted)"
+        help = "Held modifiers: shift, meta, ctrl, alt (repeatable; cmd is accepted); rejected with --background"
     )]
     #[serde(default)]
     pub modifiers: Vec<String>,
+    #[arg(
+        long,
+        help = "Post the click to --window-id as window messages without moving the cursor or focusing the window"
+    )]
+    #[serde(default)]
+    pub background: bool,
+    #[arg(
+        long = "window-id",
+        help = "Target window for --background (from list-windows)"
+    )]
+    #[serde(default)]
+    pub window_id: Option<String>,
+    #[arg(
+        long = "capture-id",
+        help = "capture_id from screenshot --window-id; makes --xy image pixels instead of screen coordinates"
+    )]
+    #[serde(default)]
+    pub capture_id: Option<String>,
 }
 
 #[derive(Parser, Debug, Deserialize)]

@@ -1,7 +1,7 @@
 ---
 title: Mouse commands
 navTitle: Mouse
-description: Reference for hover, drag, mouse-move, mouse-click, mouse-down, mouse-up, and mouse-wheel. Cursor movement needs --headed, and the held-button commands fail closed.
+description: Reference for hover, drag, mouse-move, mouse-click (including Windows background clicks), mouse-down, mouse-up, and mouse-wheel. Cursor movement needs --headed, and the held-button commands fail closed.
 ---
 
 Every mouse command moves the real cursor, so each one needs the global `--headed` flag. Without it the command returns `POLICY_DENIED` with `not_delivered` and sends nothing:
@@ -94,10 +94,12 @@ The report matches the [`hover`](#hover) example. On macOS the position is read 
 
 ## mouse-click
 
-Clicks at absolute coordinates.
+Clicks at absolute coordinates. On Windows, `--background` posts the click to a window as window messages, without `--headed`, cursor movement, or focus.
 
 ```bash
 agent-desktop --headed mouse-click --xy 500,300 [--button left|right|middle] [--count N] [--modifiers NAME]...
+agent-desktop mouse-click --background --window-id ID --xy X,Y [--button left|right|middle] [--count N]
+agent-desktop mouse-click --background --window-id ID --capture-id CAPTURE_ID --xy PX,PY [--button left|right|middle] [--count N]
 ```
 
 <table>
@@ -105,10 +107,13 @@ agent-desktop --headed mouse-click --xy 500,300 [--button left|right|middle] [--
     <tr><th>Flag</th><th>Default</th><th>Meaning</th></tr>
   </thead>
   <tbody>
-    <tr><td><code>--xy X,Y</code></td><td>required</td><td>Absolute coordinates.</td></tr>
+    <tr><td><code>--xy X,Y</code></td><td>required</td><td>Absolute screen coordinates, or image pixels when <code>--capture-id</code> is present.</td></tr>
     <tr><td><code>--button</code></td><td><code>left</code></td><td><code>left</code>, <code>right</code>, or <code>middle</code>.</td></tr>
     <tr><td><code>--count N</code></td><td><code>1</code></td><td>Clicks, 1 to 100. Use 2 for a double click and 3 for a triple click.</td></tr>
-    <tr><td><code>--modifiers NAME</code></td><td>none</td><td>A modifier held during the click: <code>shift</code>, <code>meta</code>, <code>ctrl</code>, <code>alt</code>. Repeat the flag for several.</td></tr>
+    <tr><td><code>--modifiers NAME</code></td><td>none</td><td>A modifier held during the click: <code>shift</code>, <code>meta</code>, <code>ctrl</code>, <code>alt</code>. Repeat the flag for several. Rejected with <code>--background</code>.</td></tr>
+    <tr><td><code>--background</code></td><td>off</td><td>Post the click to <code>--window-id</code> as window messages. Windows only. No cursor movement or focus.</td></tr>
+    <tr><td><code>--window-id ID</code></td><td>none</td><td>Target window for <code>--background</code>; required with it and from <code>list-windows</code>.</td></tr>
+    <tr><td><code>--capture-id ID</code></td><td>none</td><td>A <code>capture_id</code> from <code>screenshot --window-id</code>; makes <code>--xy</code> image pixels. Requires <code>--background</code>.</td></tr>
   </tbody>
 </table>
 
@@ -131,6 +136,10 @@ agent-desktop --headed mouse-click --xy 500,300 [--button left|right|middle] [--
 ```
 
 `target.point` is where the click was dispatched; it does not prove which app received it. Before you click at bounds read from a snapshot, check `get --property bounds` and its `live` flag.
+
+With `--background`, the report's `details` names the delivery method, the target HWND and the client coordinates. The disposition is `delivered_unverified`: the posted messages were accepted, not proven to have changed the app, so verify from fresh state. The command refuses the click when the window moved or resized since the capture, its process instance changed, the capture is older than the capture-age limit (10 seconds by default), the window is minimized, or the point is outside the client area. Set `AGENT_DESKTOP_MAX_CAPTURE_AGE_MS` to a larger millisecond value when a vision round-trip is slower than 10 seconds. `--background` is Windows only; other platforms return `ACTION_NOT_SUPPORTED`.
+
+Some frameworks ignore posted messages. A classic Win32 button was verified to click while its window was unfocused and the cursor was elsewhere. A WinForms control may check the physical cursor position and do nothing when the cursor is elsewhere. Use a ref action when the control has one, and verify every background click.
 
 ## mouse-down
 

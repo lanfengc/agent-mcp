@@ -239,6 +239,20 @@ pub trait SystemOps: Send + Sync {
         Err(AdapterError::not_supported("screenshot"))
     }
 
+    /// The screen rectangle a captured image's pixels map to, when the adapter
+    /// can prove it. A backend may capture the visible frame rather than the
+    /// full window rectangle; returning that rectangle lets an image-space
+    /// click land on the pixel the caller chose. `Ok(None)` means the adapter
+    /// cannot tell, and core falls back to the window rectangle.
+    fn capture_bounds(
+        &self,
+        _window: &WindowInfo,
+        _image_width: u32,
+        _image_height: u32,
+    ) -> Result<Option<crate::Rect>, AdapterError> {
+        Ok(None)
+    }
+
     fn screenshot_window_frame(
         &self,
         _window: &WindowInfo,

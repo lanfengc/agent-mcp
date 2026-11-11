@@ -1,9 +1,9 @@
 use agent_desktop_core::{
     AccessibilityNode, ActionOps, AdapterError, AppInfo, ClipboardContent, ClipboardFormat,
     Deadline, DragParams, ElementState, InputOps, InteractionLease, KeyCombo, LiveElement,
-    MouseEvent, NativeHandle, ObservationOps, ObservationRequest, ObservationRoot, OperationReport,
-    ProcessIdentity, Rect, RefEntry, SnapshotSurface, SurfaceInfo, TreeOptions, WindowFilter,
-    WindowInfo,
+    MouseButton, MouseEvent, NativeHandle, ObservationOps, ObservationRequest, ObservationRoot,
+    OperationReport, Point, ProcessIdentity, Rect, RefEntry, SnapshotSurface, SurfaceInfo,
+    TreeOptions, WindowFilter, WindowInfo,
 };
 use std::collections::HashSet;
 use std::sync::{Mutex, MutexGuard, PoisonError};
@@ -234,6 +234,23 @@ impl ActionOps for WindowsAdapter {
     }
 }
 impl InputOps for WindowsAdapter {
+    fn background_click(
+        &self,
+        window: &WindowInfo,
+        point: Point,
+        button: MouseButton,
+        count: u32,
+        lease: &InteractionLease,
+    ) -> Result<OperationReport, AdapterError> {
+        crate::input::mouse::mouse_background::post_background_click(
+            window,
+            point,
+            button,
+            count,
+            lease.deadline(),
+        )
+    }
+
     fn mouse_event(
         &self,
         event: MouseEvent,

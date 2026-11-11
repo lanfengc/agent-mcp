@@ -63,12 +63,33 @@ agent-desktop snapshot --app gnome-calculator -w "button:7"
     <tr><td><code>AGENT_DESKTOP_HOME</code></td><td>Relocates the <a href="#state-root">state root</a>. Must be an absolute path.</td></tr>
     <tr><td><code>AGENT_DESKTOP_SESSION</code></td><td>Session id used when <code>--session</code> is not passed. <code>session start</code> prints the line that sets it. An empty value is <code>INVALID_ARGS</code>.</td></tr>
     <tr><td><code>AGENT_DESKTOP_AGENT_ID</code></td><td>Subagent id used when <code>--agent-id</code> is not passed.</td></tr>
+    <tr><td><code>AGENT_DESKTOP_READ_ONLY</code></td><td>Boolean (<code>0</code>/<code>1</code>, <code>true</code>/<code>false</code>, <code>yes</code>/<code>no</code>, <code>on</code>/<code>off</code>). Refuses every mutating command with <code>POLICY_DENIED</code>.</td></tr>
+    <tr><td><code>AGENT_DESKTOP_ALLOWED_COMMANDS</code></td><td>Comma-separated command names. Refuses every command not listed. Setting it also disables <code>batch</code>.</td></tr>
+    <tr><td><code>AGENT_DESKTOP_AUDIT_LOG</code></td><td>Absolute path to a JSONL audit file. Writes one outcome record per command, with no command output or arguments.</td></tr>
+    <tr><td><code>AGENT_DESKTOP_MAX_CAPTURE_AGE_MS</code></td><td>Maximum age in milliseconds for a <code>capture_id</code> used by <code>mouse-click --background</code>; default <code>10000</code>, range 1 to 86400000.</td></tr>
     <tr><td><code>AGENT_DESKTOP_MACOS_HELPER_PATH</code></td><td>macOS only. Absolute path to the packaged <code>agent-desktop-macos-helper</code>. The npm launcher sets it.</td></tr>
     <tr><td><code>RUST_LOG</code></td><td>Log filter for stderr logs. A valid value replaces the default level.</td></tr>
   </tbody>
 </table>
 
 An invalid value returns `INVALID_ARGS` with `not_delivered`, and nothing runs. In PowerShell, set a variable with `$env:AGENT_DESKTOP_HOME = "$env:TEMP\ad-scratch"`. On Linux the adapter also reads the desktop session's `DISPLAY`, `WAYLAND_DISPLAY`, `XDG_RUNTIME_DIR`, and `DBUS_SESSION_BUS_ADDRESS`; see [Linux](/desktop/platforms/linux).
+
+## Execution policy
+
+The policy is read from the environment of each process, so it also applies to `batch` entries and MCP calls. A restrictive policy refuses `batch` entirely, because a batch could otherwise reach a denied command. Commands run individually with the same policy.
+
+```bash
+# Read-only evaluation: observations, screenshots and reads succeed; clicks and typing do not.
+AGENT_DESKTOP_READ_ONLY=1 agent-desktop screenshot --window-id w-123 shot.png
+
+# Interactive phase: allow only the commands this run needs.
+AGENT_DESKTOP_ALLOWED_COMMANDS=screenshot,mouse-click,list-windows agent-desktop mouse-click --background --window-id w-123 --xy 100,80
+
+# Keep an outcome trail. The log records time, command, ok, error code and duration.
+AGENT_DESKTOP_AUDIT_LOG=/var/log/agent-desktop/audit.jsonl agent-desktop list-windows
+```
+
+The audit record deliberately omits command output, arguments, text typed and coordinates, so it can be kept without storing application data. `AGENT_DESKTOP_READ_ONLY` and `AGENT_DESKTOP_ALLOWED_COMMANDS` are checked before the command touches an application; a refusal is `POLICY_DENIED` with `not_delivered`.
 
 ## State root
 

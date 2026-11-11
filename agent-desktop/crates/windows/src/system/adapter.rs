@@ -2,7 +2,7 @@ use agent_desktop_core::{
     ActionResult, AdapterError, AdapterSession, AppInfo, Deadline, DismissAllNotificationsRequest,
     DismissNotificationRequest, DisplayInfo, ImageBuffer, InteractionLease, InteractionPolicy,
     KeyCombo, NotificationActionRequest, NotificationFilter, NotificationInfo, ObservationOps,
-    OperationReport, PermissionReport, ProcessIdentity, ScreenshotTarget, SessionAffinity,
+    OperationReport, PermissionReport, ProcessIdentity, Rect, ScreenshotTarget, SessionAffinity,
     SignalBaseline, SignalFilter, SnapshotSurface, SystemOps, WindowFilter, WindowInfo, WindowOp,
     system::launch_options::LaunchOptions, system::process_state::ProcessState,
 };
@@ -252,6 +252,20 @@ impl SystemOps for WindowsAdapter {
         deadline: Deadline,
     ) -> Result<ImageBuffer, AdapterError> {
         crate::system::capture::screenshot::capture_window(window, deadline)
+    }
+
+    #[cfg(target_os = "windows")]
+    fn capture_bounds(
+        &self,
+        window: &WindowInfo,
+        image_width: u32,
+        image_height: u32,
+    ) -> Result<Option<Rect>, AdapterError> {
+        Ok(crate::system::capture::screenshot::capture_bounds(
+            window,
+            image_width,
+            image_height,
+        ))
     }
 
     /// Verify-only composition over the keyboard primitive. Core's headed

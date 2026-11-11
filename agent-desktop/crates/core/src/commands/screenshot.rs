@@ -1,7 +1,7 @@
 use crate::{
-    AdapterError, AppError, Deadline, ErrorCode,
+    AdapterError, AppError, Deadline, ErrorCode, ImageBuffer, WindowInfo,
     adapter::{PlatformAdapter, ScreenshotTarget, WindowFilter},
-    system::process_state::ProcessState,
+    system::{capture_token::CaptureToken, process_state::ProcessState},
 };
 use base64::Engine;
 use serde_json::{Value, json};
@@ -19,28 +19,49 @@ pub struct ScreenshotArgs {
 pub fn execute(args: ScreenshotArgs, adapter: &dyn PlatformAdapter) -> Result<Value, AppError> {
     let deadline = crate::Deadline::standard()?;
     let target = resolve_target(&args, adapter, deadline)?;
+    let window = match &target {
+        ScreenshotTarget::ExactWindow(window) => Some(window.clone()),
+        _ => None,
+    };
     let buf = adapter.screenshot(target, deadline)?;
+    let mut fields = capture_fields(window.as_ref(), &buf, adapter)?;
 
     if let Some(path) = args.output_path {
         crate::refs::write_user_file(&path, &buf.data)
             .map_err(|error| crate::refs::unwritable_output("the screenshot", &path, error))?;
-        Ok(json!({
-            "path": path.to_string_lossy(),
-            "format": buf.format.as_str(),
-            "width": buf.width,
-            "height": buf.height,
-            "scale_factor": buf.scale_factor
-        }))
+        fields["path"] = json!(path.to_string_lossy());
     } else {
         let encoded = base64::engine::general_purpose::STANDARD.encode(&buf.data);
-        Ok(json!({
-            "data": encoded,
-            "format": buf.format.as_str(),
-            "width": buf.width,
-            "height": buf.height,
-            "scale_factor": buf.scale_factor
-        }))
+        fields["data"] = json!(encoded);
     }
+    Ok(fields)
+}
+
+fn capture_fields(
+    window: Option<&WindowInfo>,
+    buf: &ImageBuffer,
+    adapter: &dyn PlatformAdapter,
+) -> Result<Value, AppError> {
+    let mut fields = json!({
+        "format": buf.format.as_str(),
+        "width": buf.width,
+        "height": buf.height,
+        "scale_factor": buf.scale_factor
+    });
+    if let Some(window) = window
+        && let Some(window_bounds) = window.bounds
+    {
+        let capture_bounds = adapter
+            .capture_bounds(window, buf.width, buf.height)?
+            .unwrap_or(window_bounds);
+        let token = CaptureToken::new(window, capture_bounds, buf.width, buf.height)?;
+        fields["capture_id"] = json!(token.encode()?);
+        fields["window_id"] = json!(window.id);
+        fields["window_bounds"] = json!(window_bounds);
+        fields["capture_bounds"] = json!(capture_bounds);
+        fields["capture_time_ms"] = json!(token.captured_at_ms);
+    }
+    Ok(fields)
 }
 
 fn resolve_target(
