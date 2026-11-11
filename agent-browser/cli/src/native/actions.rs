@@ -4662,6 +4662,36 @@ async fn apply_session_setup(state: &mut DaemonState, session_id: &str) -> Resul
     Ok(())
 }
 
+/// True when a local launch should fall back to the session's persistent
+/// profile. Explicit profiles, state replay, installed CA certificates, and
+/// the allowed-domains containment mode all need a browser this default would
+/// interfere with, so they keep their existing launch behavior.
+fn should_use_default_profile(
+    connection: &Connection,
+    engine: Option<&str>,
+    options: &LaunchOptions,
+    allowed_domains: &[String],
+) -> bool {
+    matches!(connection, Connection::Local)
+        && matches!(engine, None | Some("chrome"))
+        && options.profile.is_none()
+        && options.storage_state.is_none()
+        && options.ca_cert.is_none()
+        && allowed_domains.is_empty()
+        && !args_name_user_data_dir(&options.args)
+}
+
+fn args_name_user_data_dir(args: &[String]) -> bool {
+    args.iter()
+        .filter_map(|arg| chrome_switch_name(arg))
+        .any(|name| {
+            matches!(
+                name.to_ascii_lowercase().as_str(),
+                "user-data-dir" | "profile-directory"
+            )
+        })
+}
+
 async fn auto_launch(
     state: &mut DaemonState,
     plugins: Vec<crate::plugins::PluginConfig>,
@@ -4965,6 +4995,22 @@ async fn auto_launch_inner(
         restore_key: restore_key.as_deref(),
         storage_state,
     })?;
+    // Persist cookies, storage, and cache for local Chrome launches that named
+    // no profile. Tests construct the daemon in-process, where a shared profile
+    // would leak state between runs, so only a real daemon process opts in.
+    if !cfg!(test)
+        && should_use_default_profile(&connection, engine.as_deref(), &options, &allowed_domains)
+    {
+        let profile_dir = state::get_default_profile_dir(&state.session_id);
+        fs::create_dir_all(&profile_dir).map_err(|e| {
+            format!(
+                "Failed to create persistent profile directory {}: {}",
+                profile_dir.display(),
+                e
+            )
+        })?;
+        options.profile = Some(profile_dir.to_string_lossy().into_owned());
+    }
     write_extensions_file_from_paths(
         &state.session_id,
         &state.settings,
@@ -19678,6 +19724,107 @@ printf '%s' '{"protocol":"agent-browser.plugin.v1","success":true,"data":{}}'
             allowed_domains_disallowed_chrome_arg(&["--window-size=1280,720".to_string()]),
             None
         );
+    }
+
+    #[test]
+    fn test_default_profile_applies_only_to_plain_local_chrome_launches() {
+        let options = LaunchOptions::default();
+        let no_domains: &[String] = &[];
+
+        assert!(should_use_default_profile(
+            &Connection::Local,
+            None,
+            &options,
+            no_domains
+        ));
+        assert!(should_use_default_profile(
+            &Connection::Local,
+            Some("chrome"),
+            &options,
+            no_domains
+        ));
+
+        assert!(!should_use_default_profile(
+            &Connection::Cdp("ws://127.0.0.1:9222".to_string()),
+            None,
+            &options,
+            no_domains
+        ));
+        assert!(!should_use_default_profile(
+            &Connection::AutoConnect,
+            None,
+            &options,
+            no_domains
+        ));
+        assert!(!should_use_default_profile(
+            &Connection::Provider("browser-use".to_string()),
+            None,
+            &options,
+            no_domains
+        ));
+        assert!(!should_use_default_profile(
+            &Connection::Local,
+            Some("lightpanda"),
+            &options,
+            no_domains
+        ));
+        assert!(!should_use_default_profile(
+            &Connection::Local,
+            Some("obscura"),
+            &options,
+            no_domains
+        ));
+        assert!(!should_use_default_profile(
+            &Connection::Local,
+            None,
+            &options,
+            &["example.com".to_string()]
+        ));
+
+        let mut explicit = options.clone();
+        explicit.profile = Some("C:\\profiles\\mine".to_string());
+        assert!(!should_use_default_profile(
+            &Connection::Local,
+            None,
+            &explicit,
+            no_domains
+        ));
+
+        let mut replay = options.clone();
+        replay.storage_state = Some("state.json".to_string());
+        assert!(!should_use_default_profile(
+            &Connection::Local,
+            None,
+            &replay,
+            no_domains
+        ));
+
+        let mut ca = options.clone();
+        ca.ca_cert = Some("ca.pem".to_string());
+        assert!(!should_use_default_profile(
+            &Connection::Local,
+            None,
+            &ca,
+            no_domains
+        ));
+
+        let mut args = options.clone();
+        args.args = vec!["--user-data-dir=C:\\profiles\\mine".to_string()];
+        assert!(!should_use_default_profile(
+            &Connection::Local,
+            None,
+            &args,
+            no_domains
+        ));
+
+        let mut directory = options.clone();
+        directory.args = vec!["--profile-directory=Default".to_string()];
+        assert!(!should_use_default_profile(
+            &Connection::Local,
+            None,
+            &directory,
+            no_domains
+        ));
     }
 
     #[tokio::test]

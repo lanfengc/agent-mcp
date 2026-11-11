@@ -4611,7 +4611,9 @@ Snapshot Options:
 Authentication:
   --profile <name|path>      Chrome profile name (e.g., Default) to reuse login state,
                              or a directory path for a persistent custom profile
-                             (or AGENT_BROWSER_PROFILE env)
+                             (or AGENT_BROWSER_PROFILE env). Without it, local
+                             Chrome launches reuse a persistent per-session profile
+                             under the agent-browser state directory.
   --restore [name]           Auto-save/restore cookies and localStorage.
                              Without a name, uses --session as the restore key
                              (or AGENT_BROWSER_RESTORE env). Session and restore names

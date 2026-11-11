@@ -527,6 +527,8 @@ agent-browser profiles --json        # List profiles as JSON
 agent-browser --profile Default open https://gmail.com  # Reuse a profile's login state
 ```
 
+Local Chrome launches that do not pass `--profile` reuse a persistent per-session profile under the agent-browser state directory (`~/.agent-browser/profiles/<session>`, or the namespaced equivalent). Cookies, storage, and cache survive browser and daemon restarts, so a login performed once stays available. Different `--session` names get separate profiles. Pass `--profile <path>` to choose a different persistent directory. A launch that replays `--state`, installs a CA certificate, or uses `--allowed-domains` keeps a temporary profile because those modes need a fresh browser context. Delete the session's profile directory to start that session logged out.
+
 ## Dashboard
 
 ```bash

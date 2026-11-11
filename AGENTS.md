@@ -10,7 +10,7 @@ This repository holds two imported upstream projects side by side. Each director
 
 ## Rules
 
-- Local modifications are limited to the desktop background-click patch listed in `THIRD_PARTY_NOTICES.md`. Do not add app-specific branches to imported code.
+- Local modifications are limited to the desktop background-click patch and the browser persistent-profile default listed in `THIRD_PARTY_NOTICES.md`. Do not add app-specific branches to imported code.
 - Keep each project's build system independent. Do not add a root Cargo workspace, pnpm workspace or shared lockfile.
 - Follow the desktop commit rules: Conventional Commits, lowercase after the colon, linear `main`, no `Co-Authored-By` lines, no AI attribution and no "Generated with" footers.
 - `agent-desktop` rejects inline comments, hand-written Rust files over 400 lines, structs over 7 fields and functions over 5 parameters. Its tests sit beside their code.

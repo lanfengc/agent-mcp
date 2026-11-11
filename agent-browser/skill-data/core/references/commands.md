@@ -567,7 +567,7 @@ agent-browser --hide-scrollbars false # Keep native scrollbars visible in headle
 agent-browser --engine <name> ...     # chrome (default), lightpanda, obscura (experimental)
 agent-browser --auto-connect ...      # Connect to an already-running Chrome
 agent-browser --no-auto-connect ...   # Return an --auto-connect session to a local launch
-agent-browser --profile <name|path>   # Use a Chrome profile (login state survives)
+agent-browser --profile <name|path>   # Use a Chrome profile instead of the persistent default
 agent-browser --state <path> ...      # Load saved auth state from JSON
 agent-browser --restore [name] ...    # Auto-save and restore session state; defaults to --session
 agent-browser --restore-save <policy> # auto (default), always, or never

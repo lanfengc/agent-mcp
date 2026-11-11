@@ -851,6 +851,20 @@ pub fn get_sessions_dir() -> PathBuf {
     get_state_dir().join("sessions")
 }
 
+/// Chrome profile directory a local launch falls back to when it names no
+/// profile. Cookies, storage, and cache live here, so they survive browser and
+/// daemon restarts. Each session gets its own profile, scoped the same way as
+/// saved session state.
+pub fn get_default_profile_dir(session_id: &str) -> PathBuf {
+    let component = sanitize_session_component(session_id);
+    let name = if component.is_empty() {
+        "default"
+    } else {
+        component.as_str()
+    };
+    get_state_dir().join("profiles").join(name)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -964,6 +978,47 @@ mod tests {
     fn test_sessions_dir_path() {
         let dir = get_sessions_dir();
         assert!(dir.to_string_lossy().contains("sessions"));
+    }
+
+    #[test]
+    fn test_default_profile_dir_is_session_scoped() {
+        let guard = crate::test_utils::EnvGuard::new(&[
+            "HOME",
+            "USERPROFILE",
+            "AGENT_BROWSER_NAMESPACE",
+            "AGENT_BROWSER_SOCKET_DIR",
+        ]);
+        let dir = tempfile::tempdir().unwrap();
+        guard.set("HOME", dir.path().to_str().unwrap());
+        guard.set("USERPROFILE", dir.path().to_str().unwrap());
+        guard.remove("AGENT_BROWSER_NAMESPACE");
+        guard.remove("AGENT_BROWSER_SOCKET_DIR");
+
+        let profile = get_default_profile_dir("Work: One / task");
+
+        assert_eq!(
+            profile,
+            get_state_dir().join("profiles").join("work-one-task")
+        );
+    }
+
+    #[test]
+    fn test_default_profile_dir_falls_back_to_default_name() {
+        let guard = crate::test_utils::EnvGuard::new(&[
+            "HOME",
+            "USERPROFILE",
+            "AGENT_BROWSER_NAMESPACE",
+            "AGENT_BROWSER_SOCKET_DIR",
+        ]);
+        let dir = tempfile::tempdir().unwrap();
+        guard.set("HOME", dir.path().to_str().unwrap());
+        guard.set("USERPROFILE", dir.path().to_str().unwrap());
+        guard.remove("AGENT_BROWSER_NAMESPACE");
+        guard.remove("AGENT_BROWSER_SOCKET_DIR");
+
+        let profile = get_default_profile_dir("///");
+
+        assert_eq!(profile, get_state_dir().join("profiles").join("default"));
     }
 
     #[test]

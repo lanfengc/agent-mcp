@@ -76,7 +76,11 @@ agent-browser --session "$SESSION" --restore --state ./my-auth.json open https:/
 
 ## Persistent Profiles
 
-Use `--profile` to point agent-browser at a Chrome user data directory. This persists everything (cookies, IndexedDB, service workers, cache) across browser restarts without explicit save/load:
+Local Chrome launches are persistent by default. When a launch names no profile, agent-browser reuses a per-session profile under `~/.agent-browser/profiles/<session>` (or the namespaced equivalent), so cookies, IndexedDB, service workers, and cache survive browser and daemon restarts. Log in once and later commands in the same session stay authenticated. Different `--session` names get separate profiles. Delete the session's profile directory to reset it.
+
+A launch that replays `--state`, installs a CA certificate, or uses `--allowed-domains` keeps a temporary profile, because those modes need a fresh browser context that a profile would change. CDP attach, auto-connect, and non-Chrome engines also keep their existing profile behavior.
+
+Use `--profile` to point agent-browser at a specific Chrome user data directory. This persists everything across browser restarts without explicit save/load:
 
 ```bash
 # First run: login once

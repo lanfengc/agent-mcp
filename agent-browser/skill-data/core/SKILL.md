@@ -180,6 +180,8 @@ Load `references/authentication.md` for `--no-navigate`, credential provider plu
 
 ### Keep a login across runs
 
+Local Chrome sessions already keep cookies, storage, and cache in a persistent per-session profile, so a login normally survives `close` and daemon restarts without extra flags. Use `--restore` when you also want portable saved state keyed to a session name:
+
 ```bash
 SESSION="$(agent-browser session id --scope worktree --prefix my-app)"
 agent-browser --session "$SESSION" --restore open https://app.example.com

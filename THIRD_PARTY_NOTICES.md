@@ -23,7 +23,9 @@ Local modifications:
 - License: Apache License 2.0, see `agent-browser/LICENSE`
 - Copyright: Vercel, Inc. and agent-browser contributors
 
-No local modifications.
+Local modifications:
+
+- Local Chrome launches without a profile now reuse a persistent per-session profile under the agent-browser state directory, so cookies, storage, and cache survive browser and daemon restarts. Explicit profiles, state replay, CA certificates, allowed-domains containment, CDP attach, auto-connect, and non-Chrome engines keep their existing behavior. See `agent-browser/cli/src/native/state.rs` and `agent-browser/cli/src/native/actions.rs`, with matching docs under `agent-browser/docs/`, `agent-browser/skill-data/`, and `agent-browser/cli/src/output.rs`.
 
 ## Bundled third-party assets
 

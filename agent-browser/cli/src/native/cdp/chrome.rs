@@ -336,6 +336,8 @@ pub struct LaunchOptions {
     pub proxy_bypass: Option<String>,
     pub proxy_username: Option<String>,
     pub proxy_password: Option<String>,
+    /// Chrome profile name or user data directory. A local Chrome launch that
+    /// leaves this unset falls back to the session's persistent profile.
     pub profile: Option<String>,
     pub args: Vec<String>,
     pub allow_file_access: bool,
