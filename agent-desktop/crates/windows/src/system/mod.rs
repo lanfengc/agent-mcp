@@ -17,12 +17,18 @@ pub(crate) mod lifecycle_envelope_parity;
 #[cfg(all(test, target_os = "windows"))]
 pub(crate) mod lifecycle_test_support;
 pub(crate) mod menu;
+#[cfg(target_os = "windows")]
+pub(crate) mod ocr;
 pub(crate) mod permissions;
 #[cfg(target_os = "windows")]
 pub(crate) mod private_file;
 pub(crate) mod process_identity;
 pub(crate) mod process_state;
 pub(crate) mod runtime;
+#[cfg(target_os = "windows")]
+pub(crate) mod session_probe;
+#[cfg(target_os = "windows")]
+pub(crate) mod session_relaunch;
 pub(crate) mod shell;
 pub(crate) mod signal;
 pub(crate) mod wait;

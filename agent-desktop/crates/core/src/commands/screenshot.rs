@@ -14,6 +14,9 @@ pub struct ScreenshotArgs {
     pub window_id: Option<String>,
     pub screen: Option<usize>,
     pub output_path: Option<PathBuf>,
+    pub ocr: bool,
+    pub ocr_language: Option<String>,
+    pub ocr_query: Option<String>,
 }
 
 pub fn execute(args: ScreenshotArgs, adapter: &dyn PlatformAdapter) -> Result<Value, AppError> {
@@ -26,6 +29,18 @@ pub fn execute(args: ScreenshotArgs, adapter: &dyn PlatformAdapter) -> Result<Va
     let buf = adapter.screenshot(target, deadline)?;
     let mut fields = capture_fields(window.as_ref(), &buf, adapter)?;
 
+    if args.ocr {
+        let result = adapter.ocr_image(&buf, args.ocr_language.as_deref(), deadline)?;
+        if let Some(query) = args.ocr_query.as_deref() {
+            fields["ocr_match"] = match find_match(&result, query) {
+                Some(found) => found,
+                None => Value::Null,
+            };
+        }
+        fields["ocr"] = serde_json::to_value(&result)
+            .map_err(|error| AppError::Adapter(AdapterError::internal(error.to_string())))?;
+    }
+
     if let Some(path) = args.output_path {
         crate::refs::write_user_file(&path, &buf.data)
             .map_err(|error| crate::refs::unwritable_output("the screenshot", &path, error))?;
@@ -35,6 +50,112 @@ pub fn execute(args: ScreenshotArgs, adapter: &dyn PlatformAdapter) -> Result<Va
         fields["data"] = json!(encoded);
     }
     Ok(fields)
+}
+
+pub(crate) fn find_match(result: &crate::OcrResult, query: &str) -> Option<Value> {
+    let needle = query.trim().to_lowercase();
+    if needle.is_empty() {
+        return None;
+    }
+    find_word_match(result, &needle)
+        .or_else(|| find_line_match(result, &needle))
+        .or_else(|| find_compact_match(result, &needle))
+}
+
+fn find_word_match(result: &crate::OcrResult, needle: &str) -> Option<Value> {
+    let mut best: Option<(&crate::OcrWord, &crate::OcrLine)> = None;
+    for line in &result.lines {
+        for word in &line.words {
+            if !word.text.to_lowercase().contains(needle) {
+                continue;
+            }
+            let replace = best.is_none_or(|(current, _)| {
+                word.rect.width * word.rect.height > current.rect.width * current.rect.height
+            });
+            if replace {
+                best = Some((word, line));
+            }
+        }
+    }
+    let (word, line) = best?;
+    Some(match_json(&word.text, &line.text, &word.rect))
+}
+
+fn find_line_match(result: &crate::OcrResult, needle: &str) -> Option<Value> {
+    result
+        .lines
+        .iter()
+        .find(|line| line.text.to_lowercase().contains(needle))
+        .map(|line| match_json(&line.text, &line.text, &line.rect))
+}
+
+fn find_compact_match(result: &crate::OcrResult, needle: &str) -> Option<Value> {
+    let compact = needle
+        .chars()
+        .filter(|character| !character.is_whitespace())
+        .collect::<String>();
+    if compact.is_empty() {
+        return None;
+    }
+    for line in &result.lines {
+        let mut joined = String::new();
+        let mut ranges = Vec::with_capacity(line.words.len());
+        for word in &line.words {
+            let start = joined.len();
+            joined.push_str(&word.text.to_lowercase());
+            ranges.push((start, joined.len()));
+        }
+        let Some(position) = joined.find(&compact) else {
+            continue;
+        };
+        let end = position + compact.len();
+        let covered = line
+            .words
+            .iter()
+            .zip(ranges)
+            .filter(|(_, (start, stop))| *stop > position && *start < end)
+            .map(|(word, _)| word);
+        let Some(rect) = union_rects(covered) else {
+            continue;
+        };
+        return Some(match_json(needle, &line.text, &rect));
+    }
+    None
+}
+
+fn union_rects<'a>(words: impl Iterator<Item = &'a crate::OcrWord>) -> Option<crate::Rect> {
+    let mut bounds: Option<crate::Rect> = None;
+    for word in words {
+        bounds = Some(match bounds {
+            None => word.rect,
+            Some(current) => {
+                let left = current.x.min(word.rect.x);
+                let top = current.y.min(word.rect.y);
+                let right = (current.x + current.width).max(word.rect.x + word.rect.width);
+                let bottom = (current.y + current.height).max(word.rect.y + word.rect.height);
+                crate::Rect {
+                    x: left,
+                    y: top,
+                    width: right - left,
+                    height: bottom - top,
+                }
+            }
+        });
+    }
+    bounds
+}
+
+fn match_json(text: &str, line: &str, rect: &crate::Rect) -> Value {
+    json!({
+        "text": text,
+        "line": line,
+        "x": rect.x,
+        "y": rect.y,
+        "width": rect.width,
+        "height": rect.height,
+        "center_x": rect.x + rect.width / 2.0,
+        "center_y": rect.y + rect.height / 2.0
+    })
 }
 
 fn capture_fields(
@@ -211,3 +332,7 @@ fn select_unique_window(
 #[cfg(test)]
 #[path = "screenshot_deadline_tests.rs"]
 mod deadline_tests;
+
+#[cfg(test)]
+#[path = "screenshot_ocr_tests.rs"]
+mod ocr_tests;

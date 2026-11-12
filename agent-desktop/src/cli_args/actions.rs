@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{Args, Parser};
 use serde::Deserialize;
 
 fn default_scroll_amount() -> u32 {
@@ -255,8 +255,16 @@ pub(crate) struct MouseClickArgs {
     )]
     #[serde(default)]
     pub modifiers: Vec<String>,
+    #[command(flatten)]
+    #[serde(flatten)]
+    pub background: BackgroundClickFlags,
+}
+
+#[derive(Args, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct BackgroundClickFlags {
     #[arg(
-        long,
+        long = "background",
         help = "Post the click to --window-id as window messages without moving the cursor or focusing the window"
     )]
     #[serde(default)]
@@ -273,6 +281,24 @@ pub(crate) struct MouseClickArgs {
     )]
     #[serde(default)]
     pub capture_id: Option<String>,
+    #[arg(
+        long = "restore-minimized",
+        help = "With --background, temporarily restore a minimized target for the click, then minimize it again"
+    )]
+    #[serde(default)]
+    pub restore_minimized: bool,
+    #[arg(
+        long = "cursor-fallback",
+        help = "With --background, aim the cursor at the click point while messages are posted, then restore it, for frameworks that read the physical cursor"
+    )]
+    #[serde(default)]
+    pub cursor_fallback: bool,
+    #[arg(
+        long = "semantic",
+        help = "With --background, invoke the UI Automation element at the point instead of posting mouse messages; works with frameworks that ignore posted input"
+    )]
+    #[serde(default)]
+    pub semantic: bool,
 }
 
 #[derive(Parser, Debug, Deserialize)]

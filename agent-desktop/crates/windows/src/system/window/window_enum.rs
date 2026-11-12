@@ -133,6 +133,11 @@ fn is_tool_window(window: HWND) -> bool {
 
 #[cfg(target_os = "windows")]
 pub(crate) fn window_rect(window: HWND) -> Rect {
+    if unsafe { IsIconic(window) } != 0
+        && let Some(rect) = normal_position_rect(window)
+    {
+        return rect;
+    }
     let mut rect = windows_sys::Win32::Foundation::RECT::default();
     if unsafe { GetWindowRect(window, &mut rect) } == 0 {
         return Rect {
@@ -143,6 +148,35 @@ pub(crate) fn window_rect(window: HWND) -> Rect {
         };
     }
     crate::system::runtime::win_rect::rect_of(&rect)
+}
+
+/// Where a minimized window will reappear. `GetWindowRect` reports the
+/// off-screen icon position for an iconic window, which makes its geometry
+/// unusable for screenshots and image-space clicks; the placement's normal
+/// rectangle is the stable identity callers need.
+#[cfg(target_os = "windows")]
+fn normal_position_rect(window: HWND) -> Option<Rect> {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetWindowPlacement, WINDOWPLACEMENT};
+
+    let mut placement = WINDOWPLACEMENT {
+        length: std::mem::size_of::<WINDOWPLACEMENT>() as u32,
+        flags: 0,
+        showCmd: 0,
+        ptMinPosition: windows_sys::Win32::Foundation::POINT { x: 0, y: 0 },
+        ptMaxPosition: windows_sys::Win32::Foundation::POINT { x: 0, y: 0 },
+        rcNormalPosition: windows_sys::Win32::Foundation::RECT {
+            left: 0,
+            top: 0,
+            right: 0,
+            bottom: 0,
+        },
+    };
+    if unsafe { GetWindowPlacement(window, &mut placement) } == 0 {
+        return None;
+    }
+    Some(crate::system::runtime::win_rect::rect_of(
+        &placement.rcNormalPosition,
+    ))
 }
 
 /// Every assertion here drives the live `EnumWindows` bridge, which the

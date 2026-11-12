@@ -97,7 +97,7 @@ pub(crate) fn capture_with_precedence(
 ) -> Result<ImageBuffer, AdapterError> {
     deadline.ensure_remaining()?;
     let mut modern_failure = None;
-    if modern_is_supported() {
+    if modern_is_supported() && modern_can_serve(subject) {
         let modern_deadline = modern_deadline_slice(deadline);
         match capture_modern(subject, modern_deadline) {
             Ok(image) => return Ok(image),
@@ -110,11 +110,29 @@ pub(crate) fn capture_with_precedence(
             }
         }
     } else {
-        tracing::debug!("modern capture unsupported; using legacy");
+        tracing::debug!("modern capture cannot serve this subject; using legacy");
     }
     deadline.ensure_remaining()?;
     capture_legacy(subject, deadline)
         .map_err(|legacy_error| attach_modern_failure(legacy_error, modern_failure.as_ref()))
+}
+
+/// Windows Graphics Capture never starts a frame stream for an iconic window,
+/// so its session would burn the whole Modern deadline slice and leave less
+/// than the Legacy floor for the pass that can actually capture it (Legacy
+/// restores the window briefly). Skipping Modern for that subject is a
+/// capability statement, not a preference: it is the only path that produces
+/// pixels for a minimized target.
+fn modern_can_serve(subject: CaptureSubject) -> bool {
+    match subject {
+        #[cfg(target_os = "windows")]
+        CaptureSubject::Window { handle, .. } => unsafe {
+            windows_sys::Win32::UI::WindowsAndMessaging::IsIconic(handle) == 0
+        },
+        #[cfg(not(target_os = "windows"))]
+        CaptureSubject::Window { .. } => true,
+        CaptureSubject::Display { .. } => true,
+    }
 }
 
 /// Names the Modern attempt in the error the caller actually receives.

@@ -23,6 +23,9 @@ use crate::system::window::window_enum::{WindowHandle, window_is_responsive};
 /// fixture stacks.
 const PW_RENDERFULLCONTENT: u32 = 0x0000_0002;
 
+const RESTORE_SETTLE: std::time::Duration = std::time::Duration::from_millis(500);
+const PAINT_SETTLE: std::time::Duration = std::time::Duration::from_millis(200);
+
 #[link(name = "user32")]
 unsafe extern "system" {
     fn PrintWindow(
@@ -32,12 +35,16 @@ unsafe extern "system" {
     ) -> i32;
 }
 
-const MINIMIZED_ORIGIN_SENTINEL: i32 = -32_000;
-
 /// Captures `handle` into a PNG [`ImageBuffer`] using GDI `PrintWindow`.
 ///
 /// Requires the caller to have already verified window identity. Performs the
 /// pump-liveness pre-probe immediately before the native capture call.
+///
+/// A minimized window is first asked for its normal placement. When
+/// `PrintWindow` cannot paint that frame, the window is restored for the
+/// capture and minimized again afterwards. The restore is a visible side
+/// effect; callers that must never disturb the desktop should use
+/// `restore` explicitly and capture while the window is visible.
 pub(crate) fn capture_window(
     handle: WindowHandle,
     scale_factor: f64,
@@ -47,8 +54,16 @@ pub(crate) fn capture_window(
     ensure_handle_alive(handle)?;
     ensure_window_is_pumping(handle)?;
     deadline.ensure_remaining()?;
-    let (width, height) = window_capture_size(handle)?;
-    let pixels = print_window_bgra(handle, width, height)?;
+    let iconic = unsafe { windows_sys::Win32::UI::WindowsAndMessaging::IsIconic(handle) } != 0;
+    let (mut width, mut height) = window_capture_size(handle)?;
+    let pixels = if iconic {
+        let restored = capture_after_temporary_restore(handle, deadline)?;
+        width = restored.1;
+        height = restored.2;
+        restored.0
+    } else {
+        print_window_bgra(handle, width, height)?
+    };
     let stride = width
         .checked_mul(4)
         .ok_or_else(|| AdapterError::internal("window capture stride overflowed"))?;
@@ -60,6 +75,58 @@ pub(crate) fn capture_window(
         height,
         scale_factor,
     })
+}
+
+fn capture_after_temporary_restore(
+    handle: WindowHandle,
+    deadline: Deadline,
+) -> Result<(Vec<u8>, u32, u32), AdapterError> {
+    use windows_sys::Win32::Graphics::Gdi::{
+        RDW_ALLCHILDREN, RDW_INVALIDATE, RDW_UPDATENOW, RedrawWindow,
+    };
+    use windows_sys::Win32::UI::WindowsAndMessaging::{SW_RESTORE, ShowWindow};
+
+    unsafe { ShowWindow(handle, SW_RESTORE) };
+    let guard = MinimizeGuard { handle };
+    std::thread::sleep(RESTORE_SETTLE);
+    unsafe {
+        RedrawWindow(
+            handle,
+            std::ptr::null(),
+            std::ptr::null_mut(),
+            RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN,
+        );
+    }
+    std::thread::sleep(PAINT_SETTLE);
+    deadline.ensure_remaining()?;
+    let (width, height) = window_capture_size(handle)?;
+    let pixels = print_window_bgra(handle, width, height)?;
+    if frame_appears_empty(&pixels) {
+        return Err(AdapterError::new(
+            ErrorCode::ActionFailed,
+            "The minimized window did not paint a frame after a temporary restore",
+        )
+        .with_suggestion(
+            "Restore the window with 'restore', capture it while visible, then minimize it again",
+        ));
+    }
+    drop(guard);
+    Ok((pixels, width, height))
+}
+
+struct MinimizeGuard {
+    handle: WindowHandle,
+}
+
+impl Drop for MinimizeGuard {
+    fn drop(&mut self) {
+        unsafe {
+            windows_sys::Win32::UI::WindowsAndMessaging::ShowWindow(
+                self.handle,
+                windows_sys::Win32::UI::WindowsAndMessaging::SW_MINIMIZE,
+            );
+        }
+    }
 }
 
 fn ensure_handle_alive(handle: WindowHandle) -> Result<(), AdapterError> {
@@ -90,23 +157,40 @@ fn ensure_window_is_pumping(handle: WindowHandle) -> Result<(), AdapterError> {
 
 fn window_capture_size(handle: WindowHandle) -> Result<(u32, u32), AdapterError> {
     use windows_sys::Win32::Foundation::RECT;
-    use windows_sys::Win32::UI::WindowsAndMessaging::{GetWindowRect, IsIconic};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GetWindowPlacement, GetWindowRect, IsIconic, WINDOWPLACEMENT,
+    };
 
-    let mut rect = RECT::default();
-    if unsafe { GetWindowRect(handle, &mut rect) } == 0 {
-        return Err(win32_last_error(
-            "GetWindowRect failed before window capture",
-        ));
-    }
-    if unsafe { IsIconic(handle) } != 0
-        || rect.left <= MINIMIZED_ORIGIN_SENTINEL
-        || rect.top <= MINIMIZED_ORIGIN_SENTINEL
-    {
-        return Err(
-            AdapterError::new(ErrorCode::InvalidArgs, "Cannot capture a minimized window")
-                .with_suggestion("Restore the window, then retry the screenshot"),
-        );
-    }
+    let iconic = unsafe { IsIconic(handle) } != 0;
+    let rect = if iconic {
+        let mut placement = WINDOWPLACEMENT {
+            length: std::mem::size_of::<WINDOWPLACEMENT>() as u32,
+            flags: 0,
+            showCmd: 0,
+            ptMinPosition: windows_sys::Win32::Foundation::POINT { x: 0, y: 0 },
+            ptMaxPosition: windows_sys::Win32::Foundation::POINT { x: 0, y: 0 },
+            rcNormalPosition: RECT {
+                left: 0,
+                top: 0,
+                right: 0,
+                bottom: 0,
+            },
+        };
+        if unsafe { GetWindowPlacement(handle, &mut placement) } == 0 {
+            return Err(win32_last_error(
+                "GetWindowPlacement failed before minimized-window capture",
+            ));
+        }
+        placement.rcNormalPosition
+    } else {
+        let mut rect = RECT::default();
+        if unsafe { GetWindowRect(handle, &mut rect) } == 0 {
+            return Err(win32_last_error(
+                "GetWindowRect failed before window capture",
+            ));
+        }
+        rect
+    };
     let width = rect.right.saturating_sub(rect.left);
     let height = rect.bottom.saturating_sub(rect.top);
     if width <= 0 || height <= 0 {

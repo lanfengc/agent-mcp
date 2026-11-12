@@ -120,6 +120,9 @@ fn screenshot_user_path_bypasses_private_policy_that_refuses_reparse() {
             window_id: None,
             screen: None,
             output_path: Some(user_path.clone()),
+            ocr: false,
+            ocr_language: None,
+            ocr_query: None,
         },
         &adapter,
     )

@@ -85,6 +85,9 @@ pub(super) fn screenshot(
             window_id: args.scope.window_id,
             screen: args.screen,
             output_path: args.output_path,
+            ocr: args.ocr,
+            ocr_language: args.ocr_language,
+            ocr_query: args.ocr_query,
         },
         adapter,
     )

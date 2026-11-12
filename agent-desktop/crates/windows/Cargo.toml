@@ -19,8 +19,13 @@ uiautomation = { version = "0.25", default-features = false, features = [
 ] }
 windows = { version = "0.62.2", features = [
   "Foundation",
+  "Foundation_Collections",
+  "Globalization",
   "Graphics_Capture",
   "Graphics_DirectX_Direct3D11",
+  "Graphics_Imaging",
+  "Media_Ocr",
+  "Storage_Streams",
   "Win32_Graphics_Direct3D",
   "Win32_Graphics_Direct3D11",
   "Win32_Graphics_Dxgi_Common",
@@ -28,10 +33,12 @@ windows = { version = "0.62.2", features = [
   "Win32_Graphics_Imaging",
   "Win32_System_Com",
   "Win32_System_Com_StructuredStorage",
+  "Win32_System_WinRT",
   "Win32_System_WinRT_Direct3D11",
   "Win32_System_WinRT_Graphics_Capture",
   "Win32_UI_Accessibility",
 ] }
+windows-future = "0.3.2"
 windows-sys = { version = "0.61", features = [
   "Win32_Foundation",
   "Win32_System_Com",
@@ -40,7 +47,11 @@ windows-sys = { version = "0.61", features = [
   "Win32_Security",
   "Win32_Security_Authorization",
   "Win32_System_ApplicationInstallationAndServicing",
+  "Win32_System_Console",
+  "Win32_System_Environment",
   "Win32_System_LibraryLoader",
+  "Win32_System_RemoteDesktop",
+  "Win32_System_StationsAndDesktops",
   "Win32_System_SystemInformation",
   "Win32_System_Threading",
   "Win32_System_Diagnostics_ToolHelp",

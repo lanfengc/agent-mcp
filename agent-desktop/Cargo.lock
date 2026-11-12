@@ -113,6 +113,7 @@ dependencies = [
  "tracing",
  "uiautomation",
  "windows",
+ "windows-future",
  "windows-sys",
 ]
 

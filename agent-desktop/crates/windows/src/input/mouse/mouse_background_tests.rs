@@ -35,6 +35,6 @@ fn maps_each_button_to_its_down_and_up_messages() {
 
 #[test]
 fn rejects_coordinates_outside_the_native_range() {
-    assert!(point_to_native(Point { x: 3.0e9, y: 0.0 }).is_err());
-    assert!(point_to_native(Point { x: 0.0, y: -3.0e9 }).is_err());
+    assert!(point_to_native(&Point { x: 3.0e9, y: 0.0 }).is_err());
+    assert!(point_to_native(&Point { x: 0.0, y: -3.0e9 }).is_err());
 }

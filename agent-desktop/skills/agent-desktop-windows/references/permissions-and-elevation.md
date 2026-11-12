@@ -78,6 +78,32 @@ case-insensitive `.exe` name: `csrss.exe`, `wininit.exe`, `winlogon.exe`,
 `explorer.exe`. Other names close normally, including near-misses such as
 `explorer++.exe`. A refusal is `INVALID_ARGS`.
 
+## Session Placement
+
+Every command except `version`, `skills`, `session` and `trace` checks where it
+runs before touching the desktop. The process must be in the session of the
+active WTS user and its input desktop must be `Default`.
+
+- A process in another session (session 0, a service, a scheduled task set to
+  run whether the user is logged on or not) relaunches the same command line in
+  the active session with `WTSQueryUserToken` and `CreateProcessAsUserW` on
+  `winsta0\default`. The child inherits stdout and stderr, so the JSON envelope
+  still reaches the caller, and stdin is attached to `NUL` so it cannot consume
+  the MCP server's JSON-RPC stream. The parent waits and forwards the child's
+  exit code.
+- The relaunch needs `SeTcbPrivilege` (and `SeAssignPrimaryTokenPrivilege` and
+  `SeIncreaseQuotaPrivilege`), which a LocalSystem service holds. Without them
+  the command returns `PERM_DENIED`, `disposition.delivery: not_delivered`, and
+  names the Win32 error in `details.win32_error`.
+- A locked workstation or a UAC secure desktop owns input (`Winlogon`), so the
+  command returns `PERM_DENIED` instead of acting on a desktop nobody sees. No
+  other session is activated and nothing is typed into the secure desktop.
+- No logged-in user means `PERM_DENIED` as well; there is no desktop to reach.
+
+The `mcp` server itself is never relaunched: it must keep its own stdio
+streams. Each tool call spawns a child command, and that child takes the
+session decision above.
+
 ## Cross-Process Interaction Lease
 
 Interactive work holds an exclusive, token-derived lock file, so two concurrent

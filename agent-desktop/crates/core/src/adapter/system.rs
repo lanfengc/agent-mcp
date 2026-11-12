@@ -154,16 +154,10 @@ pub trait SystemOps: Send + Sync {
         Ok(None)
     }
 
-    /// Raises an OS-chrome surface - the Start menu, the Action Center, the
-    /// taskbar - and returns the identity of the window the surface actually
-    /// presents, in the same shape the window observation stack consumes. It
-    /// takes the lease because it mutates OS chrome and takes the foreground;
-    /// the policy travels separately because the lease carries no
-    /// focus-steal refusal. Implementations that raise anything must refuse with
-    /// `POLICY_DENIED` first when `policy.allow_focus_steal` is false, must
-    /// return an already-present surface without raising it again, and
-    /// must answer a kind their platform does not expose with a refusal that
-    /// names what a caller should ask for instead - never with this default.
+    /// Raises an OS-chrome surface and returns the window it presents. An
+    /// adapter that raises anything must refuse with `POLICY_DENIED` first when
+    /// `policy.allow_focus_steal` is false, return an already-present surface
+    /// without raising it again, and name a supported kind for one it cannot show.
     fn open_system_surface(
         &self,
         _surface: crate::adapter::SnapshotSurface,
@@ -187,14 +181,9 @@ pub trait SystemOps: Send + Sync {
         Err(AdapterError::not_supported("open_session"))
     }
 
-    /// Captures a point-in-time [`SignalBaseline`] snapshot,
-    /// narrowed by `filter` when the caller already knows which app it cares
-    /// about. `deadline` is one absolute budget shared by every native read in
-    /// the capture; an adapter must return `TIMEOUT` rather than publish an
-    /// observation completed at or after it. `wait --event` calls this once at
-    /// wait-start and again on every poll, then diffs the two snapshots with
-    /// `crate::diff_signals` — the adapter never decides what changed,
-    /// only what the desktop looks like right now.
+    /// Captures a [`SignalBaseline`] narrowed by `filter`. The adapter must
+    /// return `TIMEOUT` rather than publish an observation completed at or after
+    /// `deadline`; core diffs the snapshots and never asks what changed.
     fn capture_signal_baseline(
         &self,
         _filter: &SignalFilter,
@@ -220,13 +209,9 @@ pub trait SystemOps: Send + Sync {
         false
     }
 
-    /// Reports whether `combo` is a platform-dangerous keyboard shortcut that
-    /// should be refused unless the caller explicitly forces it (for example
-    /// macOS Cmd+Q quit, Ctrl+Cmd+Q lock, Cmd+Alt+Esc force-quit). Which
-    /// combos are dangerous — and how key names alias to physical keys — is
-    /// platform-specific, so each adapter owns its own list; core only asks
-    /// and lets the caller override via `--force`. The default blocks nothing,
-    /// leaving the decision entirely to the calling agent.
+    /// Reports whether `combo` should be refused unless the caller forces it.
+    /// Which combos are dangerous is platform-specific; core only asks and lets
+    /// `--force` override. The default blocks nothing.
     fn is_blocked_combo(&self, _combo: &KeyCombo) -> bool {
         false
     }
@@ -237,6 +222,16 @@ pub trait SystemOps: Send + Sync {
         _deadline: Deadline,
     ) -> Result<ImageBuffer, AdapterError> {
         Err(AdapterError::not_supported("screenshot"))
+    }
+
+    /// Recognizes text in a captured image; rectangles are image pixels.
+    fn ocr_image(
+        &self,
+        _image: &ImageBuffer,
+        _language: Option<&str>,
+        _deadline: Deadline,
+    ) -> Result<crate::OcrResult, AdapterError> {
+        Err(AdapterError::not_supported("ocr_image"))
     }
 
     /// The screen rectangle a captured image's pixels map to, when the adapter
@@ -280,8 +275,6 @@ pub trait SystemOps: Send + Sync {
     }
 
     /// Checks the exact focused window before process-scoped key delivery.
-    /// Adapters can override this to retain the window identity through their
-    /// native delivery gates.
     fn press_key_for_window(
         &self,
         window: &WindowInfo,

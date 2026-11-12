@@ -122,12 +122,17 @@ pub(super) fn mouse_click(
     context: &CommandContext,
 ) -> Result<Value, AppError> {
     let (x, y) = parse_xy(&args.xy)?;
-    if args.background {
+    if args.background.background {
         return background_click(args, x, y, adapter, context);
     }
-    if args.window_id.is_some() || args.capture_id.is_some() {
+    let orphaned_background_flag = args.background.window_id.is_some()
+        || args.background.capture_id.is_some()
+        || args.background.restore_minimized
+        || args.background.cursor_fallback
+        || args.background.semantic;
+    if orphaned_background_flag {
         return Err(AppError::invalid_input_with_suggestion(
-            "--window-id and --capture-id require --background",
+            "--window-id, --capture-id, --restore-minimized, --cursor-fallback and --semantic require --background",
             "Add --background to post the click without moving the cursor.",
         ));
     }
@@ -157,13 +162,13 @@ fn background_click(
             "Use a foreground mouse-click when the click needs held modifier keys.",
         ));
     }
-    let Some(window_id) = args.window_id else {
+    let Some(window_id) = args.background.window_id else {
         return Err(AppError::invalid_input_with_suggestion(
             "--background requires --window-id",
             "Run 'list-windows' and pass the target window id.",
         ));
     };
-    let space = if args.capture_id.is_some() {
+    let space = if args.background.capture_id.is_some() {
         "image"
     } else {
         "screen"
@@ -171,9 +176,12 @@ fn background_click(
     mouse_click_background_command::execute(
         mouse_click_background_command::BackgroundClickArgs {
             window_id,
-            capture_id: args.capture_id,
+            capture_id: args.background.capture_id,
             space: space.to_string(),
             max_capture_age_ms: max_capture_age_ms()?,
+            restore_minimized: args.background.restore_minimized,
+            cursor_fallback: args.background.cursor_fallback,
+            semantic: args.background.semantic,
         },
         x,
         y,

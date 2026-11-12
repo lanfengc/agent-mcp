@@ -93,6 +93,9 @@ fn screenshot_path_and_inline_data_shapes_match_core_serialization() {
             window_id: None,
             screen: None,
             output_path: Some(path.clone()),
+            ocr: false,
+            ocr_language: None,
+            ocr_query: None,
         },
         &adapter,
     )
@@ -114,6 +117,9 @@ fn screenshot_path_and_inline_data_shapes_match_core_serialization() {
             window_id: None,
             screen: None,
             output_path: None,
+            ocr: false,
+            ocr_language: None,
+            ocr_query: None,
         },
         &adapter,
     )

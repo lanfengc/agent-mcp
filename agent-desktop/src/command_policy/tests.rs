@@ -37,6 +37,9 @@ fn unknown_permission_does_not_mask_platform_errors() {
         },
         screen: None,
         output_path: None,
+        ocr: false,
+        ocr_language: None,
+        ocr_query: None,
     });
 
     assert!(preflight(&command, &report).is_ok());
@@ -58,6 +61,9 @@ fn screen_recording_denial_is_preflighted() {
         },
         screen: None,
         output_path: None,
+        ocr: false,
+        ocr_language: None,
+        ocr_query: None,
     });
 
     let err = preflight(&command, &report).expect_err("denied screen capture fails");

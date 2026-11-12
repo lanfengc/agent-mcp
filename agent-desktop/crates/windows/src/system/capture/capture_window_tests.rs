@@ -90,7 +90,7 @@ fn printwindow_access_denied_maps_to_perm_denied() {
 }
 
 #[test]
-fn minimized_windows_are_rejected_before_bitmap_alloc() {
+fn minimized_windows_are_captured_without_leaking_gdi_objects() {
     let _capture = live_graphics_capture_lock();
     bootstrap();
     gdi_balance::reset();
@@ -106,13 +106,22 @@ fn minimized_windows_are_rejected_before_bitmap_alloc() {
     std::thread::sleep(Duration::from_millis(50));
 
     let before = gdi_balance::live();
-    let error = capture_window(handle, 1.0, deadline(10_000))
-        .expect_err("minimized windows are rejected before PrintWindow");
-    assert_eq!(error.code, ErrorCode::InvalidArgs);
+    let captured = capture_window(handle, 1.0, deadline(10_000));
+    assert!(
+        captured.is_ok(),
+        "a minimized fixture should be captured through its normal placement or a temporary restore: {captured:?}"
+    );
+    let image = captured.expect("capture result checked above");
+    assert!(image.width > 0 && image.height > 0);
     assert_eq!(
         gdi_balance::live(),
         before,
-        "rejection must not allocate GDI objects"
+        "capture must release every GDI object it allocates"
+    );
+    let minimized = unsafe { windows_sys::Win32::UI::WindowsAndMessaging::IsIconic(handle) } != 0;
+    assert!(
+        minimized,
+        "the window must be minimized again after capture"
     );
 }
 

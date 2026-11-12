@@ -4,8 +4,11 @@ mod batch;
 mod cli;
 mod cli_args;
 mod command_policy;
+#[cfg(target_os = "windows")]
+mod desktop_session;
 mod diagnostic;
 mod dispatch;
+mod logging;
 mod mcp;
 mod visual_debug;
 
@@ -93,7 +96,7 @@ fn run() -> ExitCode {
         Err(e) => return report_parse_failure(e),
     };
 
-    init_tracing(cli.visual_debug.verbose);
+    logging::init(cli.visual_debug.verbose);
 
     let mut cmd = match cli.command.take() {
         Some(c) => c,
@@ -106,6 +109,10 @@ fn run() -> ExitCode {
     };
 
     let cmd_name = cmd.name();
+    #[cfg(target_os = "windows")]
+    if let Some(exit_code) = desktop_session::guard(cmd_name) {
+        return exit_code;
+    }
     let safety = match command_policy::safety::SafetyPolicy::from_env() {
         Ok(policy) => policy,
         Err(error) => return finish(cmd_name, Err(error)),
@@ -382,18 +389,6 @@ fn build_adapter() -> impl agent_desktop_core::PlatformAdapter {
 
     #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
     compile_error!("Unsupported platform")
-}
-
-fn init_tracing(verbose: bool) {
-    use tracing_subscriber::{EnvFilter, fmt};
-    let filter = if verbose { "debug" } else { "warn" };
-    fmt()
-        .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(filter)),
-        )
-        .with_writer(std::io::stderr)
-        .with_ansi(false)
-        .init();
 }
 
 #[cfg(test)]

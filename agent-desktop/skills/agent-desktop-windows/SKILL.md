@@ -20,16 +20,20 @@ This file covers only what differs on Windows. The observe-act loop, refs, JSON
 envelope, sessions and tracing are the same on every platform.
 
 Requires Windows 10 1809+ / Windows Server 2019+ (x64 or ARM64). Run it in the
-interactive desktop session of the signed-in user. Session 0 (services and
-SYSTEM tasks), Server Core, the secure desktop (UAC prompts, the sign-in
-screen), a locked desktop and another user's session are not supported:
-observation, actions and capture there fail or return nothing.
+interactive desktop session of the signed-in user. A command started in
+another session (session 0, a service or SYSTEM task) is rerun automatically
+inside the logged-in desktop when the caller holds SeTcbPrivilege, as
+LocalSystem does: the child inherits stdout and stderr, stdin is attached to
+`NUL`, and the caller's exit code is returned. Without that privilege the
+command returns `PERM_DENIED` naming both sessions. Server Core, the secure
+desktop (UAC prompts, the sign-in screen) and a locked desktop are refused
+with `PERM_DENIED`: observation, actions and capture cannot run there.
 
 ## Capability Table
 
 | Group | Commands | Status on Windows |
 |-------|----------|-------------------|
-| Observation | `snapshot`, `find`, `get`, `is`, `screenshot` | Works. Surfaces are `window`, `focused`, a Chromium modal as `sheet`, and an open application menu as `menu` |
+| Observation | `snapshot`, `find`, `get`, `is`, `screenshot` | Works. Surfaces are `window`, `focused`, a Chromium modal as `sheet`, and an open application menu as `menu`. `screenshot --ocr` returns recognized lines and words with image-pixel rectangles |
 | Surfaces | `list-surfaces` | Works. Lists `window`, `focused` and `sheet` per process, plus `menu` with `item_count` while a menu is open |
 | Shell surfaces | `open-system-surface` | Works for `start-menu`, `taskbar`, `system-tray`, `system-tray-overflow` and `action-center`, and returns the window `snapshot --surface <kind>` reads. `quick-settings` returns `INVALID_ARGS` naming `action-center` |
 | Ref interaction | `click`, `right-click`, `type`, `set-value`, `clear`, `select`, `toggle`, `check`, `uncheck`, `expand`, `collapse`, `scroll`, `scroll-to` | Works, semantic in headless and `--headed` mode. `right-click` and `type` need `--headed` and return `POLICY_DENIED` headless |
@@ -53,7 +57,9 @@ observation, actions and capture there fail or return nothing.
 - **A window behind another window is drivable. A minimized one is not.**
   Every element of a minimized window reports `offscreen` and ref actions
   fail. Run `restore --app <image>` and snapshot again. Do not use
-  `focus-window` by reflex: it steals the user's foreground.
+  `focus-window` by reflex: it steals the user's foreground. `screenshot
+  --window-id` still captures a minimized window: it restores the window for
+  the capture and minimizes it again.
 - **Background clicks use image pixels, not window bounds.**
   `screenshot --window-id` returns `capture_id`, `window_bounds` and
   `capture_bounds`. Pass `capture_id` unchanged to
@@ -65,13 +71,21 @@ observation, actions and capture there fail or return nothing.
   success. The capture is refused when the window moved or resized, its process
   instance changed, or it is older than the capture-age limit (10 seconds by
   default; set `AGENT_DESKTOP_MAX_CAPTURE_AGE_MS` for a slower vision
-  round-trip). Minimized windows, points outside the client area, and
-  `--modifiers` are refused.
+  round-trip). Points outside the client area and `--modifiers` are refused.
+- **Three background-click options cover the hard targets.** A minimized
+  target is refused unless `--restore-minimized` is passed; that restores it
+  for the click and minimizes it again. `--cursor-fallback` aims the cursor at
+  the point while the messages are posted, then restores it, for frameworks
+  that read the physical cursor. `--semantic` invokes the UI Automation element
+  at the point instead of posting messages; it finds the element in the target
+  window's own subtree, so it works while the window is covered or minimized
+  with `--restore-minimized`, and it is the reliable path for WinForms buttons.
+  `details.method` reports `PostMessage`, `PostMessage+cursor` or `UIA.Invoke`.
 - **Some frameworks ignore posted clicks.** A classic Win32 button was verified
   to click while its window was unfocused and the cursor was elsewhere. A
-  WinForms control may check the physical cursor position and do nothing when
-  the cursor is elsewhere. Use the UIA ref action when the control has one;
-  otherwise treat a background click as best effort and verify every one.
+  WinForms control checks the physical cursor position and async key state, so
+  neither a posted click nor `--cursor-fallback` triggers it; `--semantic`
+  does. Treat a posted click as best effort and verify every one.
 - **No permission dialog exists.** `permissions` reports `automation` as
   `not_required`. Elevation boundaries are the only access control.
 - **Chromium and Electron apps read thin before they settle.** Pass a longer
@@ -111,7 +125,8 @@ observation, actions and capture there fail or return nothing.
 - Sandboxes are not available on Windows yet. To run agent-desktop in a container you manage yourself, see `agent-browser.dev/desktop/guides/docker-container`.
 
 - Ref actions are semantic UI Automation calls in headless and `--headed` mode, except `right-click`, `double-click`, `triple-click`, `type` and `focus`, which are physical or take focus and need `--headed`.
-- Windows adds `mouse-click --background`: a headless, no-focus click posted to a window as `WM_MOUSEMOVE`, `WM_LBUTTONDOWN` and `WM_LBUTTONUP` (or the right or middle variants). It is Windows-only; other platforms return `ACTION_NOT_SUPPORTED`. See First Contact for the capture and coordinate rules.
+- Windows adds `mouse-click --background`: a headless, no-focus click posted to a window as `WM_MOUSEMOVE`, `WM_LBUTTONDOWN` and `WM_LBUTTONUP` (or the right or middle variants). `--restore-minimized`, `--cursor-fallback` and `--semantic` extend it to minimized windows, cursor-reading frameworks and UI Automation controls. It is Windows-only; other platforms return `ACTION_NOT_SUPPORTED`. See First Contact for the capture and coordinate rules.
+- `screenshot --ocr [--ocr-query TEXT]` recognizes text with the Windows OCR engine, returns lines and words in image pixels, and with `--ocr-query` adds `ocr_match` with the word or line center. Feed that center to `mouse-click --background --capture-id` to click a non-UIA, drawn or game-like surface. `--ocr-language` pins the engine language; the default uses the user's profile languages.
 - A ref resolves only when it was the only element in the window its snapshot captured with its role, native id, name and description, and exactly one live element still matches. Uniqueness counts the whole window, not the shallow tree a `--skeleton` or `--max-depth` snapshot presents, so a twin below the cut still refuses the ref. Identical twins, such as several identical `Delete` buttons, are refused with `AMBIGUOUS_TARGET`, `details.kind: identity_not_unique`, before anything reaches the app; a live second match is `saved_ref_ambiguous`, and a removed element is `STALE_REF`, `saved_ref_absent`. Take a fresh snapshot after a list changes, and use `--headed mouse-click --xy` when you must pick one of two identical controls.
 - The cursor overlay plays its per-action travel only for headless semantic actions. A `--headed` action moves the real cursor instead.
 

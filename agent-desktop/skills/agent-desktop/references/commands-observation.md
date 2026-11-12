@@ -115,6 +115,8 @@ agent-desktop screenshot --app "Finder" out.png
 agent-desktop screenshot --screen 0 display.png
 ```
 
+On Windows, `screenshot --ocr` adds recognized `lines` and `words` with image-pixel rectangles; `--ocr-query TEXT` narrows that to `ocr_match`, the best word or line with `center_x` and `center_y`. `--ocr-language zh-Hans` pins the engine language. Whitespace-insensitive matching joins per-character words, so a query such as `世界` matches a run of single-character OCR words. Feed `ocr_match.center_x/center_y` to `mouse-click --background --capture-id` when the surface exposes no accessibility tree.
+
 With no path, the PNG returns as base64 in `data`. `--screen` takes a display index from `list-displays`; `0` is the primary display. A screenshot is evidence for you, not proof that an action worked. Permission denial returns `PERM_DENIED` (see the platform skill).
 
 ## list-displays

@@ -26,14 +26,10 @@ impl SystemOps for WindowsAdapter {
         crate::system::cursor_overlay::child::entry_from_env()
     }
 
-    /// The cross-process desktop-interaction lease: an exclusive,
-    /// token-derived lock file when `AGENT_DESKTOP_INTERACTION_LEASE_HANDLE`
-    /// is unset, or adoption of the inherited handle it names - re-verifying
-    /// both the handle's identity and its exclusivity before trusting it,
-    /// because a handle's share mode cannot be read back on Windows and
-    /// identity alone proves naming rather than exclusion - when it is set.
-    /// Mirrors `MacOSAdapter`'s two-branch override over
-    /// `acquire_unix_interaction_lease` / `adopt_inherited_unix_interaction_lease`.
+    /// The cross-process desktop-interaction lease: a token-derived lock file,
+    /// or adoption of the inherited handle named by
+    /// `AGENT_DESKTOP_INTERACTION_LEASE_HANDLE` after re-verifying its identity
+    /// and exclusivity, since a Windows handle's share mode cannot be read back.
     #[cfg(target_os = "windows")]
     fn acquire_interaction_lease(
         &self,
@@ -243,6 +239,16 @@ impl SystemOps for WindowsAdapter {
         deadline: Deadline,
     ) -> Result<ImageBuffer, AdapterError> {
         crate::system::capture::screenshot::screenshot(target, deadline)
+    }
+
+    #[cfg(target_os = "windows")]
+    fn ocr_image(
+        &self,
+        image: &ImageBuffer,
+        language: Option<&str>,
+        deadline: Deadline,
+    ) -> Result<agent_desktop_core::OcrResult, AdapterError> {
+        crate::system::ocr::recognize(image, language, deadline)
     }
 
     #[cfg(target_os = "windows")]

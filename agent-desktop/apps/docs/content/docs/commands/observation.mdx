@@ -185,6 +185,9 @@ agent-desktop screenshot [PATH] [--app NAME] [--window-id ID] [--screen N]
     <tr><td><code>--app NAME</code></td><td>none</td><td>Capture this app's window.</td></tr>
     <tr><td><code>--window-id ID</code></td><td>none</td><td>Capture one window by id.</td></tr>
     <tr><td><code>--screen N</code></td><td>none</td><td>Capture the display at index <code>N</code> of <code>list-displays</code>, where <code>0</code> is the primary. Cannot combine with <code>--app</code> or <code>--window-id</code>.</td></tr>
+    <tr><td><code>--ocr</code></td><td>off</td><td>Windows only. Recognize text in the captured image and add <code>lines</code> and <code>words</code> with image-pixel rectangles.</td></tr>
+    <tr><td><code>--ocr-language TAG</code></td><td>user profile languages</td><td>OCR engine language such as <code>zh-Hans</code> or <code>en-US</code>.</td></tr>
+    <tr><td><code>--ocr-query TEXT</code></td><td>none</td><td>With <code>--ocr</code>, narrow the result to <code>ocr_match</code>: the best-matching word or line with <code>center_x</code> and <code>center_y</code>.</td></tr>
   </tbody>
 </table>
 
@@ -203,7 +206,9 @@ agent-desktop screenshot --screen 0 screen.png
 
 Errors specific to `screenshot`: `PERM_DENIED` without screen-capture permission; `INVALID_ARGS` for `--screen` with a window selector, an out-of-range index, or an unwritable `PATH`; `WINDOW_NOT_FOUND` or `APP_NOT_FOUND` for an unknown target. On Linux, a covered window on a non-compositing window manager fails with `ACTION_FAILED` and `details.reason: "covered"`, and a display capture under a compositing one returns `PLATFORM_NOT_SUPPORTED`.
 
-When the target is a window with bounds, the response also carries `capture_id`, `window_id`, `window_bounds`, `capture_bounds` and `capture_time_ms`. `capture_bounds` is the screen rectangle the image pixels map to, so image pixel `(0,0)` is its top-left. On Windows this is the DWM extended frame, which can differ from `window_bounds` by the invisible resize border. Pass `capture_id` unchanged to `mouse-click --background` to click in image pixels. The id is opaque and bound to the window, its process instance, its bounds and the capture time.
+When the target is a window with bounds, the response also carries `capture_id`, `window_id`, `window_bounds`, `capture_bounds` and `capture_time_ms`. `capture_bounds` is the screen rectangle the image pixels map to, so image pixel `(0,0)` is its top-left. On Windows this is the DWM extended frame, which can differ from `window_bounds` by the invisible resize border. Pass `capture_id` unchanged to `mouse-click --background` to click in image pixels. The id is opaque and bound to the window, its process instance, its bounds and the capture time. A minimized window is captured by restoring it for the capture and minimizing it again.
+
+On Windows, `--ocr` adds the recognized text to `data`. `lines` and `words` carry image-pixel rectangles, and `--ocr-query` adds `ocr_match` with the matched text and its `center_x`/`center_y`. Matching ignores whitespace and case, and joins per-character words, so a query such as `世界` matches a run of single-character OCR words. Pass the center to `mouse-click --background --capture-id` to act on a surface with no accessibility tree.
 
 Platform limits: macOS needs Screen Recording permission, and Wayland asks for portal consent. See [macOS](/desktop/platforms/macos) and [Linux](/desktop/platforms/linux).
 

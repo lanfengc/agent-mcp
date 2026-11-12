@@ -9,7 +9,7 @@ agent-desktop reads Windows apps through UI Automation (UIA). The loop, refs, JS
 ## Requirements
 
 - Windows 10 1809 or later, or Windows Server 2019 or later, on x64 or ARM64.
-- The interactive desktop session of the signed-in user. Session 0 (services and SYSTEM tasks), Server Core, the secure desktop (UAC prompts and the sign-in screen), a locked desktop, and another user's session are not supported.
+- The interactive desktop session of the signed-in user. A command started in another session (session 0, a service or a SYSTEM task) is rerun automatically inside the logged-in desktop when the caller holds `SeTcbPrivilege`, as LocalSystem does; the child inherits stdout and stderr, stdin is attached to `NUL`, and its exit code is returned. Without that privilege the command returns `PERM_DENIED`. Server Core, the secure desktop (UAC prompts and the sign-in screen) and a locked desktop are refused with `PERM_DENIED`: nothing is typed into the secure desktop and no other session is activated.
 - The binary is unsigned. SmartScreen can warn on a browser download, antivirus can quarantine it, and Smart App Control on a clean Windows 11 install blocks it.
 
 ## Permissions and elevation

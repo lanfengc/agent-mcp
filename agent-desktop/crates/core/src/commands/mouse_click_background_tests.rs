@@ -1,6 +1,6 @@
 use super::*;
 use crate::adapter::{ActionOps, InputOps, ObservationOps, SystemOps};
-use crate::{AdapterError, MouseButton, OperationReport, OperationTarget};
+use crate::{AdapterError, BackgroundClickOptions, OperationReport, OperationTarget};
 use crate::{CommandContext, Point, WindowInfo};
 use std::sync::Mutex;
 
@@ -11,8 +11,7 @@ struct BackgroundAdapter {
 
 struct Clicked {
     point: Point,
-    button: MouseButton,
-    count: u32,
+    options: BackgroundClickOptions,
 }
 
 impl ObservationOps for BackgroundAdapter {
@@ -32,15 +31,10 @@ impl InputOps for BackgroundAdapter {
         &self,
         window: &WindowInfo,
         point: Point,
-        button: MouseButton,
-        count: u32,
+        options: BackgroundClickOptions,
         _lease: &crate::InteractionLease,
     ) -> Result<OperationReport, AdapterError> {
-        *self.clicked.lock().unwrap() = Some(Clicked {
-            point,
-            button,
-            count,
-        });
+        *self.clicked.lock().unwrap() = Some(Clicked { point, options });
         Ok(OperationReport::delivered_unverified(
             "mouse-click",
             OperationTarget::for_window(window)?,
@@ -100,10 +94,13 @@ fn execute_click(
             capture_id,
             space: space.into(),
             max_capture_age_ms: 10_000,
+            restore_minimized: false,
+            cursor_fallback: false,
+            semantic: false,
         },
         x,
         y,
-        MouseButton::Left,
+        crate::MouseButton::Left,
         1,
         adapter,
         &CommandContext::default(),
@@ -125,8 +122,11 @@ fn screen_space_keeps_the_requested_point() {
     let clicked = adapter.clicked.lock().unwrap();
     let clicked = clicked.as_ref().unwrap();
     assert_eq!(clicked.point, Point { x: 150.0, y: 260.0 });
-    assert!(matches!(clicked.button, MouseButton::Left));
-    assert_eq!(clicked.count, 1);
+    assert!(matches!(clicked.options.button, crate::MouseButton::Left));
+    assert_eq!(clicked.options.count, 1);
+    assert!(!clicked.options.restore_minimized);
+    assert!(!clicked.options.cursor_fallback);
+    assert!(!clicked.options.semantic);
 }
 
 #[test]
@@ -213,4 +213,42 @@ fn an_unknown_window_is_rejected_before_dispatch() {
 
     assert_eq!(error.code(), "WINDOW_NOT_FOUND");
     assert!(adapter.clicked.lock().unwrap().is_none());
+}
+
+#[test]
+fn minimized_and_cursor_flags_reach_the_adapter() {
+    let bounds = crate::Rect {
+        x: 100.0,
+        y: 200.0,
+        width: 400.0,
+        height: 300.0,
+    };
+    let adapter = adapter(bounds);
+
+    execute(
+        BackgroundClickArgs {
+            window_id: "w-42".into(),
+            capture_id: None,
+            space: "screen".into(),
+            max_capture_age_ms: 10_000,
+            restore_minimized: true,
+            cursor_fallback: true,
+            semantic: true,
+        },
+        150.0,
+        260.0,
+        crate::MouseButton::Right,
+        2,
+        &adapter,
+        &CommandContext::default(),
+    )
+    .unwrap();
+
+    let clicked = adapter.clicked.lock().unwrap();
+    let clicked = clicked.as_ref().unwrap();
+    assert!(clicked.options.restore_minimized);
+    assert!(clicked.options.cursor_fallback);
+    assert!(clicked.options.semantic);
+    assert_eq!(clicked.options.count, 2);
+    assert!(matches!(clicked.options.button, crate::MouseButton::Right));
 }

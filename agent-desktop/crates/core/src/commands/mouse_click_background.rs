@@ -1,6 +1,6 @@
 use crate::{
-    AdapterError, AppError, Deadline, DeliverySemantics, ErrorCode, MouseButton, Point,
-    WindowFilter, WindowInfo, adapter::PlatformAdapter,
+    AdapterError, AppError, BackgroundClickOptions, Deadline, DeliverySemantics, ErrorCode,
+    MouseButton, Point, WindowFilter, WindowInfo, adapter::PlatformAdapter,
     commands::operation_response::operation_response, context::CommandContext,
     system::capture_token::CaptureToken,
 };
@@ -11,6 +11,9 @@ pub struct BackgroundClickArgs {
     pub capture_id: Option<String>,
     pub space: String,
     pub max_capture_age_ms: u64,
+    pub restore_minimized: bool,
+    pub cursor_fallback: bool,
+    pub semantic: bool,
 }
 
 pub fn execute(
@@ -27,13 +30,27 @@ pub fn execute(
     let lease = crate::commands::helpers::acquire_interaction_lease(adapter)?;
     let window = resolve_window(&args.window_id, adapter, deadline)?;
     let (screen_point, image_point) = resolve_point(&args, &window, x, y)?;
-    let report = adapter.background_click(&window, screen_point.clone(), button, count, &lease)?;
+    let report = adapter.background_click(
+        &window,
+        screen_point.clone(),
+        BackgroundClickOptions {
+            button,
+            count,
+            restore_minimized: args.restore_minimized,
+            cursor_fallback: args.cursor_fallback,
+            semantic: args.semantic,
+        },
+        &lease,
+    )?;
     let mut request = json!({
         "window_id": window.id,
         "space": args.space,
         "screen_x": screen_point.x,
         "screen_y": screen_point.y,
         "capture_id": args.capture_id,
+        "restore_minimized": args.restore_minimized,
+        "cursor_fallback": args.cursor_fallback,
+        "semantic": args.semantic,
     });
     if let Some((image_x, image_y)) = image_point {
         request["image_x"] = json!(image_x);

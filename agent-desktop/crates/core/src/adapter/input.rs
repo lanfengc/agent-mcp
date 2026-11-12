@@ -1,6 +1,6 @@
 use crate::{
-    AdapterError, ClipboardContent, ClipboardFormat, Deadline, DragParams, InteractionLease,
-    KeyCombo, MouseButton, MouseEvent, OperationReport, Point, WindowInfo,
+    AdapterError, BackgroundClickOptions, ClipboardContent, ClipboardFormat, Deadline, DragParams,
+    InteractionLease, KeyCombo, MouseEvent, OperationReport, Point, WindowInfo,
 };
 
 /// `get_clipboard`/`set_clipboard` were removed pre-1.0 in favor of
@@ -39,8 +39,7 @@ pub trait InputOps: Send + Sync {
         &self,
         _window: &WindowInfo,
         _point: Point,
-        _button: MouseButton,
-        _count: u32,
+        _options: BackgroundClickOptions,
         _lease: &InteractionLease,
     ) -> Result<OperationReport, AdapterError> {
         Err(AdapterError::not_supported("background_click"))

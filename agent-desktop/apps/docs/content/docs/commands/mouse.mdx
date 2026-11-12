@@ -114,6 +114,9 @@ agent-desktop mouse-click --background --window-id ID --capture-id CAPTURE_ID --
     <tr><td><code>--background</code></td><td>off</td><td>Post the click to <code>--window-id</code> as window messages. Windows only. No cursor movement or focus.</td></tr>
     <tr><td><code>--window-id ID</code></td><td>none</td><td>Target window for <code>--background</code>; required with it and from <code>list-windows</code>.</td></tr>
     <tr><td><code>--capture-id ID</code></td><td>none</td><td>A <code>capture_id</code> from <code>screenshot --window-id</code>; makes <code>--xy</code> image pixels. Requires <code>--background</code>.</td></tr>
+    <tr><td><code>--restore-minimized</code></td><td>off</td><td>With <code>--background</code>, restore a minimized target for the click, then minimize it again.</td></tr>
+    <tr><td><code>--cursor-fallback</code></td><td>off</td><td>With <code>--background</code>, aim the cursor at the point while messages are posted, then restore it, for frameworks that read the physical cursor.</td></tr>
+    <tr><td><code>--semantic</code></td><td>off</td><td>With <code>--background</code>, invoke the UI Automation element at the point instead of posting mouse messages. Works while the window is covered and for frameworks that ignore posted input.</td></tr>
   </tbody>
 </table>
 
@@ -137,9 +140,9 @@ agent-desktop mouse-click --background --window-id ID --capture-id CAPTURE_ID --
 
 `target.point` is where the click was dispatched; it does not prove which app received it. Before you click at bounds read from a snapshot, check `get --property bounds` and its `live` flag.
 
-With `--background`, the report's `details` names the delivery method, the target HWND and the client coordinates. The disposition is `delivered_unverified`: the posted messages were accepted, not proven to have changed the app, so verify from fresh state. The command refuses the click when the window moved or resized since the capture, its process instance changed, the capture is older than the capture-age limit (10 seconds by default), the window is minimized, or the point is outside the client area. Set `AGENT_DESKTOP_MAX_CAPTURE_AGE_MS` to a larger millisecond value when a vision round-trip is slower than 10 seconds. `--background` is Windows only; other platforms return `ACTION_NOT_SUPPORTED`.
+With `--background`, the report's `details` names the delivery method, the target HWND and the client coordinates. The disposition is `delivered_unverified`: the posted messages were accepted, not proven to have changed the app, so verify from fresh state. The command refuses the click when the window moved or resized since the capture, its process instance changed, the capture is older than the capture-age limit (10 seconds by default), the window is minimized without `--restore-minimized`, or the point is outside the client area. `--restore-minimized` restores the window for the click and minimizes it again. `--cursor-fallback` aims the cursor at the point while the messages are posted and restores it afterwards. `--semantic` invokes the UI Automation element under the point from the target window's own subtree, so it also works while another window covers the target; `details.method` reports `UIA.Invoke`. Set `AGENT_DESKTOP_MAX_CAPTURE_AGE_MS` to a larger millisecond value when a vision round-trip is slower than 10 seconds. `--background` is Windows only; other platforms return `ACTION_NOT_SUPPORTED`.
 
-Some frameworks ignore posted messages. A classic Win32 button was verified to click while its window was unfocused and the cursor was elsewhere. A WinForms control may check the physical cursor position and do nothing when the cursor is elsewhere. Use a ref action when the control has one, and verify every background click.
+Some frameworks ignore posted messages. A classic Win32 button was verified to click while its window was unfocused and the cursor was elsewhere. A WinForms control checks the physical cursor position and async key state, so a posted click and `--cursor-fallback` do nothing; `--semantic` invokes it. Use a ref action when the control has one, and verify every background click.
 
 ## mouse-down
 

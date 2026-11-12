@@ -14,9 +14,14 @@ fn mouse_click() -> Commands {
         button: "left".into(),
         count: 1,
         modifiers: Vec::new(),
-        background: true,
-        window_id: Some("w-1".into()),
-        capture_id: None,
+        background: crate::cli_args::actions::BackgroundClickFlags {
+            background: true,
+            window_id: Some("w-1".into()),
+            capture_id: None,
+            restore_minimized: false,
+            cursor_fallback: false,
+            semantic: false,
+        },
     })
 }
 

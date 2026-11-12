@@ -14,7 +14,11 @@ Local modifications:
 - Added background window clicks: `mouse-click --background --window-id --capture-id`, implemented with `PostMessageW` in `agent-desktop/crates/windows/src/input/mouse/mouse_background.rs` and dispatched through `agent-desktop/crates/core/src/commands/mouse_click_background.rs`.
 - Added capture metadata: `capture_id`, `window_id`, `window_bounds`, `capture_bounds` and `capture_time_ms` on window screenshots, bound by `agent-desktop/crates/core/src/system/capture_token.rs`. Windows capture bounds come from `DWMWA_EXTENDED_FRAME_BOUNDS`.
 - Added execution policy: `AGENT_DESKTOP_READ_ONLY`, `AGENT_DESKTOP_ALLOWED_COMMANDS`, `AGENT_DESKTOP_AUDIT_LOG` and `AGENT_DESKTOP_MAX_CAPTURE_AGE_MS`, in `agent-desktop/src/command_policy/safety.rs` and `agent-desktop/src/dispatch/keyboard_mouse.rs`.
-- Updated the matching skills under `agent-desktop/skills/` and the documentation under `agent-desktop/docs/` and `agent-desktop/apps/docs/`.
+- Added Windows OCR fallback: `screenshot --ocr`, `--ocr-language` and `--ocr-query`, using `Windows.Media.Ocr` in `agent-desktop/crates/windows/src/system/ocr.rs`, with shared result types in `agent-desktop/crates/core/src/system/ocr_*.rs` and query matching in `agent-desktop/crates/core/src/commands/screenshot.rs`.
+- Added minimized-window capture: `screenshot --window-id` restores a minimized window for `PrintWindow` and minimizes it again, in `agent-desktop/crates/windows/src/system/capture/capture_window.rs`; window geometry uses the placement's normal rectangle in `window_enum.rs`.
+- Extended background clicks with `--restore-minimized`, `--cursor-fallback` and `--semantic`, in `agent-desktop/crates/windows/src/input/mouse/mouse_background.rs` and `mouse_background_semantic.rs`, with options in `agent-desktop/crates/core/src/input/background_click_options.rs`.
+- Added session placement recovery: a command started in another WTS session is relaunched on the active user's `Default` desktop through `WTSQueryUserToken` and `CreateProcessAsUserW` when the caller holds `SeTcbPrivilege`; locked, secure and absent desktops are refused. See `agent-desktop/src/desktop_session.rs` and `agent-desktop/crates/windows/src/system/session_probe.rs` / `session_relaunch.rs`.
+- Updated the matching skills under `agent-desktop/skills/` and the documentation under `agent-desktop/docs/` and `agent-desktop/apps/docs/`. New CLI flags are exposed to MCP automatically from the clap command tree.
 
 ## agent-browser
 

@@ -1,3 +1,4 @@
+pub(crate) mod background_click_options;
 pub(crate) mod clipboard_content;
 pub(crate) mod clipboard_format;
 pub(crate) mod direction;
