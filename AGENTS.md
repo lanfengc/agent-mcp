@@ -6,11 +6,12 @@ This repository holds two imported upstream projects side by side. Each director
 
 - `agent-desktop/` is a Cargo workspace: `crates/core`, `crates/windows`, `src/` for the CLI, `skills/` for compiled-in skills.
 - `agent-browser/` is a pnpm workspace; its Rust CLI is a separate Cargo package at `agent-browser/cli/`.
-- `scripts/build-windows.ps1` builds both binaries. It does not touch either project's own build files.
+- `bin/` holds the two built entry points, `agent-desktop.exe` and `agent-browser.exe`; the build script copies them there and git ignores the directory.
+- `scripts/build-windows.ps1` builds both binaries and refreshes `bin/`. It does not touch either project's own build files.
 
 ## Rules
 
-- Local modifications are limited to the desktop background-click patch and the browser persistent-profile default listed in `THIRD_PARTY_NOTICES.md`. Do not add app-specific branches to imported code.
+- Local modifications are listed in `THIRD_PARTY_NOTICES.md`. Do not add app-specific branches to imported code.
 - Keep each project's build system independent. Do not add a root Cargo workspace, pnpm workspace or shared lockfile.
 - Follow the desktop commit rules: Conventional Commits, lowercase after the colon, linear `main`, no `Co-Authored-By` lines, no AI attribution and no "Generated with" footers.
 - `agent-desktop` rejects inline comments, hand-written Rust files over 400 lines, structs over 7 fields and functions over 5 parameters. Its tests sit beside their code.

@@ -22,6 +22,8 @@ if ($Release) {
     $cargoArgs += '--release'
 }
 $profile = if ($Release) { 'release' } else { 'debug' }
+$binDir = Join-Path $root 'bin'
+New-Item -ItemType Directory -Force -Path $binDir | Out-Null
 
 function Invoke-Cargo {
     param([string]$Directory, [string[]]$Arguments)
@@ -41,7 +43,10 @@ if (-not $SkipDesktop) {
     $desktop = Join-Path $root 'agent-desktop'
     Invoke-Cargo -Directory $desktop -Arguments ($cargoArgs + @('-p', 'agent-desktop'))
     $desktopExe = Join-Path $desktop "target\$profile\agent-desktop.exe"
+    $desktopEntry = Join-Path $binDir 'agent-desktop.exe'
+    Copy-Item -Path $desktopExe -Destination $desktopEntry -Force
     Write-Host "desktop: $desktopExe"
+    Write-Host "entry:   $desktopEntry"
 }
 
 if (-not $SkipBrowser) {
@@ -53,16 +58,21 @@ if (-not $SkipBrowser) {
         'ARM64' { 'arm64' }
         default { 'x64' }
     }
-    $binDir = Join-Path $browser 'bin'
-    New-Item -ItemType Directory -Force -Path $binDir | Out-Null
-    $launcherExe = Join-Path $binDir "agent-browser-win32-$arch.exe"
+    $browserBin = Join-Path $browser 'bin'
+    New-Item -ItemType Directory -Force -Path $browserBin | Out-Null
+    $launcherExe = Join-Path $browserBin "agent-browser-win32-$arch.exe"
     Copy-Item -Path $browserExe -Destination $launcherExe -Force
+    $browserEntry = Join-Path $binDir 'agent-browser.exe'
+    Copy-Item -Path $browserExe -Destination $browserEntry -Force
     Write-Host "browser: $browserExe"
+    Write-Host "entry:   $browserEntry"
     Write-Host "launcher: $launcherExe"
 }
 
 Write-Host ''
-$versionExe = Join-Path (Join-Path $root 'agent-desktop\target') "$profile\agent-desktop.exe"
-if (Test-Path $versionExe) {
-    & $versionExe --version
+if (-not $SkipDesktop) {
+    $versionExe = Join-Path $binDir 'agent-desktop.exe'
+    if (Test-Path $versionExe) {
+        & $versionExe --version
+    }
 }
