@@ -423,6 +423,7 @@ mod tests {
 
     #[test]
     #[ignore = "internal subprocess helper"]
+    #[allow(clippy::zombie_processes)]
     fn tree_helper() {
         std::fs::write(test_dir().join("desktop.txt"), desktop_name()).unwrap();
         let mut leaf = Command::new(std::env::current_exe().unwrap())

@@ -129,8 +129,7 @@ fn found_event(outcome: Result<Value, AppError>) -> Value {
     assert_eq!(body["found"], Value::Bool(true));
     assert!(
         body["elapsed_ms"].is_number(),
-        "the success envelope must carry elapsed_ms, the shape macOS's own wait success \
-         payload carries: {body}"
+        "the success envelope must carry elapsed_ms on a found wait: {body}"
     );
     body["event"].clone()
 }

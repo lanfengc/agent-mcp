@@ -19,7 +19,7 @@ Capture browser automation as video for debugging, documentation, or verificatio
 
 ## Requirements
 
-Recording pipes frames into `ffmpeg`, which must be on `PATH` with the `libvpx` and `libx264` encoders. Install it with `brew install ffmpeg` (macOS) or `sudo apt install ffmpeg` (Debian/Ubuntu); `agent-browser doctor` reports it under "Recording". Nothing else in agent-browser needs ffmpeg.
+Recording pipes frames into `ffmpeg`, which must be on `PATH` with the `libvpx` and `libx264` encoders. Install it with `winget install --id Gyan.FFmpeg` or from [ffmpeg.org](https://ffmpeg.org/download.html); `agent-browser doctor` reports it under "Recording". Nothing else in agent-browser needs ffmpeg.
 
 Supported formats are `.webm` (VP8 via libvpx) and `.mp4` (H.264 via libx264). Other extensions are handed to ffmpeg as-is with H.264 video. A path with no extension is rejected before recording starts.
 

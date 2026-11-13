@@ -195,20 +195,11 @@ unsafe fn decode_core_ref_entry(
             ));
         }
     };
-    let required_space = if cfg!(target_os = "linux") {
-        agent_desktop_core::BoundsSpace::Window
-    } else {
-        agent_desktop_core::BoundsSpace::Screen
-    };
+    let required_space = agent_desktop_core::BoundsSpace::Screen;
     if bounds_hash.is_some() && bounds_space != Some(required_space) {
-        let frame = if cfg!(target_os = "linux") {
-            "window"
-        } else {
-            "screen"
-        };
         return Err(AdapterError::new(
             ErrorCode::InvalidArgs,
-            format!("Ref geometry requires {frame}-relative bounds on this platform"),
+            "Ref geometry requires screen-relative bounds".to_string(),
         ));
     }
     let decoded = CoreRefEntry {

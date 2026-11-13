@@ -217,7 +217,7 @@ fn focus_lost_before_delivery_wire_shape() {
 }
 
 #[test]
-fn drag_abort_error_wire_matches_macos_structure() {
+fn drag_abort_error_wire_carries_the_delivery_details() {
     let mut guard = DragReleaseGuard::new(NormalizedPoint {
         x: 111,
         y: 222,
@@ -259,7 +259,7 @@ fn drag_pre_injection_error_wire_is_not_delivered() {
 }
 
 #[test]
-fn chord_abort_error_wire_matches_macos_structure() {
+fn chord_abort_error_wire_carries_the_delivery_details() {
     let mut guard = KeyReleaseGuard::new();
     guard.note_pressed(0x11);
     let error = guard.enrich_error(AdapterError::timeout("deadline"));

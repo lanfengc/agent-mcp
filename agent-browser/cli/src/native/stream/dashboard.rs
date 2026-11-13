@@ -955,23 +955,6 @@ async fn kill_session(body: &str) -> Result<String, String> {
         .parse()
         .map_err(|_| format!("Invalid PID in file: {}", pid_str.trim()))?;
 
-    #[cfg(unix)]
-    {
-        // SAFETY: The PID came from the daemon-managed pidfile and is only used
-        // to send standard termination signals to that process.
-        unsafe {
-            libc::kill(pid as i32, libc::SIGTERM);
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-        // SAFETY: A signal value of 0 performs an existence check on the same pid.
-        if unsafe { libc::kill(pid as i32, 0) } == 0 {
-            // SAFETY: The process still exists after SIGTERM, so escalate to SIGKILL.
-            unsafe {
-                libc::kill(pid as i32, libc::SIGKILL);
-            }
-        }
-    }
-
     // A daemon that exited on SIGTERM already cleaned up after itself; one
     // that had to be killed left its files behind.
     if owns_session(&dir, session, pid) {

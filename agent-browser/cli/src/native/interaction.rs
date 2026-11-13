@@ -352,8 +352,8 @@ pub async fn press_key(client: &CdpClient, session_id: &str, key: &str) -> Resul
 /// Modifier values follow the CDP `Input.dispatchKeyEvent` spec:
 /// 1 = Alt, 2 = Control, 4 = Meta (Cmd), 8 = Shift.
 ///
-/// Callers that need a platform-appropriate modifier (e.g. Cmd on macOS,
-/// Ctrl elsewhere) must choose the value themselves -- see `cfg!(target_os)`.
+/// Callers that need a different modifier (for example Meta instead of
+/// Control) must choose the value themselves.
 pub async fn press_key_with_modifiers(
     client: &CdpClient,
     session_id: &str,

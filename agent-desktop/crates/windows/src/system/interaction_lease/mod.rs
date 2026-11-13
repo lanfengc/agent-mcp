@@ -1,7 +1,7 @@
 //! The Windows cross-process desktop-interaction lease.
 //!
 //! An exclusive `CreateFileW` open of a canonical, token-derived lock file
-//! gives Windows the exclusivity property macOS gets from `flock`. An
+//! gives the desktop exclusivity across processes. An
 //! inherited handle is adoptable only after two independent checks both
 //! pass: a **file-identity** comparison against the canonical path, and an
 //! **exclusivity probe**, because a handle's share mode cannot be read back
@@ -70,7 +70,7 @@ pub(crate) fn canonical_lock_path_at(root: &Path) -> Result<PathBuf, AdapterErro
     lock_path_under(root)
 }
 
-/// Test-only seam mirroring core's `acquire_unix_interaction_lease_at`: the
+/// Test-only seam: the
 /// only way this module's own contention/adoption/directory tests can run
 /// without contending for the real machine-global lock. `acquire` and
 /// `adopt_inherited` above are the only production callers of the resolver,

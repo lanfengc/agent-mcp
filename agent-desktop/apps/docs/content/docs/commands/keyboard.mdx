@@ -1,7 +1,7 @@
 ---
 title: Keyboard commands
 navTitle: Keyboard
-description: Reference for press, key-down, and key-up. press sends key combos; the held-input commands fail closed on every platform.
+description: Reference for press, key-down, and key-up. press sends key combos; the held-input commands fail closed on Windows.
 ---
 
 `press` is the only command that delivers keys. `key-down` and `key-up` are reserved names: they validate their argument and then refuse. To insert text into a field, use [`type`](/desktop/commands/interaction#type) or [`set-value`](/desktop/commands/interaction#set-value).
@@ -13,7 +13,7 @@ Sends a key combo to the focused window, or to one app.
 ```bash
 agent-desktop press COMBO [--app NAME] [--window-id ID] [--force]
 agent-desktop press ctrl+shift+z
-agent-desktop press return --app gnome-calculator
+agent-desktop press return --app notepad.exe
 ```
 
 <table>
@@ -28,7 +28,7 @@ agent-desktop press return --app gnome-calculator
   </tbody>
 </table>
 
-The combo is lowercased and stripped of spaces, so `Ctrl + A` is `ctrl+a`. Modifiers are `meta` (aliases `cmd`, `command`, `super`, `win`: Command on macOS, the Windows key on Windows, Super on Linux), `ctrl` (`control`), `alt` (`option`), and `shift`. A bare uppercase letter adds Shift. Key names that work everywhere are `return`, `escape`, `tab`, `space`, `delete`, `up`, `down`, `left`, `right`, and `f1` to `f12`. Copy is `cmd+c` on macOS and `ctrl+c` elsewhere.
+The combo is lowercased and stripped of spaces, so `Ctrl + A` is `ctrl+a`. Modifiers are `meta` (aliases `cmd`, `command`, `super`, `win`: the Windows key), `ctrl` (`control`), `alt` (`option`), and `shift`. A bare uppercase letter adds Shift. Key names that work on Windows are `return`, `escape`, `tab`, `space`, `delete`, `up`, `down`, `left`, `right`, and `f1` to `f12`. Copy is `ctrl+c`.
 
 Keys are physical keyboard input, and `press` does not need `--headed` for an unscoped press. The result is always `delivered_unverified`, because delivery does not prove the shortcut did anything:
 
@@ -40,12 +40,12 @@ Keys are physical keyboard input, and `press` does not need `--headed` for an un
   "data": {
     "action": "press",
     "disposition": { "delivery": "delivered_unverified", "retry": "unsafe" },
-    "steps": [{ "label": "XTEST.press_key", "mechanism": "physical_synthetic", "outcome": "succeeded", "verified": false }]
+    "steps": [{ "label": "SendInput.press_key", "mechanism": "physical_synthetic", "outcome": "succeeded", "verified": false }]
   }
 }
 ```
 
-The step label names the platform mechanism; this one is Linux X11. With [post-action wait flags](/desktop/configuration#post-action-wait-flags), the press report moves under `data.after_action`.
+The step label names the platform mechanism; this build reports `SendInput.press_key`. With [post-action wait flags](/desktop/configuration#post-action-wait-flags), the press report moves under `data.after_action`.
 
 Errors specific to `press`:
 
@@ -54,7 +54,7 @@ Errors specific to `press`:
 - `ACTION_FAILED` with `details.cause: "frame_not_active"`: a headless scoped press to an app whose window is not active. Nothing is sent. Bring the window forward, or pass `--headed` if focus changes are permitted.
 - `TIMEOUT` with `details.kind: "wait_timeout"`: a `--wait-for` selector never matched. The keys were already delivered, so do not repeat the press blindly.
 
-Platform limits: each platform has its own key names, blocked combos, and scoped-press rules. See [macOS](/desktop/platforms/macos#keys-and-notifications), [Windows](/desktop/platforms/windows#keys), and [Linux](/desktop/platforms/linux).
+Platform limits: key names, blocked combos, and scoped-press rules are on [Windows](/desktop/platforms/windows#keys).
 
 ## key-down
 
@@ -64,7 +64,7 @@ Reserved name for holding a key down. It never sends input.
 agent-desktop key-down COMBO [--force]
 ```
 
-A held key needs a process that can guarantee its release, and every agent-desktop command is a short-lived process. So on every platform, headless or headed, the command parses the combo (`INVALID_ARGS` if bad), applies the blocked-combo check (`POLICY_DENIED` unless `--force`), and then refuses:
+A held key needs a process that can guarantee its release, and every agent-desktop command is a short-lived process. So on Windows, headless or headed, the command parses the combo (`INVALID_ARGS` if bad), applies the blocked-combo check (`POLICY_DENIED` unless `--force`), and then refuses:
 
 ```json
 {

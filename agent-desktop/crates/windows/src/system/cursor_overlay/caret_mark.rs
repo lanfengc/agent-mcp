@@ -9,7 +9,7 @@ pub(crate) use imp::CaretMark;
 use agent_desktop_core::{CURSOR_SAME_POINT, Point};
 
 /// Whether moving the cursor from `from` to `to` leaves the place it was:
-/// [`CURSOR_SAME_POINT`] or more away, the way the macOS renderer decides.
+/// [`CURSOR_SAME_POINT`] or more away.
 pub(crate) fn leaves(from: &Point, to: &Point) -> bool {
     (to.x - from.x).hypot(to.y - from.y) >= CURSOR_SAME_POINT
 }

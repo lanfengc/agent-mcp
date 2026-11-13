@@ -38,9 +38,8 @@ pub(crate) fn resolve_walk_budget(deadline: Deadline) -> WalkBudget {
 
 /// The incomplete-and-retryable answer: a candidate that could not be read is
 /// not a non-match. Core owns the payload
-/// (`agent_desktop_core::refs::resolve_errors::identity_unknown_error`) because it
-/// is byte-identical to macOS's `identity_unknown` - a `complete: false,
-/// retryable: true` stamp so the caller's loop retries it.
+/// (`agent_desktop_core::refs::resolve_errors::identity_unknown_error`) - a
+/// `complete: false, retryable: true` stamp so the caller's loop retries it.
 pub(crate) use agent_desktop_core::refs::resolve_errors::identity_unknown_error;
 
 /// Whether the stored path is scoped to the window root rather than to a

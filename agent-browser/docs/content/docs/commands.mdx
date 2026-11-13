@@ -621,7 +621,7 @@ See [React & Web Vitals](/react) for full command details and examples.
 
 ## Accessibility audits
 
-Run an embedded axe-core audit against the current page or navigate to a URL first. The vendored engine works without a CDN request and runs under strict page CSP. It runs private partial audits across the page's frame tree and merges serialized results without page messaging, so page-provided `window.axe` values remain intact and iframe violations retain their frame selector paths. Accessibility audits require a CDP browser and are not available with Safari or iOS WebDriver sessions.
+Run an embedded axe-core audit against the current page or navigate to a URL first. The vendored engine works without a CDN request and runs under strict page CSP. It runs private partial audits across the page's frame tree and merges serialized results without page messaging, so page-provided `window.axe` values remain intact and iframe violations retain their frame selector paths. Accessibility audits require a CDP browser.
 
 ```bash
 agent-browser a11y                                 # Audit the current page
@@ -661,20 +661,19 @@ See [Init Scripts & Extensions](/init-scripts) for launch-time scripts, script r
 --proxy <url>            # Proxy server URL
 --proxy-bypass <hosts>   # Hosts to bypass proxy
 --ignore-https-errors    # Ignore HTTPS certificate errors
---ca-cert <path>         # Trust a CA for CLI requests, and for local Chromium on Linux
+--ca-cert <path>         # Trust a CA for CLI HTTPS requests
 --no-ca-cert             # Clear CA trust retained by the running session
 --use-system-ca          # Use the OS trust store for CLI requests (read, install, upgrade, doctor)
 --allow-file-access      # Allow file:// URLs to access local files (Chromium only)
 --hide-scrollbars <bool> # Hide native scrollbars in headless Chromium screenshots
 -p, --provider <name>    # Browser provider or configured provider plugin
---device <name>          # iOS device name (e.g., "iPhone 15 Pro")
 --json                   # JSON output (for scripts)
 --annotate               # Annotated screenshot with numbered element labels
 --screenshot-dir <path>   # Default screenshot output directory (or AGENT_BROWSER_SCREENSHOT_DIR)
 --screenshot-quality <n>  # JPEG quality 0-100 (or AGENT_BROWSER_SCREENSHOT_QUALITY)
 --screenshot-format <fmt> # Format: png (default), jpeg (or AGENT_BROWSER_SCREENSHOT_FORMAT)
 --headed                 # Show browser window (not headless)
---webgpu                 # Enable WebGPU (software Vulkan on Linux, no GPU needed)
+--webgpu                 # Enable WebGPU (software rendering when no GPU is available)
 --no-webmcp              # Disable default experimental WebMCP Chrome features (or AGENT_BROWSER_NO_WEBMCP env)
 --cdp <port|url>         # Connect via CDP; root WebSocket query slash is optional
 --cdp-headers <json>     # Headers for --cdp discovery and WebSocket handshake (or AGENT_BROWSER_CDP_HEADERS env)
@@ -763,8 +762,6 @@ Starts a Model Context Protocol server over stdio. MCP clients launch this comma
 
 For tool calls that run the CLI, `structuredContent.response` contains parsed CLI JSON. `stdout` is included only when the output cannot be parsed as JSON; `exitCode` and `stderr` are always included.
 
-In a Vercel Sandbox, `startAgentBrowserMcp` runs the server over the sandbox command's stdin. See [Next.js + Vercel](/next#mcp-server-over-stdin).
-
 The default tools profile is `core`, which keeps MCP context small for everyday browser automation. Use `--tools all` for the full typed CLI parity surface, or combine profiles with commas, such as `--tools core,network,react`.
 
 Profiles:
@@ -791,7 +788,7 @@ Example MCP client config:
 }
 ```
 
-With `--tools all`, the server exposes typed tools across the CLI command surface, including navigation, snapshots, input, waits, screenshots/PDF, get/is/find, mouse, network, storage, cookies, tabs, windows, frames, dialogs, tracing, recording, accessibility audits, clipboard, auth, state, iOS, diff, React, vitals, sessions, skills, plugins, doctor, dashboard, install, upgrade, chat, eval, and close.
+With `--tools all`, the server exposes typed tools across the CLI command surface, including navigation, snapshots, input, waits, screenshots/PDF, get/is/find, mouse, network, storage, cookies, tabs, windows, frames, dialogs, tracing, recording, accessibility audits, clipboard, auth, state, diff, React, vitals, sessions, skills, plugins, doctor, dashboard, install, upgrade, chat, eval, and close.
 
 Common tools include:
 

@@ -1,6 +1,6 @@
 [workspace]
-members         = ["crates/core", "crates/macos", "crates/windows", "crates/linux", "crates/ffi", "src"]
-default-members = ["crates/core", "crates/macos", "crates/windows", "crates/linux", "src"]
+members         = ["crates/core", "crates/windows", "crates/ffi", "src"]
+default-members = ["crates/core", "crates/windows", "src"]
 resolver = "2"
 
 [workspace.package]
@@ -50,9 +50,6 @@ strip         = true
 panic         = "abort"
 
 [profile.release.package.agent-desktop-core]
-opt-level = 3
-
-[profile.release.package.agent-desktop-macos]
 opt-level = 3
 
 [profile.ci]

@@ -2,7 +2,7 @@
 /**
  * jev-desktop: one goal in, a desktop driven to it.
  *
- *   node scripts/jev/run.mjs --app Finder "open the Applications folder"
+ *   node scripts/jev/run.mjs --app explorer.exe "open the Documents folder"
  *
  * The caller states a goal once. Each turn reads the live accessibility tree,
  * asks for one operation and a target for that operation, carries it out, and

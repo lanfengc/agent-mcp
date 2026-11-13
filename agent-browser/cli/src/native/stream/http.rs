@@ -7,8 +7,6 @@ use tokio::sync::RwLock;
 
 #[cfg(windows)]
 use crate::connection::resolve_port;
-#[cfg(unix)]
-use crate::session_files::SessionFile;
 
 use super::chat::{chat_status_json, handle_chat_request, handle_models_request};
 use super::dashboard::spawn_session;
@@ -409,14 +407,6 @@ pub(super) async fn relay_command_to_daemon(
     let mut json_str = serde_json::to_string(&cmd).map_err(|e| e.to_string())?;
     json_str.push('\n');
 
-    #[cfg(unix)]
-    let stream = {
-        let socket_path = SessionFile::Socket.path(session_name);
-        tokio::net::UnixStream::connect(&socket_path)
-            .await
-            .map_err(|e| format!("Failed to connect to daemon: {}", e))?
-    };
-
     #[cfg(windows)]
     let stream = {
         let port = resolve_port(session_name)
@@ -487,11 +477,9 @@ pub(super) fn serve_embedded_file(url_path: &str) -> (&'static str, &'static str
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::EnvGuard;
     use std::sync::Arc;
-    use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
-    use tokio::sync::oneshot;
 
     #[test]
     fn parse_content_length_handles_spacing_case_and_unicode_header_values() {
@@ -544,75 +532,6 @@ mod tests {
         server.await.unwrap();
 
         String::from_utf8(response).unwrap()
-    }
-
-    #[cfg(unix)]
-    async fn spawn_fake_daemon(
-        socket_dir: &std::path::Path,
-        session_name: &str,
-    ) -> oneshot::Receiver<String> {
-        let socket_path = socket_dir.join(format!("{session_name}.sock"));
-        let _ = std::fs::remove_file(&socket_path);
-        let listener = tokio::net::UnixListener::bind(&socket_path).unwrap();
-        let (tx, rx) = oneshot::channel();
-
-        tokio::spawn(async move {
-            let (stream, _) = listener.accept().await.unwrap();
-            let mut reader = tokio::io::BufReader::new(stream);
-            let mut line = String::new();
-            reader.read_line(&mut line).await.unwrap();
-
-            let mut stream = reader.into_inner();
-            stream
-                .write_all(br#"{"success":true,"data":{"ok":true}}"#)
-                .await
-                .unwrap();
-            stream.write_all(b"\n").await.unwrap();
-            let _ = tx.send(line);
-        });
-
-        rx
-    }
-
-    #[cfg(unix)]
-    #[tokio::test(flavor = "current_thread")]
-    async fn cross_origin_command_post_is_rejected_without_relaying_to_daemon() {
-        let temp_parent = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("target")
-            .join("t");
-        std::fs::create_dir_all(&temp_parent).unwrap();
-        let socket_dir = tempfile::Builder::new()
-            .prefix("ab-")
-            .tempdir_in(temp_parent)
-            .unwrap();
-        let guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR", "XDG_RUNTIME_DIR"]);
-        guard.set(
-            "AGENT_BROWSER_SOCKET_DIR",
-            socket_dir.path().to_str().unwrap(),
-        );
-        guard.remove("XDG_RUNTIME_DIR");
-
-        let session_name = "x";
-        let daemon_command = spawn_fake_daemon(socket_dir.path(), session_name).await;
-        let body = r#"{"action":"tabs"}"#;
-        let request = format!(
-            "POST /api/command HTTP/1.1\r\nHost: localhost:7777\r\nOrigin: https://evil.example\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
-            body.len(),
-            body
-        );
-
-        let response = send_request_to_handler(&request, session_name).await;
-
-        assert!(
-            response.starts_with("HTTP/1.1 403 Forbidden"),
-            "unexpected response: {response}"
-        );
-        assert!(
-            tokio::time::timeout(std::time::Duration::from_millis(50), daemon_command)
-                .await
-                .is_err(),
-            "cross-origin request reached daemon command relay"
-        );
     }
 
     #[tokio::test(flavor = "current_thread")]
@@ -699,54 +618,5 @@ mod tests {
             !response.contains("Access-Control-Allow-Origin: *"),
             "forbidden command response exposed wildcard CORS: {response}"
         );
-    }
-
-    #[cfg(unix)]
-    #[tokio::test(flavor = "current_thread")]
-    async fn same_origin_command_post_relays_without_wildcard_cors() {
-        let temp_parent = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("target")
-            .join("t");
-        std::fs::create_dir_all(&temp_parent).unwrap();
-        let socket_dir = tempfile::Builder::new()
-            .prefix("ab-")
-            .tempdir_in(temp_parent)
-            .unwrap();
-        let guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR", "XDG_RUNTIME_DIR"]);
-        guard.set(
-            "AGENT_BROWSER_SOCKET_DIR",
-            socket_dir.path().to_str().unwrap(),
-        );
-        guard.remove("XDG_RUNTIME_DIR");
-
-        let session_name = "x";
-        let daemon_command = spawn_fake_daemon(socket_dir.path(), session_name).await;
-        let body = r#"{"action":"tabs"}"#;
-        let request = format!(
-            "POST /api/command HTTP/1.1\r\nHost: localhost:7777\r\nOrigin: http://localhost:7777\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
-            body.len(),
-            body
-        );
-
-        let response = send_request_to_handler(&request, session_name).await;
-
-        assert!(
-            response.starts_with("HTTP/1.1 200 OK"),
-            "unexpected response: {response}"
-        );
-        assert!(
-            response.contains("Access-Control-Allow-Origin: http://localhost:7777"),
-            "same-origin command response did not reflect origin: {response}"
-        );
-        assert!(
-            !response.contains("Access-Control-Allow-Origin: *"),
-            "same-origin command response exposed wildcard CORS: {response}"
-        );
-
-        let relayed = tokio::time::timeout(std::time::Duration::from_secs(1), daemon_command)
-            .await
-            .unwrap()
-            .unwrap();
-        assert!(relayed.contains(r#""action":"tabs""#), "{relayed}");
     }
 }

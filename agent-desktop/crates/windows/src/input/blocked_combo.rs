@@ -4,7 +4,7 @@
 //! (`crates/core/src/adapter/system.rs`); the Windows adapter's
 //! `is_blocked_combo` override calls this module to supply the list. The list
 //! is reasoned from Windows semantics, not
-//! translated from macOS's `cmd+q`-shaped set, which has no Windows meaning.
+//! translated from another platform's shortcut set, which has no Windows meaning.
 //! One question decides membership: does the shortcut take the foreground
 //! away from the run, or change the session out from under it? `alt+f4`
 //! closes the active window, `win+l` locks the session, `win+d` shows the

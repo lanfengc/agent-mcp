@@ -129,12 +129,8 @@ fn push_checks(checks: &mut Vec<Check>, probe: &FfmpegProbe, os: &str) {
 }
 
 /// Package-manager command for a machine without ffmpeg.
-fn install_hint(os: &str) -> String {
-    match os {
-        "macos" => "brew install ffmpeg".to_string(),
-        "linux" => "apt install ffmpeg (Debian/Ubuntu)".to_string(),
-        _ => "install ffmpeg from https://ffmpeg.org/download.html and add it to PATH".to_string(),
-    }
+fn install_hint(_os: &str) -> String {
+    "install ffmpeg from https://ffmpeg.org/download.html and add it to PATH".to_string()
 }
 
 /// Hint for a machine whose ffmpeg is present but lacks an encoder.
@@ -196,13 +192,13 @@ fn parse_encoders(stdout: &str) -> Vec<String> {
 mod tests {
     use super::*;
 
-    const VERSION_OUTPUT: &str = "ffmpeg version 8.1 Copyright (c) 2000-2026 the FFmpeg developers\nbuilt with Apple clang version 21.0.0\nconfiguration: --prefix=/opt/homebrew --enable-libvpx --enable-libx264\n";
+    const VERSION_OUTPUT: &str = "ffmpeg version 8.1 Copyright (c) 2000-2026 the FFmpeg developers\nbuilt with Microsoft (R) C/C++ Optimizing Compiler Version 19.44.35211 for x64\nconfiguration: --prefix=C:/ffmpeg --enable-libvpx --enable-libx264\n";
 
     const ENCODERS_OUTPUT: &str = "Encoders:\n V..... = Video\n A..... = Audio\n S..... = Subtitle\n .F.... = Frame-level multithreading\n ..S... = Slice-level multithreading\n ...X.. = Codec is experimental\n ....B. = Supports draw_horiz_band\n .....D = Supports direct rendering method 1\n ------\n V....D a64multi             Multicolor charset for Commodore 64 (codec a64_multi)\n V....D libx264              libx264 H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10 (codec h264)\n V....D libx264rgb           libx264 H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10 RGB (codec h264)\n V....D libvpx               libvpx VP8 (codec vp8)\n V....D libvpx-vp9           libvpx VP9 (codec vp9)\n A....D aac                  AAC (Advanced Audio Coding)\n";
 
     fn found(version: Option<&str>, encoders: Option<&[&str]>) -> FfmpegProbe {
         FfmpegProbe::Found {
-            path: PathBuf::from("/opt/homebrew/bin/ffmpeg"),
+            path: PathBuf::from(r"C:\ffmpeg\bin\ffmpeg.exe"),
             version: version.map(String::from),
             encoders: encoders.map(|e| e.iter().map(|s| s.to_string()).collect()),
         }
@@ -248,7 +244,7 @@ mod tests {
 
     #[test]
     fn missing_ffmpeg_is_a_warning_with_an_install_hint() {
-        let checks = run(&FfmpegProbe::Missing, "macos");
+        let checks = run(&FfmpegProbe::Missing, "windows");
         assert_eq!(checks.len(), 1);
         let c = &checks[0];
         assert_eq!(c.id, "recording.ffmpeg");
@@ -256,16 +252,17 @@ mod tests {
         assert_eq!(c.status, Status::Warn);
         assert!(c.message.contains("not found"), "message: {}", c.message);
         assert!(c.message.contains("record"), "message: {}", c.message);
-        assert_eq!(c.fix.as_deref(), Some("brew install ffmpeg"));
+        assert_eq!(
+            c.fix.as_deref(),
+            Some("install ffmpeg from https://ffmpeg.org/download.html and add it to PATH")
+        );
     }
 
     #[test]
-    fn install_hint_follows_the_platform() {
-        assert_eq!(install_hint("macos"), "brew install ffmpeg");
-        assert!(install_hint("linux").starts_with("apt install ffmpeg"));
+    fn install_hint_points_to_the_download_page() {
         assert!(install_hint("windows").contains("ffmpeg.org"));
-        assert!(reinstall_hint("linux").contains("libvpx and libx264"));
-        assert!(reinstall_hint("linux").contains("apt install ffmpeg"));
+        assert!(reinstall_hint("windows").contains("libvpx and libx264"));
+        assert!(reinstall_hint("windows").contains("ffmpeg.org"));
     }
 
     #[test]
@@ -275,14 +272,14 @@ mod tests {
                 Some("ffmpeg version 8.1"),
                 Some(&["libx264", "libvpx", "aac"]),
             ),
-            "macos",
+            "windows",
         );
         assert_eq!(checks.len(), 2);
         assert_eq!(checks[0].id, "recording.ffmpeg");
         assert_eq!(checks[0].status, Status::Pass);
         assert_eq!(
             checks[0].message,
-            "ffmpeg version 8.1 at /opt/homebrew/bin/ffmpeg"
+            r"ffmpeg version 8.1 at C:\ffmpeg\bin\ffmpeg.exe"
         );
         assert!(checks[0].fix.is_none());
         assert_eq!(checks[1].id, "recording.ffmpeg_encoders");
@@ -294,11 +291,11 @@ mod tests {
 
     #[test]
     fn unknown_version_still_passes() {
-        let checks = run(&found(None, Some(&["libx264", "libvpx"])), "linux");
+        let checks = run(&found(None, Some(&["libx264", "libvpx"])), "windows");
         assert_eq!(checks[0].status, Status::Pass);
         assert_eq!(
             checks[0].message,
-            "ffmpeg at /opt/homebrew/bin/ffmpeg (version unknown)"
+            r"ffmpeg at C:\ffmpeg\bin\ffmpeg.exe (version unknown)"
         );
     }
 
@@ -306,7 +303,7 @@ mod tests {
     fn missing_encoder_warns_and_names_the_extension_it_breaks() {
         let checks = run(
             &found(Some("ffmpeg version 8.1"), Some(&["libx264"])),
-            "linux",
+            "windows",
         );
         assert_eq!(checks.len(), 2);
         let c = &checks[1];
@@ -322,9 +319,13 @@ mod tests {
             "{}",
             c.message
         );
-        assert!(c.fix.as_deref().unwrap().contains("apt install ffmpeg"));
+        assert!(
+            c.fix.as_deref().unwrap().contains("ffmpeg.org"),
+            "{:?}",
+            c.fix
+        );
 
-        let both = run(&found(Some("ffmpeg version 8.1"), Some(&[])), "macos");
+        let both = run(&found(Some("ffmpeg version 8.1"), Some(&[])), "windows");
         assert!(
             both[1]
                 .message
@@ -336,7 +337,7 @@ mod tests {
 
     #[test]
     fn unreadable_encoder_list_warns() {
-        let checks = run(&found(Some("ffmpeg version 8.1"), None), "macos");
+        let checks = run(&found(Some("ffmpeg version 8.1"), None), "windows");
         assert_eq!(checks.len(), 2);
         assert_eq!(checks[1].id, "recording.ffmpeg_encoders");
         assert_eq!(checks[1].status, Status::Warn);
@@ -355,39 +356,9 @@ mod tests {
             found(Some("ffmpeg version 8.1"), Some(&["libvpx", "libx264"])),
         ];
         for probe in &probes {
-            for os in ["macos", "linux", "windows"] {
-                for c in run(probe, os) {
-                    assert_ne!(c.status, Status::Fail, "{}: {}", c.id, c.message);
-                }
+            for c in run(probe, "windows") {
+                assert_ne!(c.status, Status::Fail, "{}: {}", c.id, c.message);
             }
         }
-    }
-
-    #[cfg(not(windows))]
-    #[test]
-    fn run_ffmpeg_returns_stdout_on_success_only() {
-        let sh = Path::new("/bin/sh");
-        assert_eq!(
-            run_ffmpeg(sh, &["-c", "echo 'ffmpeg version 8.1 Copyright'"]).as_deref(),
-            Some("ffmpeg version 8.1 Copyright\n")
-        );
-        assert_eq!(run_ffmpeg(sh, &["-c", "echo nope; exit 1"]), None);
-        assert_eq!(
-            run_ffmpeg(
-                Path::new("/nonexistent/agent-browser-ffmpeg"),
-                &["-version"]
-            ),
-            None
-        );
-    }
-
-    #[cfg(not(windows))]
-    #[test]
-    fn run_ffmpeg_parses_a_scripted_encoder_listing() {
-        let script = format!("printf '%s' '{}'", ENCODERS_OUTPUT);
-        let out = run_ffmpeg(Path::new("/bin/sh"), &["-c", &script]).unwrap();
-        let encoders = parse_encoders(&out);
-        assert!(encoders.iter().any(|e| e == "libvpx"));
-        assert!(encoders.iter().any(|e| e == "libx264"));
     }
 }

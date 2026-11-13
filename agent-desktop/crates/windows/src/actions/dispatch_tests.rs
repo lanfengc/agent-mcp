@@ -148,7 +148,7 @@ fn physical_arms_deny_headless_policy_before_injection() {
 }
 
 #[test]
-fn adapter_level_rejection_mirrors_macos_message() {
+fn adapter_level_rejection_uses_the_shared_message() {
     ensure_test_apartment();
     let fixture = LocalFixture::create().expect("fixture");
     let handle = control_handle(fixture_window::find_button(fixture.handle())).expect("handle");

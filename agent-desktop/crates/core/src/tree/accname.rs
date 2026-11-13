@@ -4,12 +4,11 @@ use crate::tree::name_slot_status::{NameSlotStatus, SlotStatus};
 
 /// The accessible-name precedence, and the only one in the product.
 ///
-/// Both adapters call this. That is the point of it: the precedence was
-/// documented here and implemented a second time inside the macOS adapter,
-/// and the two disagreed - the shipped one ranked `description` fifth while
-/// the documented one ranked it last, and only the documented one had no
-/// caller. A second divergent copy for Windows is the outcome this function
-/// exists to prevent.
+/// Every adapter calls this. That is the point of it: the precedence was
+/// documented here and implemented a second time inside an adapter, and the
+/// two disagreed - the shipped one ranked `description` fifth while the
+/// documented one ranked it last, and only the documented one had no caller.
+/// A second divergent copy is the outcome this function exists to prevent.
 ///
 /// The order below is the **shipped** one, so the documented precedence and the
 /// one that actually produced every snapshot now agree.

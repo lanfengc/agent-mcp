@@ -8,15 +8,15 @@
 ///   and `error.message` (string), and that `command` equals `"execute_by_ref"`.
 /// - `snapshot_execute_by_ref_live_roundtrip` — marked `#[ignore]`.
 ///   The full observe→act loop (real `ad_snapshot` → `@e` ref →
-///   `ad_execute_by_ref` against a live app) requires Accessibility permission,
-///   a stable target app, and an interactive macOS runner. CI proof is tracked
-///   by the external-consumer smoke harness.
+///   `ad_execute_by_ref` against a live app) needs an unlocked desktop and a
+///   stable target app. CI proof is tracked by the external-consumer smoke
+///   harness.
 ///   To run the roundtrip manually:
 ///   ```text
 ///   cargo test -p agent-desktop-ffi --tests c_abi_roundtrip \
 ///       snapshot_execute_by_ref_live_roundtrip -- --ignored
 ///   ```
-///   AX accessibility permission must be granted and a target app must be open.
+///   A target app such as Notepad must be open.
 mod common;
 
 use common::{
@@ -88,16 +88,15 @@ fn stale_ref_returns_ok_false_error_envelope() {
 ///
 /// This test is `#[ignore]` by design and must remain so in headless CI.
 ///
-/// **Why ignored**: the test needs Accessibility permission, a live interactive
-/// app, and exclusive control over mutable UI state. Those conditions are not
-/// available on generic headless CI.
+/// **Why ignored**: the test needs a live interactive app and exclusive
+/// control over mutable UI state. Those conditions are not available on
+/// generic headless CI.
 ///
 /// **Deferred CI proof**: the full-loop proof — real `ad_snapshot` producing
 /// `@<snapshot_id>:e<N>` refs consumed by `ad_execute_by_ref` against a live app at the C
-/// boundary — is deferred to an external-consumer smoke harness (Python
-/// ctypes) that runs in the macOS E2E environment.
+/// boundary — is deferred to the Windows E2E environment.
 ///
-/// **Manual execution** (requires AX permission + a running target app):
+/// **Manual execution** (requires a running target app):
 /// ```text
 /// cargo test -p agent-desktop-ffi --tests c_abi_roundtrip \
 ///     snapshot_execute_by_ref_live_roundtrip -- --ignored

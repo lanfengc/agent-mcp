@@ -1,8 +1,7 @@
 //! Loading the CA certificates named by `--ca-cert`.
 //!
 //! One loader, so every consumer of the flag accepts and refuses exactly the
-//! same files. On Linux, each certificate is imported into the isolated NSS
-//! database used by the locally launched Chromium process.
+//! same files.
 //!
 //! Two encodings are accepted, the two an operator is likely to have on hand:
 //! a PEM bundle of one or more certificates, and a single raw DER certificate

@@ -1,10 +1,10 @@
 ---
 title: C library
 navTitle: Overview
-description: Call agent-desktop in process through libagent_desktop_ffi, the C ABI over the same core and platform adapters as the CLI.
+description: Call agent-desktop in process through agent_desktop_ffi, the C ABI over the same core and platform adapter as the CLI.
 ---
 
-The C library exposes agent-desktop as a shared library: `libagent_desktop_ffi.dylib` on macOS, `libagent_desktop_ffi.so` on Linux, and `agent_desktop_ffi.dll` on Windows. Your program calls `ad_*` functions instead of starting the CLI for each command. Any language with a C FFI can load it; `tests/ffi-python/smoke.py` is the tested reference. The header is `crates/ffi/include/agent_desktop.h`.
+The C library exposes agent-desktop as a Windows shared library, `agent_desktop_ffi.dll`. Your program calls `ad_*` functions instead of starting the CLI for each command. Any language with a C FFI can load it; `tests/ffi-python/smoke.py` is the tested reference. The header is `crates/ffi/include/agent_desktop.h`.
 
 ## Relationship to the CLI
 
@@ -29,7 +29,7 @@ The library and the CLI run the same core and the same platform adapter; the `ag
 
 ## What the library does not expose
 
-- `ad_snapshot` reads the owner selected by `surface`. On macOS, `menu` and `menubar` are application-owned and need no document window; window-owned snapshots include `data.window`. The ABI has no window id, skeleton mode, or `--root` drill-down; use the CLI for those.
+- `ad_snapshot` reads the owner selected by `surface`, and window-owned snapshots include `data.window`. The ABI has no window id, skeleton mode, or `--root` drill-down; use the CLI for those.
 - `ad_wait` does not expose `wait --event` or `--window-id`.
 - The library carries no skills. Read the FFI guide with `agent-desktop skills get ffi` from the CLI.
 

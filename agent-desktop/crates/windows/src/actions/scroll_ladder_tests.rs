@@ -20,7 +20,7 @@ fn rect(x: f64, y: f64, width: f64, height: f64) -> Rect {
 }
 
 #[test]
-fn direction_priority_matches_macos_vertical_before_horizontal() {
+fn direction_priority_is_vertical_before_horizontal() {
     let viewport = rect(100.0, 100.0, 200.0, 200.0);
     assert!(matches!(
         direction_for_visibility(rect(150.0, 50.0, 40.0, 20.0), viewport),

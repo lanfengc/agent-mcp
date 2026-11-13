@@ -17,10 +17,9 @@ pub const DEFAULT_TIMEOUT_MS: u64 = 25_000;
 /// Idle timeout applied when none is set, so an integration that dies without
 /// calling `close` cannot leak the daemon and its Chrome tree indefinitely.
 /// Socket commands and dashboard input reset the timer. Unlike an explicit
-/// timeout, the default never closes a headed browser (including Safari and
-/// iOS WebDriver sessions) or a user-attached browser because those may be in
-/// direct human use that the daemon cannot observe. Provider-owned CDP
-/// browsers remain eligible for cleanup.
+/// timeout, the default never closes a headed browser or a user-attached
+/// browser because those may be in direct human use that the daemon cannot
+/// observe. Provider-owned CDP browsers remain eligible for cleanup.
 pub const DEFAULT_IDLE_TIMEOUT_MS: u64 = 60 * 60 * 1000;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -198,9 +197,6 @@ impl Running {
             user_agent: self.str(Key::UserAgent),
             ignore_https_errors: self.bool(Key::IgnoreHttpsErrors).unwrap_or(false),
             ca_cert: None,
-            ca_bundle: None,
-            ca_cert_digest: None,
-            prepared_nss_home: None,
             color_scheme: self.str(Key::ColorScheme),
             download_path: self.str(Key::DownloadPath),
             hide_scrollbars: self.hide_scrollbars(),
@@ -208,7 +204,6 @@ impl Running {
             use_real_keychain: false,
             webgpu: self.bool(Key::Webgpu).unwrap_or(false),
             webmcp: self.webmcp(),
-            no_xvfb: self.no_xvfb(),
             restrict_webrtc: self.get(Key::AllowedDomains).is_some(),
         }
     }
@@ -270,10 +265,6 @@ impl Running {
 
     pub fn webmcp(&self) -> bool {
         self.bool(Key::Webmcp).unwrap_or(true)
-    }
-
-    pub fn no_xvfb(&self) -> bool {
-        self.bool(Key::NoXvfb).unwrap_or(false)
     }
 
     /// The raw provider name, whatever else is set.

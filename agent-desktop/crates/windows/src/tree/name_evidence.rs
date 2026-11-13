@@ -36,13 +36,13 @@ pub enum LabelOutcome {
 /// slot holds and how certain it is.
 ///
 /// **`Name` is the strong signal on Windows, and `labelled_by_text` is not a
-/// routine override.** UIA's `Name` is not macOS's `AXTitle`: it is already the
-/// provider's own *computed* accessible name, which on a well-behaved provider
-/// has typically absorbed the very label relationship `LabeledBy` describes.
-/// Feeding both into a precedence that ranks `labelled_by_text` above
-/// `native_title` would let a fragment override the name its own provider
-/// finalised. So the label is supplied only when `Name` has nothing to say, and
-/// the slot is suppressed otherwise.
+/// routine override.** UIA's `Name` is already the provider's own *computed*
+/// accessible name, which on a well-behaved provider has typically absorbed the
+/// very label relationship `LabeledBy` describes. Feeding both into a
+/// precedence that ranks `labelled_by_text` above `native_title` would let a
+/// fragment override the name its own provider finalised. So the label is
+/// supplied only when `Name` has nothing to say, and the slot is suppressed
+/// otherwise.
 pub fn name_fields(
     properties: &ElementProperties,
     label: &LabelOutcome,

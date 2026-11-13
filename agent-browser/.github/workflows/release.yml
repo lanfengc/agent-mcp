@@ -20,8 +20,6 @@ jobs:
       contents: read
     outputs:
       should_release: ${{ steps.check.outputs.should_release }}
-      should_publish_sandbox: ${{ steps.check.outputs.should_publish_sandbox }}
-      should_publish_eve: ${{ steps.check.outputs.should_publish_eve }}
       needs_github_release: ${{ steps.check.outputs.needs_github_release }}
       version: ${{ steps.check.outputs.version }}
     steps:
@@ -37,18 +35,10 @@ jobs:
         id: check
         run: |
           LOCAL_VERSION=$(node -p "require('./package.json').version")
-          SANDBOX_VERSION=$(node -p "require('./packages/@agent-browser/sandbox/package.json').version")
-          EVE_VERSION=$(node -p "require('./packages/@agent-browser/eve/package.json').version")
           echo "Local version: $LOCAL_VERSION"
-          echo "Sandbox package version: $SANDBOX_VERSION"
-          echo "Eve package version: $EVE_VERSION"
 
           NPM_VERSION=$(npm view agent-browser version 2>/dev/null || echo "0.0.0")
-          SANDBOX_NPM_VERSION=$(npm view @agent-browser/sandbox version 2>/dev/null || echo "0.0.0")
-          EVE_NPM_VERSION=$(npm view @agent-browser/eve version 2>/dev/null || echo "0.0.0")
           echo "npm version: $NPM_VERSION"
-          echo "@agent-browser/sandbox npm version: $SANDBOX_NPM_VERSION"
-          echo "@agent-browser/eve npm version: $EVE_NPM_VERSION"
 
           if [ "$LOCAL_VERSION" != "$NPM_VERSION" ]; then
             echo "Version changed: $NPM_VERSION -> $LOCAL_VERSION"
@@ -69,76 +59,15 @@ jobs:
               echo "needs_github_release=true" >> "$GITHUB_OUTPUT"
             fi
           fi
-          if [ "$SANDBOX_VERSION" != "$SANDBOX_NPM_VERSION" ]; then
-            echo "Sandbox package version changed: $SANDBOX_NPM_VERSION -> $SANDBOX_VERSION"
-            echo "should_publish_sandbox=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "Sandbox package version unchanged on npm, skipping publish"
-            echo "should_publish_sandbox=false" >> "$GITHUB_OUTPUT"
-          fi
-          if [ "$EVE_VERSION" != "$EVE_NPM_VERSION" ]; then
-            echo "Eve package version changed: $EVE_NPM_VERSION -> $EVE_VERSION"
-            echo "should_publish_eve=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "Eve package version unchanged on npm, skipping publish"
-            echo "should_publish_eve=false" >> "$GITHUB_OUTPUT"
-          fi
           echo "version=$LOCAL_VERSION" >> "$GITHUB_OUTPUT"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-binaries:
-    name: Build ${{ matrix.name }}
+    name: Build Windows x64
     needs: check-release
     if: needs.check-release.outputs.should_release == 'true' || needs.check-release.outputs.needs_github_release == 'true'
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Linux x64
-            os: ubuntu-latest
-            rust_target: x86_64-unknown-linux-gnu
-            build_target: x86_64-unknown-linux-gnu.2.28
-            binary: agent-browser-linux-x64
-            use_zigbuild: true
-          - name: Linux ARM64
-            os: ubuntu-latest
-            rust_target: aarch64-unknown-linux-gnu
-            build_target: aarch64-unknown-linux-gnu.2.28
-            binary: agent-browser-linux-arm64
-            use_zigbuild: true
-          - name: Linux musl x64
-            os: ubuntu-latest
-            rust_target: x86_64-unknown-linux-musl
-            build_target: x86_64-unknown-linux-musl
-            binary: agent-browser-linux-musl-x64
-            use_zigbuild: true
-          - name: Linux musl ARM64
-            os: ubuntu-latest
-            rust_target: aarch64-unknown-linux-musl
-            build_target: aarch64-unknown-linux-musl
-            binary: agent-browser-linux-musl-arm64
-            use_zigbuild: true
-          - name: Windows x64
-            os: ubuntu-latest
-            rust_target: x86_64-pc-windows-gnu
-            build_target: x86_64-pc-windows-gnu
-            binary: agent-browser-win32-x64.exe
-            use_zigbuild: false
-          - name: macOS x64
-            os: macos-latest
-            rust_target: x86_64-apple-darwin
-            build_target: x86_64-apple-darwin
-            binary: agent-browser-darwin-x64
-            use_zigbuild: false
-          - name: macOS ARM64
-            os: macos-latest
-            rust_target: aarch64-apple-darwin
-            build_target: aarch64-apple-darwin
-            binary: agent-browser-darwin-arm64
-            use_zigbuild: false
-
+    runs-on: windows-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -164,70 +93,27 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.rust_target }}
-
-      - name: Install cross-compilation tools (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu gcc-x86-64-linux-gnu mingw-w64
-
-      - name: Install cargo-zigbuild
-        if: matrix.use_zigbuild
-        run: |
-          pip3 install ziglang
-          cargo install cargo-zigbuild --version 0.23.2 --locked
-
-      - name: Configure Rust linkers
-        if: runner.os == 'Linux'
-        run: |
-          mkdir -p ~/.cargo
-          cat >> ~/.cargo/config.toml << 'EOF'
-          [target.aarch64-unknown-linux-gnu]
-          linker = "aarch64-linux-gnu-gcc"
-
-          [target.x86_64-pc-windows-gnu]
-          linker = "x86_64-w64-mingw32-gcc"
-          EOF
+          targets: x86_64-pc-windows-msvc
 
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: cli
 
-      - name: Build with zigbuild
-        if: matrix.use_zigbuild
-        run: cargo zigbuild --release --manifest-path cli/Cargo.toml --target ${{ matrix.build_target }}
-
       - name: Build with cargo
-        if: '!matrix.use_zigbuild'
-        run: cargo build --release --manifest-path cli/Cargo.toml --target ${{ matrix.rust_target }}
+        run: cargo build --release --manifest-path cli/Cargo.toml --target x86_64-pc-windows-msvc
 
       - name: Copy binary
         run: |
-          mkdir -p artifacts
-          if [[ "${{ matrix.rust_target }}" == *"windows"* ]]; then
-            cp cli/target/${{ matrix.rust_target }}/release/agent-browser.exe artifacts/${{ matrix.binary }}
-          else
-            cp cli/target/${{ matrix.rust_target }}/release/agent-browser artifacts/${{ matrix.binary }}
-            chmod +x artifacts/${{ matrix.binary }}
-          fi
-
-      - name: Verify Linux GNU glibc floor
-        if: matrix.binary == 'agent-browser-linux-x64' || matrix.binary == 'agent-browser-linux-arm64'
-        run: |
-          set -euo pipefail
-          if objdump -p artifacts/${{ matrix.binary }} | grep -E 'GLIBC_2\.([3-9][0-9]|29)'; then
-            echo "ERROR: ${{ matrix.binary }} requires glibc newer than 2.28"
-            exit 1
-          fi
-          objdump -p artifacts/${{ matrix.binary }} | sed -n '/Version References:/,$p'
+          New-Item -ItemType Directory -Force artifacts | Out-Null
+          Copy-Item "cli/target/x86_64-pc-windows-msvc/release/agent-browser.exe" "artifacts/agent-browser-win32-x64.exe"
+        shell: pwsh
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.binary }}
-          path: artifacts/${{ matrix.binary }}
+          name: agent-browser-win32-x64.exe
+          path: artifacts/agent-browser-win32-x64.exe
           retention-days: 7
 
   publish-packages:
@@ -237,9 +123,7 @@ jobs:
       always() &&
       needs.check-release.result == 'success' &&
       (
-        needs.check-release.outputs.should_release == 'true' ||
-        needs.check-release.outputs.should_publish_sandbox == 'true' ||
-        needs.check-release.outputs.should_publish_eve == 'true'
+        needs.check-release.outputs.should_release == 'true'
       ) &&
       (
         needs.check-release.outputs.should_release != 'true' ||
@@ -312,34 +196,6 @@ jobs:
             pnpm publish --provenance --no-git-checks
           fi
 
-      - name: Publish @agent-browser/sandbox
-        if: needs.check-release.outputs.should_publish_sandbox == 'true'
-        working-directory: packages/@agent-browser/sandbox
-        env:
-          PACKAGE_NAME: '@agent-browser/sandbox'
-          VERSION: ${{ needs.check-release.outputs.version }}
-        run: |
-          set -euo pipefail
-          if pnpm view "${PACKAGE_NAME}@${VERSION}" version >/dev/null 2>&1; then
-            echo "${PACKAGE_NAME}@${VERSION} is already published; skipping"
-          else
-            pnpm publish --provenance --access public --no-git-checks
-          fi
-
-      - name: Publish @agent-browser/eve
-        if: needs.check-release.outputs.should_publish_eve == 'true'
-        working-directory: packages/@agent-browser/eve
-        env:
-          PACKAGE_NAME: '@agent-browser/eve'
-          VERSION: ${{ needs.check-release.outputs.version }}
-        run: |
-          set -euo pipefail
-          if pnpm view "${PACKAGE_NAME}@${VERSION}" version >/dev/null 2>&1; then
-            echo "${PACKAGE_NAME}@${VERSION} is already published; skipping"
-          else
-            pnpm publish --provenance --access public --no-git-checks
-          fi
-
   github-release:
     name: Create GitHub Release
     needs: [check-release, build-binaries, publish-packages]
@@ -366,18 +222,17 @@ jobs:
           mkdir -p bin
           find artifacts -type f -name 'agent-browser-*' -exec mv {} bin/ \;
           rm -rf artifacts
-          chmod +x bin/agent-browser-* 2>/dev/null || true
           ls -la bin/
 
       - name: Verify binaries exist
         run: |
           BINARY_COUNT=$(ls bin/agent-browser-* 2>/dev/null | wc -l)
-          if [ "$BINARY_COUNT" -lt 7 ]; then
-            echo "Error: Expected 7 binaries, found $BINARY_COUNT"
+          if [ "$BINARY_COUNT" -ne 1 ]; then
+            echo "Error: Expected 1 binary, found $BINARY_COUNT"
             ls -la bin/
             exit 1
           fi
-          echo "Found $BINARY_COUNT binaries"
+          echo "Found $BINARY_COUNT binary"
 
       - name: Extract changelog entry
         run: |

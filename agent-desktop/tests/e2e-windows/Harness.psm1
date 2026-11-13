@@ -189,9 +189,9 @@ function Test-ImmutableArtifactHash {
 function Get-FixtureProcessIdentity {
     <#
     .SYNOPSIS
-        (pid, StartTime), never pid alone - Windows pids recycle, the same
-        hazard tests/e2e/safe-semantic.sh's lstart generation token guards
-        against on macOS.
+        (pid, StartTime), never pid alone - Windows pids recycle, and the
+        start time is the generation token that distinguishes a recycled
+        pid from the process a snapshot resolved.
     #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][int]$ProcessId)

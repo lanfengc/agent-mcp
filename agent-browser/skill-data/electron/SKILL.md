@@ -16,9 +16,9 @@ Automate any Electron desktop app using agent-browser. Electron apps are built o
 4. **Interact** using element refs
 5. **Re-snapshot** after navigation or state changes
 
-```bash
+```powershell
 # Launch an Electron app with remote debugging
-open -a "Slack" --args --remote-debugging-port=9222
+& "$env:LOCALAPPDATA\slack\slack.exe" --remote-debugging-port=9222
 
 # Connect agent-browser to the app
 agent-browser connect 9222
@@ -33,41 +33,26 @@ agent-browser screenshot slack-desktop.png
 
 Every Electron app supports the `--remote-debugging-port` flag since it's built into Chromium.
 
-### macOS
-
-```bash
-# Slack
-open -a "Slack" --args --remote-debugging-port=9222
-
-# VS Code
-open -a "Visual Studio Code" --args --remote-debugging-port=9223
-
-# Discord
-open -a "Discord" --args --remote-debugging-port=9224
-
-# Figma
-open -a "Figma" --args --remote-debugging-port=9225
-
-# Notion
-open -a "Notion" --args --remote-debugging-port=9226
-
-# Spotify
-open -a "Spotify" --args --remote-debugging-port=9227
-```
-
-### Linux
-
-```bash
-slack --remote-debugging-port=9222
-code --remote-debugging-port=9223
-discord --remote-debugging-port=9224
-```
-
 ### Windows
 
-```bash
-"C:\Users\%USERNAME%\AppData\Local\slack\slack.exe" --remote-debugging-port=9222
-"C:\Users\%USERNAME%\AppData\Local\Programs\Microsoft VS Code\Code.exe" --remote-debugging-port=9223
+```powershell
+# Slack
+& "$env:LOCALAPPDATA\slack\slack.exe" --remote-debugging-port=9222
+
+# VS Code
+& "$env:LOCALAPPDATA\Programs\Microsoft VS Code\Code.exe" --remote-debugging-port=9223
+
+# Discord
+& "$env:LOCALAPPDATA\Discord\app-*\Discord.exe" --remote-debugging-port=9224
+
+# Figma
+& "$env:LOCALAPPDATA\Figma\Figma.exe" --remote-debugging-port=9225
+
+# Notion
+& "$env:LOCALAPPDATA\Programs\Notion\Notion.exe" --remote-debugging-port=9226
+
+# Spotify
+& "$env:APPDATA\Spotify\Spotify.exe" --remote-debugging-port=9227
 ```
 
 **Important:** If the app is already running, quit it first, then relaunch with the flag. The `--remote-debugging-port` flag must be present at launch time.
@@ -131,9 +116,9 @@ agent-browser screenshot webview.png
 
 ### Inspect and Navigate an App
 
-```bash
-open -a "Slack" --args --remote-debugging-port=9222
-sleep 3  # Wait for app to start
+```powershell
+& "$env:LOCALAPPDATA\slack\slack.exe" --remote-debugging-port=9222
+Start-Sleep -Seconds 3  # Wait for app to start
 agent-browser connect 9222
 agent-browser snapshot -i
 # Read the snapshot output to identify UI elements

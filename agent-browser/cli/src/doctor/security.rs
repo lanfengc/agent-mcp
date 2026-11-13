@@ -6,9 +6,6 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
 
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
-
 use super::helpers::parse_json_file;
 use super::{Check, Status};
 use crate::native::state::{get_sessions_dir, get_state_dir};
@@ -38,27 +35,13 @@ pub(super) fn check(checks: &mut Vec<Check>) {
             );
         }
     } else if key_file.exists() {
-        let mut msg = format!("Encryption key file present: {}", key_file.display());
-        let mut status = Status::Pass;
-        let mut fix: Option<String> = None;
-        #[cfg(unix)]
-        if let Ok(meta) = fs::metadata(&key_file) {
-            let mode = meta.permissions().mode() & 0o777;
-            if mode & 0o077 != 0 {
-                status = Status::Warn;
-                msg = format!(
-                    "Encryption key file is too permissive ({:o}): {}",
-                    mode,
-                    key_file.display()
-                );
-                fix = Some(format!("chmod 600 {}", key_file.display()));
-            }
-        }
-        let mut check = Check::new("security.encryption_key", category, status, msg);
-        if let Some(f) = fix {
-            check = check.with_fix(f);
-        }
-        checks.push(check);
+        let msg = format!("Encryption key file present: {}", key_file.display());
+        checks.push(Check::new(
+            "security.encryption_key",
+            category,
+            Status::Pass,
+            msg,
+        ));
     } else {
         checks.push(
             Check::new(

@@ -20,6 +20,12 @@ pub struct ScreenshotArgs {
 }
 
 pub fn execute(args: ScreenshotArgs, adapter: &dyn PlatformAdapter) -> Result<Value, AppError> {
+    if !args.ocr && (args.ocr_query.is_some() || args.ocr_language.is_some()) {
+        return Err(AppError::invalid_input_with_suggestion(
+            "--ocr-query and --ocr-language require --ocr",
+            "Add --ocr to recognize text in the capture.",
+        ));
+    }
     let deadline = crate::Deadline::standard()?;
     let target = resolve_target(&args, adapter, deadline)?;
     let window = match &target {
@@ -31,11 +37,12 @@ pub fn execute(args: ScreenshotArgs, adapter: &dyn PlatformAdapter) -> Result<Va
 
     if args.ocr {
         let result = adapter.ocr_image(&buf, args.ocr_language.as_deref(), deadline)?;
-        if let Some(query) = args.ocr_query.as_deref() {
-            fields["ocr_match"] = match find_match(&result, query) {
-                Some(found) => found,
-                None => Value::Null,
-            };
+        if let Some(found) = args
+            .ocr_query
+            .as_deref()
+            .and_then(|query| find_match(&result, query))
+        {
+            fields["ocr_match"] = found;
         }
         fields["ocr"] = serde_json::to_value(&result)
             .map_err(|error| AppError::Adapter(AdapterError::internal(error.to_string())))?;
@@ -52,32 +59,36 @@ pub fn execute(args: ScreenshotArgs, adapter: &dyn PlatformAdapter) -> Result<Va
     Ok(fields)
 }
 
+/// Finds where `query` sits in the recognized text. A word that is the query
+/// wins over a word that merely contains it, and a phrase is reported as the
+/// rectangle of the words it covers, so the center is always on the text the
+/// caller asked for rather than on the middle of its line.
 pub(crate) fn find_match(result: &crate::OcrResult, query: &str) -> Option<Value> {
-    let needle = query.trim().to_lowercase();
+    let query = query.trim();
+    let needle = query.to_lowercase();
     if needle.is_empty() {
         return None;
     }
     find_word_match(result, &needle)
+        .or_else(|| find_phrase_match(result, query, &needle))
         .or_else(|| find_line_match(result, &needle))
-        .or_else(|| find_compact_match(result, &needle))
 }
 
 fn find_word_match(result: &crate::OcrResult, needle: &str) -> Option<Value> {
-    let mut best: Option<(&crate::OcrWord, &crate::OcrLine)> = None;
+    let mut best: Option<(bool, f64, &crate::OcrWord, &crate::OcrLine)> = None;
     for line in &result.lines {
         for word in &line.words {
-            if !word.text.to_lowercase().contains(needle) {
+            let text = word.text.to_lowercase();
+            if !text.contains(needle) {
                 continue;
             }
-            let replace = best.is_none_or(|(current, _)| {
-                word.rect.width * word.rect.height > current.rect.width * current.rect.height
-            });
-            if replace {
-                best = Some((word, line));
+            let rank = (text == needle, word.rect.width * word.rect.height);
+            if best.is_none_or(|(exact, area, ..)| rank > (exact, area)) {
+                best = Some((rank.0, rank.1, word, line));
             }
         }
     }
-    let (word, line) = best?;
+    let (.., word, line) = best?;
     Some(match_json(&word.text, &line.text, &word.rect))
 }
 
@@ -89,7 +100,7 @@ fn find_line_match(result: &crate::OcrResult, needle: &str) -> Option<Value> {
         .map(|line| match_json(&line.text, &line.text, &line.rect))
 }
 
-fn find_compact_match(result: &crate::OcrResult, needle: &str) -> Option<Value> {
+fn find_phrase_match(result: &crate::OcrResult, query: &str, needle: &str) -> Option<Value> {
     let compact = needle
         .chars()
         .filter(|character| !character.is_whitespace())
@@ -118,7 +129,7 @@ fn find_compact_match(result: &crate::OcrResult, needle: &str) -> Option<Value> 
         let Some(rect) = union_rects(covered) else {
             continue;
         };
-        return Some(match_json(needle, &line.text, &rect));
+        return Some(match_json(query, &line.text, &rect));
     }
     None
 }

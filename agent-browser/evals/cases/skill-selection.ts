@@ -51,17 +51,6 @@ export const cases: EvalCase[] = [
     rubric: RUBRIC,
   },
   {
-    id: "ss-05",
-    name: "Selects vercel-sandbox skill for Vercel environments",
-    category: "skill-selection",
-    prompt:
-      "Run headless Chrome inside a Vercel Sandbox microVM to test my deployed Next.js app",
-    expectedPatterns: [
-      "skills get vercel-sandbox",
-    ],
-    rubric: RUBRIC,
-  },
-  {
     id: "ss-06",
     name: "Selects electron skill for Discord automation",
     category: "skill-selection",

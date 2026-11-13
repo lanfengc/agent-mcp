@@ -1225,70 +1225,6 @@ fn print_primary_response(resp: &Response, action: Option<&str>, opts: &OutputOp
             print_with_boundaries(&formatted, origin, opts);
             return;
         }
-        // iOS Devices
-        if let Some(devices) = data.get("devices").and_then(|v| v.as_array()) {
-            if devices.is_empty() {
-                println!("No iOS devices available. Open Xcode to download simulator runtimes.");
-                return;
-            }
-
-            // Separate real devices from simulators
-            let real_devices: Vec<_> = devices
-                .iter()
-                .filter(|d| {
-                    d.get("isRealDevice")
-                        .and_then(|v| v.as_bool())
-                        .unwrap_or(false)
-                })
-                .collect();
-            let simulators: Vec<_> = devices
-                .iter()
-                .filter(|d| {
-                    !d.get("isRealDevice")
-                        .and_then(|v| v.as_bool())
-                        .unwrap_or(false)
-                })
-                .collect();
-
-            if !real_devices.is_empty() {
-                println!("Connected Devices:\n");
-                for device in real_devices.iter() {
-                    let name = device
-                        .get("name")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("Unknown");
-                    let runtime = device.get("runtime").and_then(|v| v.as_str()).unwrap_or("");
-                    let udid = device.get("udid").and_then(|v| v.as_str()).unwrap_or("");
-                    println!("  {} {} ({})", color::green("●"), name, runtime);
-                    println!("    {}", color::dim(udid));
-                }
-                println!();
-            }
-
-            if !simulators.is_empty() {
-                println!("Simulators:\n");
-                for device in simulators.iter() {
-                    let name = device
-                        .get("name")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("Unknown");
-                    let runtime = device.get("runtime").and_then(|v| v.as_str()).unwrap_or("");
-                    let state = device
-                        .get("state")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("Unknown");
-                    let udid = device.get("udid").and_then(|v| v.as_str()).unwrap_or("");
-                    let state_indicator = if state == "Booted" {
-                        color::green("●")
-                    } else {
-                        color::dim("○")
-                    };
-                    println!("  {} {} ({})", state_indicator, name, runtime);
-                    println!("    {}", color::dim(udid));
-                }
-            }
-            return;
-        }
         // Tabs
         if let Some(tabs) = data.get("tabs").and_then(|v| v.as_array()) {
             for tab in tabs {
@@ -2070,8 +2006,6 @@ pub fn print_command_help(command: &str) -> bool {
 agent-browser open - Launch the browser, optionally navigate
 
 Usage: agent-browser open [url]
-
-On macOS, installed browsers are searched in /Applications, then ~/Applications.
 
 Without a URL, launches the browser but stays on about:blank. This lets
 you stage state (network routes, cookies, init scripts) before the first
@@ -3468,8 +3402,9 @@ have open, so hydration and initial animations are not re-run cold.
 If a URL is provided, the active tab navigates there first.
 To record in a separate tab, run `tab new [url]` before `record start`.
 
-Requires ffmpeg on PATH with the libvpx and libx264 encoders (brew install
-ffmpeg, or apt install ffmpeg). Run `agent-browser doctor` to check.
+Requires ffmpeg on PATH with the libvpx and libx264 encoders (install
+ffmpeg from https://ffmpeg.org/download.html). Run `agent-browser doctor` to
+check.
 
 Recording captures 30 fps, which keeps scrolls and CSS transitions smooth.
 Raise it to 60 for short, motion-heavy takes (drag interactions, animation
@@ -3693,23 +3628,12 @@ Examples:
             r##"
 agent-browser install - Install browser binaries
 
-Usage: agent-browser install [--with-deps]
+Usage: agent-browser install
 
 Downloads and installs browser binaries required for automation.
 
-On macOS versions below 13, the command stops before downloading Chrome for
-Testing and prints instructions to update macOS or install Chrome manually. If
-`sw_vers -productVersion` is unavailable, exits with an error, returns no
-version, or returns a malformed version, the command reports a detection error
-and stops before making a network request.
-
-Options:
-  -d, --with-deps      Also install Linux system dependencies. The package manager runs
-                       directly as root; non-root uses sudo.
-
 Examples:
   agent-browser install
-  agent-browser install --with-deps
 "##
         }
 
@@ -3720,9 +3644,9 @@ agent-browser upgrade - Upgrade to the latest version
 
 Usage: agent-browser upgrade
 
-Detects the current installation method (npm, Homebrew, or Cargo) and runs
-the appropriate update command. Displays the version change on success, or
-informs you if you are already on the latest version.
+Detects the current installation method (npm, pnpm, Yarn, Bun, or Cargo) and
+runs the appropriate update command. Displays the version change on success,
+or informs you if you are already on the latest version.
 
 Examples:
   agent-browser upgrade
@@ -3751,7 +3675,7 @@ Options:
                        WebGPU pass and pixel-checks both an in-page readback
                        and a decoded screenshot; launches a second Chrome)
   --headed             Run the WebGPU probe headed to validate the capture
-                       path (auto-Xvfb on displayless Linux)
+                       path on a logged-in desktop
   --debug              Verbose diagnostics from the probes' scratch daemons
   --fix                Also run destructive repairs
   --json               JSON output
@@ -3921,7 +3845,6 @@ Examples:
 "##
         }
 
-        // === iOS Commands ===
         "tap" => {
             r##"
 agent-browser tap - Tap an element (touch gesture)
@@ -3929,7 +3852,7 @@ agent-browser tap - Tap an element (touch gesture)
 Usage: agent-browser tap <selector>
 
 Taps an element. This is an alias for 'click' that provides semantic clarity
-for touch-based interfaces like iOS Safari.
+for touch-based interfaces.
 
 Options:
   --json               Output as JSON
@@ -3938,16 +3861,16 @@ Options:
 Examples:
   agent-browser tap "#submit-button"
   agent-browser tap @e1
-  agent-browser -p ios tap "button:has-text('Sign In')"
+  agent-browser tap "button:has-text('Sign In')"
 "##
         }
         "swipe" => {
             r##"
-agent-browser swipe - Swipe gesture (iOS)
+agent-browser swipe - Swipe gesture
 
 Usage: agent-browser swipe <direction> [distance]
 
-Performs a swipe gesture on iOS Safari. The direction determines
+Performs a touch swipe gesture. The direction determines
 which way the content moves (swipe up scrolls down, etc.).
 
 Arguments:
@@ -3959,27 +3882,9 @@ Options:
   --session <name>     Session name: Unicode letters/numbers, hyphens, and underscores only
 
 Examples:
-  agent-browser -p ios swipe up
-  agent-browser -p ios swipe down 500
-  agent-browser -p ios swipe left
-"##
-        }
-        "device" => {
-            r##"
-agent-browser device - Manage iOS simulators
-
-Usage: agent-browser device <subcommand>
-
-Subcommands:
-  list    List available iOS simulators
-
-Options:
-  --json               Output as JSON
-  --session <name>     Session name: Unicode letters/numbers, hyphens, and underscores only
-
-Examples:
-  agent-browser device list
-  agent-browser -p ios device list
+  agent-browser swipe up
+  agent-browser swipe down 500
+  agent-browser swipe left
 "##
         }
 
@@ -4098,8 +4003,7 @@ Audits the current page, or navigates to the optional URL first. The vendored
 axe-core engine runs private partial audits without a network request across
 the page frame tree, does not trust or replace page-owned window.axe values,
 and merges serialized results without page messaging. Accessibility audits
-require a CDP browser and are not available with Safari or iOS WebDriver
-sessions.
+require a CDP browser.
 
 Options:
   --tags <tag1,tag2>    Run only rules matching these axe tags
@@ -4596,7 +4500,6 @@ Dashboard:
 
 Setup:
   install                    Install browser binaries
-  install --with-deps        Also install system dependencies (Linux)
   upgrade                    Upgrade to the latest version
   doctor [--fix]             Diagnose install; auto-clean stale files
   dashboard start            Start the observability dashboard
@@ -4653,16 +4556,14 @@ Options:
                              e.g., --proxy-bypass "localhost,*.internal.com"
   --ignore-https-errors      Ignore HTTPS certificate errors
   --ca-cert <path>           Trust a specific CA certificate for HTTPS interception proxies
-                             (or AGENT_BROWSER_CA_CERT; CLI requests everywhere, local Chromium on Linux;
-                             install --with-deps provides certutil)
+                             (or AGENT_BROWSER_CA_CERT; applies to CLI HTTPS requests)
   --no-ca-cert               Clear CA trust retained by the running browser session
   --use-system-ca            Use the OS trust store for CLI requests (read, install, upgrade, doctor)
                              (or AGENT_BROWSER_USE_SYSTEM_CA)
   --allow-file-access        Allow file:// URLs to access local files (Chromium only)
   --hide-scrollbars <bool>   Hide native scrollbars in headless Chromium screenshots (default: true)
                              Use --hide-scrollbars false to keep scrollbars visible
-  -p, --provider <name>      Browser provider: ios, browserbase, kernel, browseruse, browserless, agentcore, or plugin name
-  --device <name>            iOS device name (e.g., "iPhone 15 Pro")
+  -p, --provider <name>      Browser provider: browserbase, kernel, browseruse, browserless, agentcore, or plugin name
   --json                     JSON output
   --annotate                 Annotated screenshot with numbered labels and legend
   --screenshot-dir <path>    Default screenshot output directory (or AGENT_BROWSER_SCREENSHOT_DIR)
@@ -4670,7 +4571,7 @@ Options:
   --screenshot-format <fmt>  Screenshot format: png, jpeg (or AGENT_BROWSER_SCREENSHOT_FORMAT)
   --input-mode <mode>        Session pointer movement: instant (default), smooth, human
   --headed                   Show browser window (not headless) (or AGENT_BROWSER_HEADED env)
-  --webgpu                   Enable WebGPU; uses SwiftShader software Vulkan on Linux, no GPU required (or AGENT_BROWSER_WEBGPU env)
+  --webgpu                   Enable WebGPU; software rendering when no GPU is available (or AGENT_BROWSER_WEBGPU env)
   --no-webmcp                Disable default experimental WebMCP support for locally launched Chrome
                              (or AGENT_BROWSER_NO_WEBMCP env)
   --no-auto-connect          Return a session attached with --auto-connect to a local launch
@@ -4688,7 +4589,7 @@ Options:
   --content-boundaries       Wrap page output in boundary markers (or AGENT_BROWSER_CONTENT_BOUNDARIES)
   --max-output <chars>       Truncate page output to N chars (or AGENT_BROWSER_MAX_OUTPUT)
                              Invalid values warn and leave the existing output limit unchanged.
-  --allowed-domains <list>   Restrict network domains; rejects CDP, auto-connect, profiles, restore/state replay, direct-page providers, unsafe startup args, iOS/Safari (or AGENT_BROWSER_ALLOWED_DOMAINS)
+  --allowed-domains <list>   Restrict network domains; rejects CDP, auto-connect, profiles, restore/state replay, direct-page providers, unsafe startup args (or AGENT_BROWSER_ALLOWED_DOMAINS)
   --capture <list>           Record the session as it runs; only flow is supported (or AGENT_BROWSER_CAPTURE)
                              On a running session without capture, passing it relaunches with capture on
   --action-policy <path>     Action policy JSON file (or AGENT_BROWSER_ACTION_POLICY)
@@ -4771,9 +4672,8 @@ Environment:
   AGENT_BROWSER_INIT_SCRIPTS     Comma-separated paths to page init scripts
   AGENT_BROWSER_ENABLE           Comma-separated built-in init script features (e.g. react-devtools)
   AGENT_BROWSER_HEADED           Show browser window (not headless)
-  AGENT_BROWSER_NO_XVFB          Disable automatic Xvfb for headed mode on displayless Linux hosts
   AGENT_BROWSER_NO_VERSION_CHECK Skip the outdated-Chrome CVE check (it fetches chromereleases.googleblog.com)
-  AGENT_BROWSER_WEBGPU           Enable WebGPU (SwiftShader software Vulkan on Linux)
+  AGENT_BROWSER_WEBGPU           Enable WebGPU (software rendering when no GPU is available)
   AGENT_BROWSER_JSON             JSON output
   AGENT_BROWSER_ANNOTATE         Annotated screenshot with numbered labels and legend
   AGENT_BROWSER_DEBUG            Debug output
@@ -4781,7 +4681,7 @@ Environment:
   AGENT_BROWSER_CA_CERT          Path to CA certificate to trust (HTTPS interception proxies)
   AGENT_BROWSER_CLEAR_CA_CERT    Clear CA trust retained by the running browser session
   AGENT_BROWSER_USE_SYSTEM_CA    Use the OS trust store for CLI requests
-  AGENT_BROWSER_PROVIDER         Browser provider (ios, browserbase, kernel, browseruse, browserless, agentcore, or plugin name)
+  AGENT_BROWSER_PROVIDER         Browser provider (browserbase, kernel, browseruse, browserless, agentcore, or plugin name)
   BROWSER_USE_API_KEY            Browser Use Cloud API key
   BROWSER_USE_PROFILE_ID         Browser Use profile UUID
   BROWSER_USE_PROXY_COUNTRY      Managed proxy country; none/direct disables proxy
@@ -4806,10 +4706,8 @@ Environment:
   AGENT_BROWSER_DASHBOARD_ALLOWED_ORIGINS
                                  Comma-separated exact HTTPS origins allowed for a reverse-proxied dashboard
   AGENT_BROWSER_IDLE_TIMEOUT_MS  Auto-shutdown daemon after N ms of inactivity (default: 3600000 = 1h; 0 disables)
-                                 Dashboard input resets the timer; headed, Safari/iOS WebDriver, and user-attached browsers are exempt from the default
+                                 Dashboard input resets the timer; headed and user-attached browsers are exempt from the default
                                  Provider-owned cloud browsers remain eligible for default cleanup
-  AGENT_BROWSER_IOS_DEVICE       Default iOS device name
-  AGENT_BROWSER_IOS_UDID         Default iOS device UDID
   AGENT_BROWSER_CONTENT_BOUNDARIES Wrap page output in boundary markers
   AGENT_BROWSER_MAX_OUTPUT       Max characters for page output
   AGENT_BROWSER_ALLOWED_DOMAINS  Comma-separated allowed domain patterns; requires a fresh controllable browser context without profile/session startup args, restore/state replay, or direct-page provider plugins
@@ -4837,7 +4735,7 @@ Environment:
 
 Install:
   npm install -g agent-browser           # npm
-  brew install agent-browser             # Homebrew
+  pnpm add -g agent-browser              # pnpm
   cargo install agent-browser            # Cargo
   agent-browser install                  # Download Chrome (first time)
 
@@ -4874,13 +4772,6 @@ Command Chaining:
   agent-browser open example.com && agent-browser snapshot -i
   agent-browser fill @e1 "user@example.com" && agent-browser fill @e2 "pass" && agent-browser click @e3
   agent-browser open example.com && agent-browser screenshot
-
-iOS Simulator (requires Xcode and Appium):
-  agent-browser -p ios open example.com                    # Use default iPhone
-  agent-browser -p ios --device "iPhone 15 Pro" open url   # Specific device
-  agent-browser -p ios device list                         # List simulators
-  agent-browser -p ios swipe up                            # Swipe gesture
-  agent-browser -p ios tap @e1                             # Touch element
 "#,
         project_config_keys = crate::flags::PROJECT_CONFIG_ALLOWED_KEYS
             .chunks(4)

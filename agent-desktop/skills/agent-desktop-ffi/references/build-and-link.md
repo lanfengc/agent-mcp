@@ -8,8 +8,6 @@ cargo build --profile release-ffi -p agent-desktop-ffi
 
 Output:
 
-- macOS: `target/release-ffi/libagent_desktop_ffi.dylib`
-- Linux: `target/release-ffi/libagent_desktop_ffi.so`
 - Windows: `target/release-ffi/agent_desktop_ffi.dll`
 
 The generated header is `crates/ffi/include/agent_desktop.h`.
@@ -22,42 +20,38 @@ inside every `extern "C"` entrypoint need. The default `release` profile uses
 
 Every GitHub release ships prebuilt archives for:
 
-- macOS arm64 and x86_64
-- Linux x64 and arm64 (glibc)
 - Windows x64 and ARM64 MSVC
 
 The archives are named `agent-desktop-ffi-v<version>-<target>.tar.gz` (`.zip` on
 Windows), with `<target>` the Rust target triple. Each archive unpacks to a directory of
-the same name holding `lib/` (the dylib, so, or dll), `include/agent_desktop.h`,
-`LICENSE`, and a `README.md`. `lib/` also holds a helper that must stay beside the library:
-`agent-desktop-macos-helper` on macOS, `agent-desktop-linux-clipboard-owner` on
-Linux. On Windows it holds the `agent_desktop_ffi.dll.lib` import library, which an
-MSVC linking consumer links against. Integrity: compare against `checksums.txt` in
+the same name holding `lib/` (the DLL and its import library), `include/agent_desktop.h`,
+`LICENSE`, and a `README.md`. `lib/` holds the `agent_desktop_ffi.dll.lib` import library,
+which an MSVC linking consumer links against. Integrity: compare against `checksums.txt` in
 the release assets. Supply-chain verification: each release carries a Sigstore
 attestation; verify with `gh attestation verify <file> --repo vercel-labs/agent-desktop`
 before deploying.
 
 ## ABI handshake (do this first)
 
-After `dlopen` / `LoadLibrary`, compare the dylib major to the header you
+After `LoadLibrary`, compare the DLL major to the header you
 compiled against before calling anything else:
 
 ```c
 AdResult rc = ad_init(AD_ABI_VERSION_MAJOR);
 if (rc != AD_RESULT_OK) {
-    // header and dylib have incompatible major versions
+    // header and DLL have incompatible major versions
     fprintf(stderr, "ABI mismatch: %s\n", ad_last_error_message());
     return -1;
 }
 ```
 
-Alternatively, read the raw dylib major and compare yourself:
+Alternatively, read the raw library major and compare yourself:
 
 ```c
-uint32_t dylib_major = ad_abi_version();
-if (dylib_major != AD_ABI_VERSION_MAJOR) {
-    fprintf(stderr, "ABI major: header=%u dylib=%u\n",
-            AD_ABI_VERSION_MAJOR, dylib_major);
+uint32_t dll_major = ad_abi_version();
+if (dll_major != AD_ABI_VERSION_MAJOR) {
+    fprintf(stderr, "ABI major: header=%u dll=%u\n",
+            AD_ABI_VERSION_MAJOR, dll_major);
     abort();
 }
 ```
@@ -112,17 +106,17 @@ Python standard library. Legs:
 Run it:
 
 ```bash
-python3 tests/ffi-python/smoke.py \
-  target/release-ffi/libagent_desktop_ffi.dylib \
+python tests/ffi-python/smoke.py \
+  target/release-ffi/agent_desktop_ffi.dll \
   crates/ffi/include/agent_desktop.h
 ```
 
 Or with environment variables:
 
 ```bash
-AD_DYLIB_PATH=target/release-ffi/libagent_desktop_ffi.dylib \
+AD_DYLIB_PATH=target/release-ffi/agent_desktop_ffi.dll \
 AD_HEADER_PATH=crates/ffi/include/agent_desktop.h \
-python3 tests/ffi-python/smoke.py
+python tests/ffi-python/smoke.py
 ```
 
 `tests/ffi-python/README.md` covers the stub-adapter build and the `AD_EXPECT_*`
@@ -183,18 +177,14 @@ int main(void) {
 }
 ```
 
-Compile (macOS and Linux):
+Compile with MSVC:
 
-```sh
-clang -I./crates/ffi/include main.c \
-      -L./target/release-ffi -lagent_desktop_ffi \
-      -Wl,-rpath,"$PWD/target/release-ffi" \
-      -o snapshot_demo
+```bat
+cl /I crates\ffi\include main.c /link /LIBPATH:target\release-ffi agent_desktop_ffi.dll.lib
 ```
 
-The macOS install name is `@rpath/libagent_desktop_ffi.dylib`, so a linking consumer
-needs an rpath to the library's directory or dyld aborts at launch. `dlopen` and
-ctypes callers resolve by path and need nothing.
+The DLL must be beside the executable or on `PATH` when it runs. `LoadLibrary`
+and ctypes callers resolve by path and need no import library.
 
 ## Observe-act workflow in C
 
@@ -240,7 +230,7 @@ rc = ad_execute_by_ref(adapter, "@s8f3k2p9:e3", &type_act,
 import ctypes, json
 from ctypes import c_int32, c_uint8, c_bool, c_char_p, POINTER, c_void_p
 
-lib = ctypes.CDLL("./target/release-ffi/libagent_desktop_ffi.dylib")
+lib = ctypes.CDLL("./target/release-ffi/agent_desktop_ffi.dll")
 
 # ABI handshake
 lib.ad_init.restype = c_int32

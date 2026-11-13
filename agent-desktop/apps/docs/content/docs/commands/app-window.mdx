@@ -12,7 +12,7 @@ The window commands (`resize-window`, `move-window`, `minimize`, `maximize`, `re
 - `--app` alone selects the app, then one of its windows: its only window if it has one, otherwise the visible ones, then the single focused one, then the accessible ones. If that does not settle on one window, the command fails with `AMBIGUOUS_TARGET`.
 - With neither flag, the target is the focused window.
 
-`close-app` and the five window commands return an [OperationReport](/desktop/json-output#operationreport): read `disposition.delivery` to learn what was proved. Lookup failures such as `APP_NOT_FOUND` and `WINDOW_NOT_FOUND` carry `not_delivered`, so they are safe to retry once the name or id is fixed. The examples on this page are real output from GNOME apps on Linux.
+`close-app` and the five window commands return an [OperationReport](/desktop/json-output#operationreport): read `disposition.delivery` to learn what was proved. Lookup failures such as `APP_NOT_FOUND` and `WINDOW_NOT_FOUND` carry `not_delivered`, so they are safe to retry once the name or id is fixed. The examples on this page are real output from Notepad on Windows, trimmed where noted.
 
 ## launch
 
@@ -28,7 +28,7 @@ agent-desktop launch <APP> [--timeout MS] [--arg VALUE]... [--env KEY=VALUE]... 
     <tr><th>Flag or argument</th><th>Default</th><th>Meaning</th></tr>
   </thead>
   <tbody>
-    <tr><td><code>APP</code></td><td>required</td><td>Application name, bundle ID, or path. The accepted forms depend on the platform.</td></tr>
+    <tr><td><code>APP</code></td><td>required</td><td>Application name or path. On Windows, a bare name resolves under System32 or the Windows directory, with or without <code>.exe</code>. A display name such as "Google Chrome" does not resolve.</td></tr>
     <tr><td><code>--timeout MS</code></td><td><code>30000</code></td><td>Upper bound for the whole launch.</td></tr>
     <tr><td><code>--arg VALUE</code></td><td>none</td><td>Command-line argument for the app. Repeatable, order preserved. Write <code>--arg=-x</code> for a value that starts with a hyphen.</td></tr>
     <tr><td><code>--env KEY=VALUE</code></td><td>none</td><td>Environment variable for the launched process. Repeatable. A repeated key is <code>INVALID_ARGS</code>.</td></tr>
@@ -40,7 +40,7 @@ agent-desktop launch <APP> [--timeout MS] [--arg VALUE]... [--env KEY=VALUE]... 
 </table>
 
 ```bash
-agent-desktop launch gtk3-demo
+agent-desktop launch notepad.exe
 ```
 
 ```json
@@ -49,19 +49,19 @@ agent-desktop launch gtk3-demo
   "ok": true,
   "command": "launch",
   "data": {
-    "app": "gtk3-demo",
-    "pid": 21766,
-    "process_instance": "6d91df60:120710",
+    "app": "notepad.exe",
+    "pid": 11980,
+    "process_instance": "windows-proc-v1:13438968905:9691593",
     "window": {
       "accessible": true,
-      "app_name": "gtk3-demo",
-      "bounds": { "height": 656.0, "width": 810.0, "x": 630.0, "y": 0.0 },
-      "id": "w-1.105-org-a11y-atspi-accessible-48",
+      "app_name": "notepad.exe",
+      "bounds": { "height": 612.0, "width": 1089.0, "x": 637.0, "y": 175.0 },
+      "id": "w-40307104",
       "is_focused": true,
       "minimized": false,
-      "pid": 21766,
-      "process_instance": "6d91df60:120710",
-      "title": "Application Class",
+      "pid": 11980,
+      "process_instance": "windows-proc-v1:13438968905:9691593",
+      "title": "Untitled - Notepad",
       "visible": true
     }
   }
@@ -86,7 +86,7 @@ Errors specific to `launch`:
   </tbody>
 </table>
 
-Platform limits: the accepted `APP` forms differ by OS. See [macOS](/desktop/platforms/macos#app-naming), [Windows](/desktop/platforms/windows#app-naming), and [Linux](/desktop/platforms/linux#app-naming).
+Platform limits: the accepted `APP` forms are on [Windows](/desktop/platforms/windows#app-naming).
 
 ## close-app
 
@@ -113,7 +113,7 @@ agent-desktop close-app <APP> [--force]
   "command": "close-app",
   "data": {
     "action": "close-app",
-    "app": "gtk3-demo",
+    "app": "notepad.exe",
     "details": { "evidence": "process_instance_exited" },
     "disposition": { "delivery": "delivered_verified", "retry": "unsafe" },
     "method": "graceful",
@@ -123,8 +123,8 @@ agent-desktop close-app <APP> [--force]
     ],
     "target": {
       "kind": "app",
-      "name": "gtk3-demo",
-      "process": { "instance": "6d91df60:120710", "pid": 21766 }
+      "name": "notepad.exe",
+      "process": { "instance": "windows-proc-v1:13438968905:9691593", "pid": 11980 }
     }
   }
 }
@@ -136,7 +136,7 @@ agent-desktop close-app <APP> [--force]
 - `INVALID_ARGS` for a protected system process, with or without `--force`.
 - A save prompt keeps the app open. Read it with `snapshot --surface sheet`, answer it, then close again.
 
-Platform limits: graceful close needs an X11 client on Linux, and the protected processes differ by OS. See [macOS](/desktop/platforms/macos), [Windows](/desktop/platforms/windows), and [Linux](/desktop/platforms/linux).
+Platform limits: `close-app` refuses `explorer.exe` and other protected images with `INVALID_ARGS`. See [Windows](/desktop/platforms/windows).
 
 ## list-apps
 
@@ -164,20 +164,19 @@ agent-desktop list-apps [--app NAME] [--timeout-ms MS]
   "data": {
     "apps": [
       {
-        "bundle_id": "org.gnome.Calculator",
-        "name": "gnome-calculator",
-        "pid": 8255,
+        "name": "notepad.exe",
+        "pid": 11980,
         "presentation": "foreground",
-        "process_instance": "6d91df60:28340"
+        "process_instance": "windows-proc-v1:13438968905:9691593"
       }
     ]
   }
 }
 ```
 
-`presentation` is `foreground` for apps with ordinary windows and `background` for apps with no Dock or taskbar entry. When the platform could not read every process in time, the result adds `complete: false` and a `skipped` array: treat a missing app as unknown, not absent.
+`presentation` is `foreground` for apps with ordinary windows and `background` for apps with no taskbar entry. When the platform could not read every process in time, the result adds `complete: false` and a `skipped` array: treat a missing app as unknown, not absent.
 
-`--app` takes the `list-apps` name; Linux also accepts a desktop-entry name. See [Linux](/desktop/platforms/linux#app-naming).
+`--app` takes the name `list-apps` prints, such as `notepad.exe`. See [Windows](/desktop/platforms/windows#app-naming).
 
 ## list-windows
 
@@ -205,14 +204,14 @@ agent-desktop list-windows [--app NAME] [--timeout-ms MS]
   "data": [
     {
       "accessible": true,
-      "app_name": "gnome-calculator",
-      "bounds": { "height": 616.0, "width": 370.0, "x": 535.0, "y": 142.0 },
-      "id": "w-1.11-org-gnome-Calculator-a11y-948fd89a_9bda_453b_9c10_4a9e9eed3feb",
-      "is_focused": false,
+      "app_name": "notepad.exe",
+      "bounds": { "height": 612.0, "width": 1089.0, "x": 637.0, "y": 175.0 },
+      "id": "w-40307104",
+      "is_focused": true,
       "minimized": false,
-      "pid": 8255,
-      "process_instance": "6d91df60:28340",
-      "title": "Calculator",
+      "pid": 11980,
+      "process_instance": "windows-proc-v1:13438968905:9691593",
+      "title": "Untitled - Notepad",
       "visible": true
     }
   ]
@@ -249,18 +248,16 @@ Pass at least one flag; with none the command fails with `INVALID_ARGS`. `data.f
   "command": "focus-window",
   "data": {
     "focused": {
-      "app_name": "gedit",
-      "id": "w-1.10-org-a11y-atspi-accessible-162",
+      "app_name": "notepad.exe",
+      "id": "w-40307104",
       "is_focused": true,
-      "title": "Untitled Document 1 - gedit"
+      "title": "Untitled - Notepad"
     }
   }
 }
 ```
 
 The example above is trimmed to four fields. Errors: `WINDOW_NOT_FOUND` when nothing matches, `AMBIGUOUS_TARGET` when several windows still match, and `ACTION_FAILED` when the OS never reports the window focused. The command takes the foreground but does not need `--headed`.
-
-Platform limits: Linux needs X11. See [Linux](/desktop/platforms/linux) and [Windows](/desktop/platforms/windows).
 
 ## resize-window
 
@@ -282,7 +279,7 @@ agent-desktop resize-window --width PX --height PX [--app NAME] [--window-id ID]
 </table>
 
 ```bash
-agent-desktop resize-window --app gedit --width 800 --height 600
+agent-desktop resize-window --app notepad.exe --width 800 --height 600
 ```
 
 ```json
@@ -293,31 +290,25 @@ agent-desktop resize-window --app gedit --width 800 --height 600
   "data": {
     "action": "resize-window",
     "details": {
-      "observed": {
-        "height": 600, "hidden": false, "maximized_horizontal": false,
-        "maximized_vertical": false, "width": 800, "x": 0, "y": 0
-      },
-      "tolerance": 2.0,
-      "units": "pixels",
+      "tolerance": 8.0,
+      "units": "px",
       "verification_scope": "window_size"
     },
     "disposition": { "delivery": "delivered_verified", "retry": "unsafe" },
     "height": 600.0,
     "steps": [{ "label": "window_resize", "mechanism": "semantic_api", "outcome": "succeeded", "verified": true }],
     "target": {
-      "id": "w-1.10-org-a11y-atspi-accessible-162",
+      "id": "w-74976084",
       "kind": "window",
-      "process": { "instance": "6d91df60:28341", "pid": 8261 },
-      "title": "Untitled Document 1 - gedit"
+      "process": { "instance": "windows-proc-v1:13438968934:8366246", "pid": 5404 },
+      "title": "Untitled - Notepad"
     },
     "width": 800.0
   }
 }
 ```
 
-`delivered_verified` means the adapter read the size back within `details.tolerance`. `details.observed` is a Linux addition. Errors: `INVALID_ARGS` for a non-finite or out-of-range size, `STALE_REF` when the window identity changed before the write, and `ACTION_FAILED` when the window manager clamped or ignored the request. After a failed write, read the bounds before you retry.
-
-Platform limits: the tolerance differs by OS, and on Linux window control uses an X11 client, so Wayland-native windows are refused. See [Linux](/desktop/platforms/linux).
+`delivered_verified` means the adapter read the size back within `details.tolerance`. `details.units` and `details.verification_scope` name what was measured. Errors: `INVALID_ARGS` for a non-finite or out-of-range size, `STALE_REF` when the window identity changed before the write, and `ACTION_FAILED` when Windows clamped or ignored the request. After a failed write, read the bounds before you retry.
 
 ## move-window
 
@@ -338,7 +329,7 @@ agent-desktop move-window --x=X --y=Y [--app NAME] [--window-id ID]
   </tbody>
 </table>
 
-The result has the same shape as [`resize-window`](#resize-window), with step label `window_move`, request fields `x` and `y`, and `details.verification_scope: "window_position"`. Errors and platform limits are the same as `resize-window`.
+The result has the same shape as [`resize-window`](#resize-window), with step label `window_move`, request fields `x` and `y`, and `details.verification_scope: "window_position"`. Errors are the same as `resize-window`.
 
 ## minimize
 
@@ -369,20 +360,20 @@ agent-desktop minimize [--app NAME] [--window-id ID]
     "disposition": { "delivery": "delivered_verified", "retry": "unsafe" },
     "steps": [{ "label": "window_minimize", "mechanism": "semantic_api", "outcome": "succeeded", "verified": true }],
     "target": {
-      "id": "w-1.10-org-a11y-atspi-accessible-162",
+      "id": "w-74976084",
       "kind": "window",
-      "process": { "instance": "6d91df60:28341", "pid": 8261 },
-      "title": "Untitled Document 1 - gedit"
+      "process": { "instance": "windows-proc-v1:13438968934:8366246", "pid": 5404 },
+      "title": "Untitled - Notepad"
     }
   }
 }
 ```
 
-A minimized window reports its elements as offscreen, so ref actions on it fail until you [`restore`](#restore) it. A window manager can ignore a minimize sent within about 250 ms of a restore, so read the window state before you retry. Platform limits are the same as `resize-window`.
+A minimized window reports its elements as offscreen, so ref actions on it fail until you [`restore`](#restore) it. Read `minimized` in `list-windows` before you retry.
 
 ## maximize
 
-Maximizes a window, or zooms it on macOS. Flags are the same as [`minimize`](#minimize). The step label is `window_maximize`, and a verified report names `details.verification_scope: "window_maximized_state"`.
+Maximizes a window. Flags are the same as [`minimize`](#minimize). The step label is `window_maximize`, and a verified report names `details.verification_scope: "window_maximized_state"`.
 
 ```bash
 agent-desktop maximize [--app NAME] [--window-id ID]
@@ -396,7 +387,7 @@ Restores a minimized or maximized window. Flags are the same as [`minimize`](#mi
 agent-desktop restore [--app NAME] [--window-id ID]
 ```
 
-`restore` has no single read-back across its cases, so a successful report is `delivered_unverified`:
+`restore` reports `delivered_verified` when the read-back confirms the window is no longer minimized, and names the read-back in `details.verification_scope`:
 
 ```json
 {
@@ -405,16 +396,17 @@ agent-desktop restore [--app NAME] [--window-id ID]
   "command": "restore",
   "data": {
     "action": "restore",
-    "disposition": { "delivery": "delivered_unverified", "retry": "unsafe" },
-    "steps": [{ "label": "window_restore", "mechanism": "semantic_api", "outcome": "succeeded" }],
+    "details": { "verification_scope": "window_minimized_state" },
+    "disposition": { "delivery": "delivered_verified", "retry": "unsafe" },
+    "steps": [{ "label": "window_restore", "mechanism": "semantic_api", "outcome": "succeeded", "verified": true }],
     "target": {
-      "id": "w-1.10-org-a11y-atspi-accessible-162",
+      "id": "w-74976084",
       "kind": "window",
-      "process": { "instance": "6d91df60:28341", "pid": 8261 },
-      "title": "Untitled Document 1 - gedit"
+      "process": { "instance": "windows-proc-v1:13438968934:8366246", "pid": 5404 },
+      "title": "Untitled - Notepad"
     }
   }
 }
 ```
 
-Check the window with `list-windows` afterward. Platform limits are the same as `resize-window`.
+Check the window with `list-windows` afterward.

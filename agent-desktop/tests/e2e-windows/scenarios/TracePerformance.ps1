@@ -7,9 +7,7 @@
     scripted interaction are present, and cost is measured under the probe
     corpus methodology (min-of-seven, warm-up discarded, min/median/max
     reported) - the vehicle this platform can actually run, per
-    probes/windows/FINDINGS.md A15-13
-    (scripts/perf-baseline-compare.sh is macOS-bound and does not run
-    here).
+    probes/windows/FINDINGS.md A15-13.
 
     `--session <id>` is set through `$env:AGENT_DESKTOP_SESSION` for the
     duration of each leg's Enter-Stage body rather than threaded through a

@@ -6,7 +6,7 @@ description: Run the observe, act, verify loop against a desktop app. Pick the s
 
 agent-desktop does not run the loop; your agent does, one command at a time. `ok: true` does not show that an action worked, so each step ends with a read.
 
-Before the first step, run `agent-desktop status`. If a permission is missing or `supported_surfaces` is empty, fix that first with the page for your OS: [macOS](/desktop/platforms/macos), [Windows](/desktop/platforms/windows), or [Linux](/desktop/platforms/linux).
+Before the first step, run `agent-desktop status`. If access is denied or `supported_surfaces` is empty, fix that first with the [Windows page](/desktop/platforms/windows).
 
 ## Observe
 
@@ -20,7 +20,7 @@ Read the smallest part of the UI that holds your target. A larger read costs mor
     <tr><td>The role and exact name of the element</td><td><code>find --app APP --role button --name Save --exact --first</code></td></tr>
     <tr><td>Nothing yet, and the app is small</td><td><code>snapshot --app APP -i --compact</code></td></tr>
     <tr><td>Nothing yet, and the app is dense (Electron, or more than about 50 interactive elements)</td><td><code>snapshot --skeleton</code>, then <code>snapshot --root REF</code> on one region</td></tr>
-    <tr><td>A menu, sheet, alert, or popover is open</td><td><code>snapshot --surface KIND</code>, never with <code>--skeleton</code></td></tr>
+    <tr><td>A menu or sheet is open</td><td><code>snapshot --surface KIND</code>, never with <code>--skeleton</code></td></tr>
   </tbody>
 </table>
 
@@ -57,11 +57,11 @@ Then read the app again with the smallest read that answers the question:
 
 ```bash
 agent-desktop is @s8f3k2p9:e6 --property checked                       # one state
-agent-desktop wait --element @s8f3k2p9:e3 --predicate value --value 7   # a value that updates asynchronously
+agent-desktop wait --element @s130xb68qxnjxe:e1 --predicate value --value "hello"   # a value that updates asynchronously
 agent-desktop snapshot --root @s8f3k2p9:e2 -i --compact                 # the region that changed
 ```
 
-Apps update asynchronously: a read taken right after a click can still show the old state, so prefer `wait` to a single read. If the result has a `menu`, `sheet`, or `alert` in `data.surfaces`, the app is waiting on that overlay; observe it with `snapshot --surface` before the window behind it. See [Waiting without sleeps](/desktop/guides/waiting).
+Apps update asynchronously: a read taken right after a click can still show the old state, so prefer `wait` to a single read. If the result has a `menu` or `sheet` in `data.surfaces`, the app is waiting on that overlay; observe it with `snapshot --surface` before the window behind it. See [Waiting without sleeps](/desktop/guides/waiting).
 
 ## Recover from failures
 
@@ -69,16 +69,15 @@ Branch on `error.code` and `error.disposition`, never on message text. `STALE_RE
 
 ## Worked example
 
-This run presses a Calculator button on Linux, verifies the display, and clears it. The [quick start](/desktop/quick-start) shows the output of each step.
+This run writes into Notepad's editor, verifies the value, and clears it. The [quick start](/desktop/quick-start) shows the output of each step.
 
 ```bash
-agent-desktop find --app gnome-calculator --role button --name 7 --exact --first     # ref of the 7 button
-agent-desktop find --app gnome-calculator --role textfield --first                   # ref of the display
-agent-desktop click @s3jjre8xzrvo2l:e1                                               # act
-agent-desktop wait --element @s3sxeejcz18ky3:e1 --predicate value --value 7           # verify
-agent-desktop find --app gnome-calculator --role button --name C --exact --first     # then clear with C
+agent-desktop find --app notepad.exe --role textfield --first                        # ref of the editor
+agent-desktop set-value @s130xb68qxnjxe:e1 "hello from agent-desktop"                # act
+agent-desktop wait --element @s130xb68qxnjxe:e1 --predicate value --value "hello from agent-desktop"   # verify
+agent-desktop clear @s130xb68qxnjxe:e1                                               # restore the editor
 ```
 
 1. Each `find` returns one match in `data.match`; its `ref_id` names the snapshot that `find` saved. Use the refs from your own output.
-2. `click` returns `delivered_unverified`: the accessibility call returned, which does not prove the button did its job.
-3. The `wait` is the verification. If it times out, read `details.last_observed` and `data.surfaces` before you click again, because a second click could type `77`.
+2. `set-value` returns `delivered_verified` with `post_state.value`: the element read back the value, which does not prove the app committed it.
+3. The `wait` is the verification. If it times out, read `details.last_observed` and `disposition` before you act again, because a repeat could apply the text twice.

@@ -56,8 +56,13 @@ for (const path of Object.keys(edits.pages))
   if (!pages.some((page) => page.path === path))
     throw new Error(`docs-edits.json: unknown page ${path}`);
 
+/** Baseline pages removed from the Windows-only documentation. */
+export const removedPages = ["/eve", "/ios", "/next"];
+
 /** Baseline pages with intentional edits applied: the floor for live routes. */
-export const currentPages = pages.map(applyEdits);
+export const currentPages = pages
+  .filter((page) => !removedPages.includes(page.path))
+  .map(applyEdits);
 
 /**
  * Pages added after the baseline was pinned. They have no baseline fixture, so

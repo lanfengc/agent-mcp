@@ -46,8 +46,6 @@ packages=(
   agent-desktop
   agent-desktop-core
   agent-desktop-ffi
-  agent-desktop-linux
-  agent-desktop-macos
   agent-desktop-windows
 )
 

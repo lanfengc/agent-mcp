@@ -10,9 +10,8 @@ use crate::tree::automation::{UiaFailure, uia_failure_error};
 /// A boundary node is read for its child count alone, purely to annotate how
 /// much was left unobserved: on a target that materialises children lazily,
 /// that count is not cheap, and one such node could otherwise consume an
-/// entire snapshot budget on a count nobody needs that badly. Mirrors macOS's
-/// `BOUNDARY_COUNT_BUDGET` (`crates/macos/src/tree/query/child_read_budget.rs`,
-/// the same 25ms value and rationale). The count stays best-effort: a starved
+/// entire snapshot budget on a count nobody needs that badly. The count stays
+/// best-effort: a starved
 /// read yields no count while the boundary is still marked truncated, so the
 /// two signals never contradict each other.
 const BOUNDARY_COUNT_BUDGET: std::time::Duration = std::time::Duration::from_millis(25);

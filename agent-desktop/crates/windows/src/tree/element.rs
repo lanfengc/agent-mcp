@@ -20,11 +20,10 @@ mod imp {
     /// Refcounting is delegated on purpose. `uiautomation::UIElement` wraps a
     /// `windows-core` COM interface whose `Clone` is `AddRef` and whose `Drop`
     /// is `Release`, so a hand-written pair here would release twice. The
-    /// encapsulation the macOS wrapper establishes is kept: the inner field is
-    /// crate-visible only, there is no `Copy`, and there is no raw accessor.
-    /// The second field is the verified process identity captured by the
-    /// resolver (`ProcessPayload`), `None` on an element that never verified
-    /// one.
+    /// inner field is crate-visible only, there is no `Copy`, and there is no
+    /// raw accessor. The second field is the verified process identity captured
+    /// by the resolver (`ProcessPayload`), `None` on an element that never
+    /// verified one.
     #[derive(Clone)]
     pub struct UIAElement(
         pub(crate) uiautomation::UIElement,

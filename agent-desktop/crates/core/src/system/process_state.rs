@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 /// Liveness/responsiveness classification for a target process.
 ///
-/// macOS can only emit `Running`, `Exited { code: None }`, and
+/// The Windows adapter emits `Running`, `Exited { code: None }`, and
 /// `Unresponsive` — it has no way to read the exit code of a detached
 /// process (apps launched through NSWorkspace are not children of this
 /// process). `Crashed` stays in the contract for adapters with real crash

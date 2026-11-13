@@ -260,9 +260,9 @@ pub extern "C" fn ad_last_error_suggestion() -> *const c_char {
 }
 
 /// Returns a borrowed C string carrying a platform-specific diagnostic
-/// for the last error (AX error codes, COM HRESULTs, AT-SPI messages,
-/// etc.), or null if the adapter didn't supply one. Same lifetime rules
-/// as `ad_last_error_message`.
+/// for the last error (a COM HRESULT, a Win32 error code, etc.), or null
+/// if the adapter didn't supply one. Same lifetime rules as
+/// `ad_last_error_message`.
 #[unsafe(no_mangle)]
 pub extern "C" fn ad_last_error_platform_detail() -> *const c_char {
     crate::ffi_try::trap_panic_const_ptr(|| {

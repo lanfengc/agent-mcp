@@ -83,10 +83,8 @@ fn run() -> Result<String, String> {
     Ok(options.output.clone())
 }
 
-/// The example is compiled by `cargo check --all-targets` on every lane, and
-/// every item above is gated behind Windows because it reaches the
-/// target-gated `uiautomation` dependency. This stub is what keeps the Linux
-/// and macOS gates green.
+/// The example reaches the target-gated `uiautomation` dependency, so it runs
+/// on Windows only.
 #[cfg(not(target_os = "windows"))]
 fn main() {
     eprintln!("uia_tree_dump captures UI Automation evidence and runs on Windows only");

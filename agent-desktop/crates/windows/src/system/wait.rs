@@ -19,10 +19,10 @@ const EXIT_CONFIRMATION_SLICE: Duration = Duration::from_millis(1_000);
 /// Polls the [`menu_is_open`] predicate until the target process's
 /// menu-open state equals `open`, then returns `Ok(())`.
 ///
-/// A deliberate structural port of `crates/macos/src/system/wait.rs`: the
+/// A deliberate structural port: the
 /// process identity is re-verified before the first predicate read on every
 /// iteration and a second time immediately before success is declared - the
-/// macOS double-check that closes the window where the target dies between
+/// double-check that closes the window where the target dies between
 /// the read and the return. The deadline is consulted only after a mismatch,
 /// so the predicate is evaluated at least once **once this loop is reached**,
 /// and an already-closed menu satisfies a wait-for-closed on that first read.
@@ -43,10 +43,9 @@ const EXIT_CONFIRMATION_SLICE: Duration = Duration::from_millis(1_000);
 /// loop's own deadline check so the direction-specific message below still
 /// applies, instead of surfacing the predicate's own undecorated timeout.
 ///
-/// Diverges from macOS's `AppUnresponsive` mapping for an identity mismatch:
-/// this method reports the exited-or-recycled target as `StaleRef`, the code
+/// An identity mismatch is reported as `StaleRef`, the code
 /// this crate already uses for a resolved reference that no longer matches
-/// live state, rather than the transient-condition code macOS reuses there.
+/// live state, rather than a transient-condition code.
 ///
 /// The same precedence covers a non-`Timeout` predicate error: `menu_state`
 /// reports a target that vanished mid-read as a transient `AppUnresponsive`,

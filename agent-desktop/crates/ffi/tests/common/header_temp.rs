@@ -7,15 +7,7 @@ impl HeaderTemp {
         let path = std::env::temp_dir().join(agent_desktop_core::temporary_file_name(
             std::ffi::OsStr::new("agent-desktop-header"),
         ));
-        let builder = std::fs::DirBuilder::new();
-        #[cfg(unix)]
-        let mut builder = builder;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::DirBuilderExt;
-            builder.mode(0o700);
-        }
-        builder
+        std::fs::DirBuilder::new()
             .create(&path)
             .expect("create private compiler directory");
         Self(path)

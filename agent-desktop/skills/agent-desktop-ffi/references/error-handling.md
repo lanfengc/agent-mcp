@@ -9,7 +9,7 @@ populated; read it with the `ad_last_error_*` accessors.
 
 ```c
 AdExactWindowInfo win;
-AdResult rc = ad_launch_app_exact(adapter, "com.apple.finder", 5000, &win);
+AdResult rc = ad_launch_app_exact(adapter, "notepad.exe", 5000, &win);
 if (rc != AD_RESULT_OK) {
     const char *msg = ad_last_error_message();
     const char *sug = ad_last_error_suggestion();   // may be NULL
@@ -33,7 +33,7 @@ copies plain values into caller storage, so no pointer lifetime applies:
 | `ad_last_error_code()`          | The `AdResult` code of the last failure, or `AD_RESULT_OK`    |
 | `ad_last_error_message()`       | Human-readable description, or null                            |
 | `ad_last_error_suggestion()`    | Recovery hint, or null                                         |
-| `ad_last_error_platform_detail()` | OS-specific diagnostic (AX codes, HRESULTs, AT-SPI), or null |
+| `ad_last_error_platform_detail()` | OS-specific diagnostic (HRESULTs, Win32 error codes), or null |
 | `ad_last_error_details()`       | Structured JSON details, or null: **sensitive** (see below)   |
 | `ad_last_error_delivery_semantics(&sem)` | Writes `AdDeliverySemantics {delivery, retry}` for the last failure and returns `AD_RESULT_OK`; both fields are `UNKNOWN` (0) when no error is recorded. A null `sem` returns `AD_RESULT_ERR_INVALID_ARGS`. Reading does not clear or replace the slot. |
 
@@ -71,7 +71,7 @@ does not touch another thread's slot.
 
 `ad_check_permissions` does not treat `Unknown` as success. Stub adapters
 that cannot answer permission probes return
-`AD_RESULT_ERR_PLATFORM_NOT_SUPPORTED`. The macOS adapter reports
+`AD_RESULT_ERR_PLATFORM_NOT_SUPPORTED`. The Windows adapter reports
 `AD_RESULT_ERR_INTERNAL` only if the platform probe itself is ambiguous;
 read `ad_last_error_*` for the diagnostic.
 
@@ -86,7 +86,7 @@ release may add codes.
 | `AD_RESULT_OK`                        |   0   | Success                                    |
 | `AD_RESULT_ERR_PERM_DENIED`           |  -1   | Accessibility / input permission missing   |
 | `AD_RESULT_ERR_ELEMENT_NOT_FOUND`     |  -2   | Ref resolve / find miss                    |
-| `AD_RESULT_ERR_APP_NOT_FOUND`         |  -3   | Bundle/PID lookup miss                     |
+| `AD_RESULT_ERR_APP_NOT_FOUND`         |  -3   | App/PID lookup miss                        |
 | `AD_RESULT_ERR_ACTION_FAILED`         |  -4   | Action dispatched but rejected             |
 | `AD_RESULT_ERR_ACTION_NOT_SUPPORTED`  |  -5   | Platform cannot perform this action        |
 | `AD_RESULT_ERR_STALE_REF`             |  -6   | Ref predates a UI change; re-snapshot      |
@@ -123,10 +123,10 @@ session for a matching snapshot ID.
 
 ## Off-main-thread migration
 
-Since ABI v3, adapter entrypoints run on any host thread, including off the
-macOS main thread, so `AD_RESULT_ERR_INTERNAL` is never an off-main-thread
-result. Native handles stay thread-affine: use from another thread or adapter,
-or after release or revocation, returns `AD_RESULT_ERR_INVALID_ARGS`. See
+Since ABI v3, adapter entrypoints run on any host thread, so
+`AD_RESULT_ERR_INTERNAL` is never an off-main-thread result. Native handles stay
+thread-affine: use from another thread or adapter, or after release or
+revocation, returns `AD_RESULT_ERR_INVALID_ARGS`. See
 [threading.md](threading.md) for the concurrency and ownership contract.
 
 ## Enum validation

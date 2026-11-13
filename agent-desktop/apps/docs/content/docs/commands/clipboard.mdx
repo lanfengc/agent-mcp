@@ -4,7 +4,7 @@ navTitle: Clipboard
 description: Reference for clipboard-get, clipboard-set, and clipboard-clear, including the text, image, and file-list formats and the result shapes.
 ---
 
-The clipboard commands read and write the system clipboard. They need no accessibility permission and no `--headed`. The examples are real output from Linux X11.
+The clipboard commands read and write the system clipboard. They need no accessibility permission and no `--headed`. The examples are real output from Windows.
 
 ## clipboard-get
 
@@ -34,17 +34,17 @@ An image result is `{ "type": "image", "path", "width", "height" }`, and a file 
 { "version": "2.6", "ok": true, "command": "clipboard-get", "data": { "found": false, "type": "text" } }
 ```
 
-Check `found` before you read `text`. Errors: `INVALID_ARGS` for an unknown format or an unwritable `--out`, and `PLATFORM_NOT_SUPPORTED` when a platform helper is missing.
+Check `found` before you read `text`. Errors: `INVALID_ARGS` for an unknown format or an unwritable `--out`, and `TIMEOUT` when the session is locked: Windows refuses clipboard access until it is unlocked.
 
 ## clipboard-set
 
 Writes text, a PNG image, or a list of file paths.
 
-```bash
-agent-desktop clipboard-set TEXT
-printf '%s' 'Hello' | agent-desktop clipboard-set --stdin
-agent-desktop clipboard-set --image /tmp/a.png
-agent-desktop clipboard-set --file-url /tmp/a.txt --file-url /tmp/b.txt
+```powershell
+agent-desktop clipboard-set "Hello"
+'Hello' | agent-desktop clipboard-set --stdin
+agent-desktop clipboard-set --image C:\Users\you\a.png
+agent-desktop clipboard-set --file-url C:\Users\you\a.txt --file-url C:\Users\you\b.txt
 ```
 
 <table>
@@ -59,7 +59,7 @@ agent-desktop clipboard-set --file-url /tmp/a.txt --file-url /tmp/b.txt
   </tbody>
 </table>
 
-With `--stdin`, the command waits until the input ends. Empty input and all line breaks are kept, including a final newline. Use `printf '%s'` to avoid adding one. Input must be valid UTF-8 without NUL bytes (`\0`).
+With `--stdin`, the command waits until the input ends. Empty input and all line breaks are kept, including the newline PowerShell adds when it pipes a string. Input must be valid UTF-8 without NUL bytes (`\0`).
 
 `--stdin` keeps text out of process arguments. Batch uses the JSON `text` field, which puts the text in process arguments. Run secret steps as separate `--stdin` commands. To copy the text `--stdin`, use `agent-desktop clipboard-set -- --stdin`.
 
@@ -80,7 +80,7 @@ Without `--stdin`, one call writes one representation: `--file-url` wins over `-
 }
 ```
 
-macOS reads the content back and reports `delivered_verified`; Windows and Linux report `delivered_unverified`, so confirm with `clipboard-get`. On Linux X11, a helper process (`agent-desktop-linux-clipboard-owner`) keeps serving the content after the command exits; without it beside the binary, the command returns `PLATFORM_NOT_SUPPORTED`. Errors: `INVALID_ARGS` for a bad `--image` or a missing `--file-url` path, and `TIMEOUT` with `lock_timeout` when another agent holds the input lock.
+Windows reports `delivered_unverified`, so confirm with `clipboard-get`. Errors: `INVALID_ARGS` for a bad `--image` or a missing `--file-url` path, and `TIMEOUT` with `lock_timeout` when another agent holds the input lock, or when the session is locked.
 
 ## clipboard-clear
 
@@ -106,4 +106,4 @@ agent-desktop clipboard-clear
 
 Confirm with `clipboard-get`, which then returns `found: false`.
 
-Platform limits: Wayland needs `wl-clipboard`. See [macOS](/desktop/platforms/macos), [Windows](/desktop/platforms/windows), and [Linux](/desktop/platforms/linux).
+Clipboard commands return `TIMEOUT` while the session is locked; see [Windows](/desktop/platforms/windows#troubleshooting).

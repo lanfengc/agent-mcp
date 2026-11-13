@@ -21,8 +21,7 @@ const MAX_REFRESH_HZ: u32 = 240;
 const FALLBACK_REFRESH_HZ: u32 = 60;
 
 /// How long the highlight around a clicked element takes to fade in, in
-/// fractions of its hold. macOS plays an opacity keyframe rather than showing
-/// a static box, so a Windows outline that blinked on and off would read as a
+/// fractions of its hold. An outline that blinked on and off would read as a
 /// visibly cruder cue.
 const HIGHLIGHT_RISE: f64 = 0.08;
 const HIGHLIGHT_FALL: f64 = 0.35;
@@ -70,9 +69,8 @@ mod tests;
 /// The label card's opacity as it appears, on an ease-out curve.
 ///
 /// A card that blinked to full strength reads as a glitch rather than as
-/// something arriving; macOS ramps its opacity over the same span with Core
-/// Animation's ease-out, and `1 - (1 - t)^3` is that curve closely enough to
-/// be indistinguishable at this duration. The card reads as fully present once the reveal is
+/// something arriving; `1 - (1 - t)^3` is an ease-out curve that reads as
+/// continuous at this duration. The card reads as fully present once the reveal is
 /// over, so a caller can drive the whole life of the card from one number
 /// and stop asking after it settles.
 pub(crate) fn reveal_progress(elapsed_ms: u64, duration_ms: u64) -> f64 {

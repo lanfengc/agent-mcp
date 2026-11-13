@@ -17,10 +17,10 @@
 //!   awaitPromise never returns if a WebGPU promise stalls, which would hang
 //!   doctor indefinitely.
 //! - The screenshot check exercises the compositor path separately: headless
-//!   Chrome cannot capture WebGPU canvas presentation on Windows and Linux
-//!   because of an upstream limitation, so render can pass while the
-//!   screenshot fails. The failure message points at `--headed` on a real or
-//!   virtual display, which is the verified workaround.
+//!   Chrome cannot capture WebGPU canvas presentation because of an upstream
+//!   limitation, so render can pass while the screenshot fails. The failure
+//!   message points at `--headed` on a logged-in desktop, which is the
+//!   verified workaround.
 
 use std::env;
 use std::path::PathBuf;
@@ -137,21 +137,15 @@ pub(super) fn check(checks: &mut Vec<Check>, opts: &DoctorOptions) {
             .unwrap_or(0)
     );
 
-    // Probe files live in a private, unpredictably named directory (0700 on
-    // unix). Predictable paths in a world-writable temp dir would let
-    // another local user pre-create them as symlinks and redirect the
-    // writes; the page file additionally uses create_new so an existing
-    // path is never followed.
+    // Probe files live in a private, unpredictably named directory.
+    // Predictable paths in a world-writable temp dir would let another local
+    // user pre-create them as symlinks and redirect the writes; the page file
+    // additionally uses create_new so an existing path is never followed.
     let work_dir = env::temp_dir().join(format!(
         "agent-browser-doctor-webgpu-{}",
         uuid::Uuid::new_v4()
     ));
-    let mut dir_builder = std::fs::DirBuilder::new();
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::DirBuilderExt;
-        dir_builder.mode(0o700);
-    }
+    let dir_builder = std::fs::DirBuilder::new();
     if let Err(e) = dir_builder.create(&work_dir) {
         checks.push(Check::new(
             "webgpu.setup",
@@ -211,7 +205,6 @@ pub(super) fn check(checks: &mut Vec<Check>, opts: &DoctorOptions) {
         profile: None,
         state: None,
         provider: None,
-        device: None,
         session_name: None,
         restore_save: None,
         restore_check_url: None,
@@ -398,19 +391,13 @@ pub(super) fn check(checks: &mut Vec<Check>, opts: &DoctorOptions) {
                         r, g, b
                     ),
                 )
-                .with_fix(if cfg!(target_os = "linux") {
-                    "check that Xvfb is installed (apt-get install -y xvfb) or run under a real display"
-                } else if cfg!(target_os = "windows") {
-                    "run from a logged-in interactive desktop session (ssh/Session 0 cannot present frames)"
-                } else {
-                    "re-run with --debug for launch logs"
-                }),
+                .with_fix("run from a logged-in interactive desktop session (ssh/Session 0 cannot present frames)"),
             );
         }
         Ok((r, g, b)) => {
             // Rendering passed but the presented canvas is not in the
             // capture: headless Chrome cannot composite WebGPU canvas
-            // presentation on Windows/Linux (upstream limitation).
+            // presentation (upstream limitation).
             checks.push(
                 Check::new(
                     "webgpu.screenshot",
@@ -421,11 +408,9 @@ pub(super) fn check(checks: &mut Vec<Check>, opts: &DoctorOptions) {
                         r, g, b
                     ),
                 )
-                .with_fix(if cfg!(target_os = "linux") {
-                    "re-run doctor --webgpu --headed to validate capture (a virtual display starts automatically; needs Xvfb: apt-get install -y xvfb)"
-                } else {
-                    "run WebGPU sessions with --headed on a logged-in desktop for screenshots"
-                }),
+                .with_fix(
+                    "run WebGPU sessions with --headed on a logged-in desktop for screenshots",
+                ),
             );
         }
         Err(e) => {
@@ -450,14 +435,8 @@ fn center_pixel(path: &PathBuf) -> Result<(u8, u8, u8), String> {
 }
 
 fn probe_fail(id: &str, message: String) -> Check {
-    let check = Check::new(id.to_string(), CATEGORY, Status::Fail, message);
-    if cfg!(target_os = "linux") {
-        check.with_fix(
-            "apt-get install -y libvulkan1 mesa-vulkan-drivers   # WebGPU on Linux needs a Vulkan loader + Mesa ICD",
-        )
-    } else {
-        check.with_fix("update Chrome to the latest stable (agent-browser install)")
-    }
+    Check::new(id.to_string(), CATEGORY, Status::Fail, message)
+        .with_fix("update Chrome to the latest stable (agent-browser install)")
 }
 
 fn send_json(cmd: Value, session: &str) -> Result<(), String> {

@@ -7,8 +7,8 @@
 //! The generation is not decoration. A renderer left running by an earlier
 //! build keeps serving a rebuilt binary's controls if the name it answers on
 //! does not change when the protocol does — which happens on any rebuild
-//! during a live session, every end-to-end run of the overlay included. macOS
-//! hashes its protocol version into the socket path for the same reason.
+//! during a live session, every end-to-end run of the overlay included. The
+//! name hashes the protocol version into the pipe path for that reason.
 
 use std::path::Path;
 

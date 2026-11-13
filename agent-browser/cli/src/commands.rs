@@ -155,7 +155,6 @@ pub fn is_top_level_command(value: &str) -> bool {
             | "state"
             | "tap"
             | "swipe"
-            | "device"
             | "diff"
             | "batch"
             | "react"
@@ -461,12 +460,6 @@ fn parse_command_inner(
                         }
                     })?;
                 nav_cmd["headers"] = headers;
-            }
-            // Include iOS device info if specified (needed for auto-launch with existing daemon)
-            if flags.provider.as_deref() == Some("ios") {
-                if let Some(ref device) = flags.device {
-                    nav_cmd["iosDevice"] = json!(device);
-                }
             }
             Ok(nav_cmd)
         }
@@ -2051,7 +2044,7 @@ fn parse_command_inner(
             }
         }
 
-        // === iOS-specific commands ===
+        // === Touch commands ===
         "tap" => {
             // Alias for click (semantic clarity for touch interfaces)
             let sel = rest.first().ok_or_else(|| ParseError::MissingArguments {
@@ -2081,18 +2074,6 @@ fn parse_command_inner(
                 }
             }
             Ok(cmd)
-        }
-        "device" => {
-            match rest.first().copied() {
-                Some("list") | None => {
-                    // List available iOS simulators
-                    Ok(json!({ "id": id, "action": "device_list" }))
-                }
-                Some(sub) => Err(ParseError::UnknownSubcommand {
-                    subcommand: sub.to_string(),
-                    valid_options: &["list"],
-                }),
-            }
         }
 
         "diff" => parse_diff(&rest, &id),
@@ -3957,9 +3938,6 @@ mod tests {
             hide_scrollbars: true,
             webgpu: false,
             no_webmcp: false,
-            no_xvfb: false,
-            no_xvfb_set: false,
-            device: None,
             auto_connect: false,
             pin_tab: false,
             session_name: None,

@@ -55,7 +55,7 @@ TOKEN_SCAN_MD_ROOTS="skills"
 # The live harness ships Python and shell a reader relies on the same way as
 # Rust: a plan id in a runner comment goes stale and misleads exactly as one
 # in a doc comment does, so its tree walks the same token rules.
-TOKEN_SCAN_HARNESS_ROOTS="tests/e2e-linux"
+TOKEN_SCAN_HARNESS_ROOTS="tests/e2e-windows"
 
 token_rule() {
     local pattern="$1"
@@ -73,7 +73,7 @@ token_rule() {
     # - which is the usual case, and is how three plan-decision ids reached
     # shipped source with this gate reporting clean.
     # shellcheck disable=SC2086
-    matches="$( { grep -rnE --include='*.rs' "$pattern" $TOKEN_SCAN_RS_ROOTS 2>/dev/null; grep -rnE --include='*.md' "$pattern" $TOKEN_SCAN_MD_ROOTS 2>/dev/null; grep -rnE --include='*.py' --include='*.sh' "$pattern" $TOKEN_SCAN_HARNESS_ROOTS 2>/dev/null; } )"
+    matches="$( { grep -rnE --include='*.rs' "$pattern" $TOKEN_SCAN_RS_ROOTS 2>/dev/null; grep -rnE --include='*.md' "$pattern" $TOKEN_SCAN_MD_ROOTS 2>/dev/null; grep -rnE --include='*.py' --include='*.sh' --include='*.ps1' "$pattern" $TOKEN_SCAN_HARNESS_ROOTS 2>/dev/null; } )"
     if [ -n "$matches" ]; then
         printf '%s\n' "$matches" >&2
         printf '  ^ %s - describe what is true, not when it was built\n\n' "$description" >&2
@@ -126,9 +126,9 @@ token_check() {
 # literals and there are hundreds of them.
 # Implemented in awk and by tokenising rather than with word-boundary regexes.
 # `\b` is a GNU extension that BSD sed and grep do not support, so a regex
-# using it silently stops stripping on the macOS runner and reports every
+# using it silently stops stripping outside GNU userland and reports every
 # version number as a violation. Splitting the line into tokens needs no
-# boundary support and is exact on both.
+# boundary support and is exact everywhere.
 # The awk program both the real scan and the self-test run, so the fixture
 # below is testing the shipped rule rather than a copy of it.
 #
@@ -505,7 +505,7 @@ pub fn f() {}
     fi
     TOKEN_SCAN_RS_ROOTS="crates src"
     TOKEN_SCAN_MD_ROOTS="skills"
-    TOKEN_SCAN_HARNESS_ROOTS="tests/e2e-linux"
+    TOKEN_SCAN_HARNESS_ROOTS="tests/e2e-windows"
     cleanup_fixture_tree "$tree_root"
     trap - EXIT
 

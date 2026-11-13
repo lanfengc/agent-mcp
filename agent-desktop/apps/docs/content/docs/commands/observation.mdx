@@ -10,7 +10,7 @@ Concepts behind the flags are explained in [Skeleton and drill-down](/desktop/sk
 
 ## snapshot
 
-Captures an application's accessibility tree as JSON. Window-owned surfaces are read from a window; on macOS, `menu` and `menubar` are application-owned and need no document window. Interactive elements get qualified refs that later commands accept.
+Captures an application's accessibility tree as JSON. Window-owned surfaces are read from a window. Interactive elements get qualified refs that later commands accept.
 
 ```bash
 agent-desktop snapshot [--app NAME] [--window-id ID] [-i] [--compact] [--skeleton] \
@@ -24,7 +24,7 @@ agent-desktop snapshot [--app NAME] [--window-id ID] [-i] [--compact] [--skeleto
   </thead>
   <tbody>
     <tr><td><code>--app NAME</code></td><td>focused app or window</td><td>Application to read. The selected surface determines whether a window is required. See <a href="/desktop/snapshots-and-refs#choose-the-window">Choose the window</a>.</td></tr>
-    <tr><td><code>--window-id ID</code></td><td>none</td><td>Read one window by id from <code>list-windows</code>. For macOS <code>menu</code> and <code>menubar</code>, it selects the owning app.</td></tr>
+    <tr><td><code>--window-id ID</code></td><td>none</td><td>Read one window by id from <code>list-windows</code>.</td></tr>
     <tr><td><code>-i</code>, <code>--interactive-only</code></td><td>off</td><td>Drop leaves without a ref. See <a href="/desktop/snapshots-and-refs#what-a-snapshot-contains">What a snapshot contains</a>.</td></tr>
     <tr><td><code>--compact</code></td><td>off</td><td>Collapse single-child unnamed wrappers.</td></tr>
     <tr><td><code>--include-bounds</code></td><td>off</td><td>Add <code>bounds</code> to each node.</td></tr>
@@ -32,15 +32,14 @@ agent-desktop snapshot [--app NAME] [--window-id ID] [-i] [--compact] [--skeleto
     <tr><td><code>--root REF</code></td><td>none</td><td>Drill into one ref's subtree and replace that region's refs. Cannot combine with <code>--surface</code> or <code>--wait-for</code>. See <a href="/desktop/skeleton-and-drill-down#drill-into-a-region">Drill into a region</a>.</td></tr>
     <tr><td><code>--max-depth N</code></td><td><code>10</code></td><td>Maximum depth, up to 50. See <a href="/desktop/skeleton-and-drill-down#depth-with-max-depth">Depth with max-depth</a>.</td></tr>
     <tr><td><code>--timeout-ms MS</code></td><td><code>3000</code></td><td>Observation deadline. A full snapshot that runs out succeeds with <code>complete: false</code>. See <a href="/desktop/skeleton-and-drill-down#partial-observations">Partial observations</a>.</td></tr>
-    <tr><td><code>--surface KIND</code></td><td><code>window</code></td><td>Read the selected UI surface. On macOS, <code>menu</code> and <code>menubar</code> are application-owned. See <a href="/desktop/surfaces#surface-kinds">Surface kinds</a>.</td></tr>
+    <tr><td><code>--surface KIND</code></td><td><code>window</code></td><td>Read the selected UI surface. See <a href="/desktop/surfaces#surface-kinds">Surface kinds</a>.</td></tr>
     <tr><td><code>--force-electron-a11y</code></td><td>off</td><td>Assume Chromium renderer accessibility is already forced, which skips the activation guidance.</td></tr>
   </tbody>
 </table>
 
-`data` carries `app`, `snapshot_id`, `ref_count`, `complete`, and `tree`. Window-owned snapshots also carry `window`; macOS application-owned `menu` and `menubar` snapshots, and process-owned snapshots of a background app with no window, omit it. [Snapshots and refs](/desktop/snapshots-and-refs) shows the window-owned shape. With a post-action `--wait-for` ([Configuration](/desktop/configuration#post-action-wait-flags)), a successful snapshot adds `elapsed_ms` and `matched_selector`.
+`data` carries `app`, `snapshot_id`, `ref_count`, `complete`, and `tree`. Window-owned snapshots also carry `window`; process-owned snapshots of a background app with no window omit it. [Snapshots and refs](/desktop/snapshots-and-refs) shows the window-owned shape. With a post-action `--wait-for` ([Configuration](/desktop/configuration#post-action-wait-flags)), a successful snapshot adds `elapsed_ms` and `matched_selector`.
 
-Errors specific to `snapshot`: `INVALID_ARGS` for `--root` with `--surface` or `--wait-for`, a bare ref, `--max-depth` above 50, or an unsupported `--surface` when the platform supports other surfaces; `PLATFORM_NOT_SUPPORTED` when the adapter supports no surfaces; `WINDOW_NOT_FOUND` when a window-owned surface has no window; `APP_NOT_FOUND` when an application-owned surface has no matching app; `AMBIGUOUS_TARGET` when a window-owned lookup has several candidate windows; `ELEMENT_NOT_FOUND` when a macOS application-owned menu surface is absent; `STALE_REF`, `SNAPSHOT_NOT_FOUND`, or `TIMEOUT` for a `--root` drill. See [What a drill refuses](/desktop/skeleton-and-drill-down#what-a-drill-refuses).
-Platform limits: supported surfaces and Chromium settle time differ by OS. See [macOS](/desktop/platforms/macos), [Windows](/desktop/platforms/windows), and [Linux](/desktop/platforms/linux).
+Errors specific to `snapshot`: `INVALID_ARGS` for `--root` with `--surface` or `--wait-for`, a bare ref, `--max-depth` above 50, or an unsupported `--surface` when the platform supports other surfaces; `PLATFORM_NOT_SUPPORTED` when the adapter supports no surfaces; `WINDOW_NOT_FOUND` when a window-owned surface has no window; `AMBIGUOUS_TARGET` when a window-owned lookup has several candidate windows; `STALE_REF`, `SNAPSHOT_NOT_FOUND`, or `TIMEOUT` for a `--root` drill. See [What a drill refuses](/desktop/skeleton-and-drill-down#what-a-drill-refuses). Supported surfaces are listed on [Windows](/desktop/platforms/windows#surfaces).
 
 ## find
 
@@ -64,7 +63,7 @@ agent-desktop find [--app NAME] [--window-id ID] [--role ROLE] [--name TEXT] [--
     <tr><td><code>--value TEXT</code></td><td>none</td><td>Current value. Unnamed elements carry their content here.</td></tr>
     <tr><td><code>--text TEXT</code></td><td>none</td><td>Text in the name, value, or description. Also matches ancestors whose subtree contains it; use <code>--name</code> to match the node itself.</td></tr>
     <tr><td><code>--description TEXT</code></td><td>none</td><td>Accessible description.</td></tr>
-    <tr><td><code>--native-id ID</code></td><td>none</td><td>Native automation id, such as an <code>AXIdentifier</code> or AutomationId.</td></tr>
+    <tr><td><code>--native-id ID</code></td><td>none</td><td>Native automation id, such as a Windows <code>AutomationId</code>.</td></tr>
     <tr><td><code>--exact</code></td><td>off</td><td>Case-insensitive equality instead of a fuzzy match.</td></tr>
     <tr><td><code>--state TOKEN[=BOOL]</code></td><td>none</td><td>Filter by a state, repeatable. A bare token means true. Tokens: <code>focused</code>, <code>disabled</code>, <code>secure</code>, <code>expanded</code>, <code>checked</code>, <code>selected</code>, <code>hidden</code>, <code>busy</code>, <code>modal</code>, <code>required</code>, <code>indeterminate</code>, <code>pressed</code>, <code>readonly</code>, <code>offscreen</code>, <code>invalid</code>, <code>multiselectable</code>, <code>haspopup</code>.</td></tr>
     <tr><td><code>--root REF</code></td><td>none</td><td>Search one ref's subtree. See <a href="/desktop/skeleton-and-drill-down#scope-a-search">Scope a search</a>.</td></tr>
@@ -79,7 +78,7 @@ agent-desktop find [--app NAME] [--window-id ID] [--role ROLE] [--name TEXT] [--
 `--count`, `--first`, `--last`, `--nth`, and `--limit` are mutually exclusive. The result shapes and match fields are in [JSON output](/desktop/json-output#find-results).
 
 ```bash
-agent-desktop find --app gnome-calculator --role button --name 7 --exact --first
+agent-desktop find --app notepad.exe --role textfield --first
 ```
 
 ```json
@@ -90,14 +89,14 @@ agent-desktop find --app gnome-calculator --role button --name 7 --exact --first
   "data": {
     "match": {
       "interactive": true,
-      "name": "7",
-      "path": ["window:Calculator", "group", "group", "group", "group", "group", "group", "group", "group", "group", "group", "group"],
-      "ref_id": "@s3jjre8xzrvo2l:e1",
-      "role": "button",
-      "states": [],
+      "name": "Text editor",
+      "path": ["window:Untitled - Notepad"],
+      "ref_id": "@s130xb68qxnjxe:e1",
+      "role": "textfield",
+      "states": ["focused"],
       "value": null
     },
-    "snapshot_id": "s3jjre8xzrvo2l"
+    "snapshot_id": "s130xb68qxnjxe"
   }
 }
 ```
@@ -127,7 +126,7 @@ agent-desktop get <REF> [--property text|value|title|bounds|role|states]
   "version": "2.6",
   "ok": true,
   "command": "get",
-  "data": { "property": "value", "ref": "@s30sxlstqzdq8x:e19", "value": "entry" }
+  "data": { "property": "value", "ref": "@s2jmdx3amedsce:e1", "value": "" }
 }
 ```
 
@@ -154,7 +153,7 @@ agent-desktop is <REF> [--property visible|enabled|checked|focused|expanded|sele
 </table>
 
 ```bash
-agent-desktop is @s30sxlstqzdq8x:e45 --property enabled
+agent-desktop is @s2jmdx3amedsce:e1 --property enabled
 ```
 
 ```json
@@ -162,7 +161,7 @@ agent-desktop is @s30sxlstqzdq8x:e45 --property enabled
   "version": "2.6",
   "ok": true,
   "command": "is",
-  "data": { "applicable": true, "property": "enabled", "ref": "@s30sxlstqzdq8x:e45", "result": false }
+  "data": { "applicable": true, "property": "enabled", "ref": "@s2jmdx3amedsce:e1", "result": true }
 }
 ```
 
@@ -173,7 +172,7 @@ agent-desktop is @s30sxlstqzdq8x:e45 --property enabled
 Captures an app window or a display as a PNG. A screenshot is evidence for you, not proof that an action worked.
 
 ```bash
-agent-desktop screenshot [PATH] [--app NAME] [--window-id ID] [--screen N]
+agent-desktop screenshot [PATH] [--app NAME] [--window-id ID] [--screen N] [--ocr] [--ocr-language TAG] [--ocr-query TEXT]
 ```
 
 <table>
@@ -185,9 +184,9 @@ agent-desktop screenshot [PATH] [--app NAME] [--window-id ID] [--screen N]
     <tr><td><code>--app NAME</code></td><td>none</td><td>Capture this app's window.</td></tr>
     <tr><td><code>--window-id ID</code></td><td>none</td><td>Capture one window by id.</td></tr>
     <tr><td><code>--screen N</code></td><td>none</td><td>Capture the display at index <code>N</code> of <code>list-displays</code>, where <code>0</code> is the primary. Cannot combine with <code>--app</code> or <code>--window-id</code>.</td></tr>
-    <tr><td><code>--ocr</code></td><td>off</td><td>Windows only. Recognize text in the captured image and add <code>lines</code> and <code>words</code> with image-pixel rectangles.</td></tr>
-    <tr><td><code>--ocr-language TAG</code></td><td>user profile languages</td><td>OCR engine language such as <code>zh-Hans</code> or <code>en-US</code>.</td></tr>
-    <tr><td><code>--ocr-query TEXT</code></td><td>none</td><td>With <code>--ocr</code>, narrow the result to <code>ocr_match</code>: the best-matching word or line with <code>center_x</code> and <code>center_y</code>.</td></tr>
+    <tr><td><code>--ocr</code></td><td>off</td><td>Windows only. Recognize text in the captured image and add <code>data.ocr</code>: its lines and words with image-pixel rectangles.</td></tr>
+    <tr><td><code>--ocr-language TAG</code></td><td>user profile languages</td><td>With <code>--ocr</code>, the OCR engine language, such as <code>zh-Hans</code> or <code>en-US</code>.</td></tr>
+    <tr><td><code>--ocr-query TEXT</code></td><td>none</td><td>With <code>--ocr</code>, add <code>data.ocr_match</code>: the word, phrase, or line that matches the text, with its rectangle, <code>center_x</code>, and <code>center_y</code>.</td></tr>
   </tbody>
 </table>
 
@@ -200,17 +199,21 @@ agent-desktop screenshot --screen 0 screen.png
   "version": "2.6",
   "ok": true,
   "command": "screenshot",
-  "data": { "format": "png", "height": 900, "path": "/tmp/screen.png", "scale_factor": 1.0, "width": 1440 }
+  "data": { "format": "png", "height": 1080, "path": "C:\\Users\\you\\screen.png", "scale_factor": 1.0, "width": 1920 }
 }
 ```
 
-Errors specific to `screenshot`: `PERM_DENIED` without screen-capture permission; `INVALID_ARGS` for `--screen` with a window selector, an out-of-range index, or an unwritable `PATH`; `WINDOW_NOT_FOUND` or `APP_NOT_FOUND` for an unknown target. On Linux, a covered window on a non-compositing window manager fails with `ACTION_FAILED` and `details.reason: "covered"`, and a display capture under a compositing one returns `PLATFORM_NOT_SUPPORTED`.
+Errors specific to `screenshot`: `INVALID_ARGS` for `--screen` with a window selector, an out-of-range index, or an unwritable `PATH`; `WINDOW_NOT_FOUND` or `APP_NOT_FOUND` for an unknown target; `ACTION_FAILED` when the capture itself fails.
 
-When the target is a window with bounds, the response also carries `capture_id`, `window_id`, `window_bounds`, `capture_bounds` and `capture_time_ms`. `capture_bounds` is the screen rectangle the image pixels map to, so image pixel `(0,0)` is its top-left. On Windows this is the DWM extended frame, which can differ from `window_bounds` by the invisible resize border. Pass `capture_id` unchanged to `mouse-click --background` to click in image pixels. The id is opaque and bound to the window, its process instance, its bounds and the capture time. A minimized window is captured by restoring it for the capture and minimizing it again.
+When the target is a window with bounds, the response also carries `capture_id`, `window_id`, `window_bounds`, `capture_bounds` and `capture_time_ms`. `capture_bounds` is the screen rectangle the image pixels map to, so image pixel `(0,0)` is its top-left. On Windows it is the DWM extended frame when the image has that size, which can differ from `window_bounds` by the invisible resize border; otherwise it equals `window_bounds`. Pass `capture_id` unchanged to `mouse-click --background` to click in image pixels. The id is opaque and bound to the window, its process instance, its bounds and the capture time. On Windows, a minimized window is restored for the capture and minimized again, so it shows on screen for a moment.
 
-On Windows, `--ocr` adds the recognized text to `data`. `lines` and `words` carry image-pixel rectangles, and `--ocr-query` adds `ocr_match` with the matched text and its `center_x`/`center_y`. Matching ignores whitespace and case, and joins per-character words, so a query such as `世界` matches a run of single-character OCR words. Pass the center to `mouse-click --background --capture-id` to act on a surface with no accessibility tree.
+On Windows, `--ocr` adds `data.ocr`: the recognized `text` and its `lines`, each with `text`, a `rect`, and its `words` (`text` and `rect`). Every rectangle is in image pixels. `--ocr-query TEXT` adds `data.ocr_match` beside it, with the matched `text`, the `line` it sits in, `x`, `y`, `width`, `height`, `center_x`, and `center_y`. Matching ignores case and runs in three steps:
 
-Platform limits: macOS needs Screen Recording permission, and Wayland asks for portal consent. See [macOS](/desktop/platforms/macos) and [Linux](/desktop/platforms/linux).
+1. A single word that contains the query. A word equal to the query wins over one that only contains it.
+2. The query as a phrase across consecutive words of one line, ignoring whitespace. The match is the rectangle of exactly those words, so a query such as `世界` matches a run of single-character OCR words.
+3. The first line that contains the query, reported as the whole line.
+
+`ocr_match` is omitted when nothing matches. Pass the center to `mouse-click --background --capture-id` to act on a surface with no accessibility tree. `--ocr-query` or `--ocr-language` without `--ocr`, and a language tag that is not valid or not installed, return `INVALID_ARGS`. A language with no OCR engine installed returns `ACTION_NOT_SUPPORTED`.
 
 ## list-displays
 
@@ -265,11 +268,11 @@ agent-desktop --headed open-system-surface --surface KIND
     <tr><th>Flag</th><th>Default</th><th>Meaning</th></tr>
   </thead>
   <tbody>
-    <tr><td><code>--surface KIND</code></td><td>required</td><td>The shell surface: <code>start-menu</code>, <code>taskbar</code>, <code>system-tray</code>, <code>system-tray-overflow</code>, <code>action-center</code>, <code>dock</code>, or <code>menu-bar-extras</code>. <code>dock</code> and <code>menu-bar-extras</code> are the macOS kinds.</td></tr>
+    <tr><td><code>--surface KIND</code></td><td>required</td><td>The shell surface: <code>start-menu</code>, <code>taskbar</code>, <code>system-tray</code>, <code>system-tray-overflow</code>, or <code>action-center</code>.</td></tr>
   </tbody>
 </table>
 
-`data` is `surface` and, on Windows and Linux, `window`, with the same fields as a [`list-windows`](/desktop/commands/app-window#list-windows) entry. On macOS no window owns the surface, so `data` is only `{"surface": "dock"}` and `window` is left out. This shape comes from the command's unit test:
+`data` is `surface` and `window`, with the same fields as a [`list-windows`](/desktop/commands/app-window#list-windows) entry. This shape comes from the command's unit test:
 
 ```json
 {
@@ -283,4 +286,4 @@ agent-desktop --headed open-system-surface --surface KIND
 }
 ```
 
-The command takes the foreground, so on Windows and Linux headless mode refuses it with `POLICY_DENIED` before anything is raised; pass `--headed`. A kind the OS does not expose returns `INVALID_ARGS`, with the kinds to use in `suggestion` and the alternative in `platform_detail` where one exists. On macOS, `dock` and `menu-bar-extras` are always on screen, so the command returns them at once, headless, with no `--headed`; open Control Center or Notification Center by clicking its `menu-bar-extras` item. Which kinds open on Windows and Linux is on their platform pages.
+The command takes the foreground, so headless mode refuses it with `POLICY_DENIED` before anything is raised; pass `--headed`. A kind this build does not expose returns `INVALID_ARGS` with the kinds to use instead. Which kinds this build opens is on the [Windows page](/desktop/platforms/windows#surfaces).

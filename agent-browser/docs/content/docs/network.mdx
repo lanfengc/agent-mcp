@@ -279,4 +279,4 @@ The MCP server exposes `agent_browser_flow_list`, `agent_browser_flow_run`, `age
 
 Flows live in `~/.agent-browser/flows/<origin>/<name>.json`. Set `AGENT_BROWSER_FLOWS_DIR` to use another directory. `<origin>` is validated as a hostname when a flow is written, so it cannot contain a path.
 
-On macOS and Linux the directories are created with mode `0700` and the files with `0600`. On Windows flows are written under the user profile and inherit its per-user permissions; agent-browser does not set an explicit ACL, so a directory set with `AGENT_BROWSER_FLOWS_DIR` is only as private as its location.
+Flow files are written under the user profile and inherit its per-user permissions; agent-browser does not set an explicit ACL, so a directory set with `AGENT_BROWSER_FLOWS_DIR` is only as private as its location.

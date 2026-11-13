@@ -20,8 +20,8 @@ fn launched_window(launched: LaunchResult) -> Result<WindowInfo, AdapterError> {
     })
 }
 
-/// Launches the application identified by `id` (bundle id on macOS,
-/// executable path on other platforms) and, on success, writes the first
+/// Launches the application identified by `id` (an executable path or a bare
+/// executable name) and, on success, writes the first
 /// generation-pinned window that becomes available into `*out`. Waits for the
 /// windows the launch itself produces, bounded by `timeout_ms`; zero means
 /// "no wait". An application that presents no window fails with

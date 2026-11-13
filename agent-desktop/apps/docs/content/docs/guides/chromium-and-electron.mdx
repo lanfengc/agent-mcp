@@ -12,21 +12,20 @@ agent-desktop reads every app through the OS accessibility tree, and that path w
   </thead>
   <tbody>
     <tr><td>Web contents: pages, panels, editors, forms inside the app</td><td>agent-browser, over the CDP port</td></tr>
-    <tr><td>Native menu bar, file dialogs and sheets, window management, notifications, screenshots</td><td>agent-desktop</td></tr>
+    <tr><td>Native window chrome, menus, file dialogs and sheets, window management, notifications, screenshots</td><td>agent-desktop</td></tr>
     <tr><td>An app that is already running, or one you did not launch</td><td>agent-desktop only. The port exists only on a process launched with it</td></tr>
   </tbody>
 </table>
 
 ## 1. Launch the app with a DevTools port
 
-```bash
-agent-desktop launch chrome --cdp --env ACCESSIBILITY_ENABLED=1 \
-  --arg=--force-renderer-accessibility --arg=--user-data-dir=/tmp/chrome-profile
+```powershell
+agent-desktop launch "C:\Program Files\Google\Chrome\Application\chrome.exe" --cdp
 ```
 
-`--cdp` adds the remote-debugging switches, waits until the endpoint answers, and returns it in `data.cdp`. Omit the port, as here, to let the OS pick a free one, or pass one (`--cdp 9229`). The `--env` and `--force-renderer-accessibility` arguments are for Linux, where Chromium joins the accessibility bus only when asked, so that agent-desktop can still see the native UI; see [Linux](/desktop/platforms/linux#chromium-qt-and-electron). An Electron app needs no extra arguments.
+`--cdp` adds the remote-debugging switches, waits until the endpoint answers, and returns it in `data.cdp`. Omit the port, as here, to let the OS pick a free one, or pass one (`--cdp 9229`). Windows Chromium 138 and later exposes UI Automation without an accessibility switch, so agent-desktop sees the native UI with no extra arguments; see [Chromium and Electron](/desktop/platforms/windows#chromium-and-electron). An Electron app needs no extra arguments.
 
-This is Google Chrome on Linux, with the suggestion and the window object trimmed:
+A Windows launch result, trimmed to the endpoint, process, and window:
 
 ```json
 {
@@ -34,7 +33,7 @@ This is Google Chrome on Linux, with the suggestion and the window object trimme
   "ok": true,
   "command": "launch",
   "data": {
-    "app": "chrome",
+    "app": "chrome.exe",
     "cdp": {
       "http_endpoint": "http://127.0.0.1:44297",
       "port": 44297,
@@ -42,26 +41,26 @@ This is Google Chrome on Linux, with the suggestion and the window object trimme
       "websocket_url": "ws://127.0.0.1:44297/devtools/browser/4a28a252-c7ea-4288-9985-50e34fc49b8f"
     },
     "pid": 11342,
-    "process_instance": "1e1c1e2e:168278",
+    "process_instance": "windows-proc-v1:13438968905:9691593",
     "renderer": "chromium",
     "suggestion": "Next: run `agent-browser connect 44297` (preferred; `agent-browser skills get electron` has the guide) or connect any CDP client such as Playwright or Puppeteer. ...",
-    "window": { "id": "w-1.10-org-a11y-atspi-accessible-1", "title": "Untitled - Google Chrome" }
+    "window": { "id": "w-132456", "title": "Untitled - Google Chrome" }
   }
 }
 ```
 
-Pass the app name that `list-apps` prints (`chrome`, `Slack`, `Obsidian`). agent-desktop refuses `--cdp` for an app that is already running, because a running process has no port and quitting it would lose the user's state. It finds the running app by that name, so a launcher alias such as `google-chrome` on Linux skips the check and the launch times out instead.
+Pass the app name that `list-apps` prints (`chrome.exe`, `slack.exe`, `obsidian.exe`). agent-desktop refuses `--cdp` for an app that is already running, because a running process has no port and quitting it would lose the user's state. It matches the name against running apps, so a different executable name skips the check and the launch times out instead.
 
 ## 2. Connect agent-browser to the port
 
-```bash
+```powershell
 agent-browser connect 44297      # the port from data.cdp.port
 agent-browser snapshot -i
 # - heading "Settings" [level=1, ref=e1]
 # - textbox "Name" [ref=e3]
 # - button "Save" [ref=e2]
-agent-browser fill @e3 "Ada"
-agent-browser click @e2
+agent-browser fill '@e3' "Ada"
+agent-browser click '@e2'
 ```
 
 From here the web contents follow agent-browser's own snapshot, ref, and act loop; see [agent-browser](https://agent-browser.dev) and `agent-browser skills get electron`. Playwright, Puppeteer, and other CDP clients can use `data.cdp.websocket_url` instead. Do not write raw CDP or call app-internal APIs.
@@ -70,17 +69,17 @@ From here the web contents follow agent-browser's own snapshot, ref, and act loo
 
 The window chrome, menus, and dialogs are not in the web contents, so they stay on agent-desktop, in the same run:
 
-```bash
-agent-desktop find --app chrome --role button --name Reload --first
-agent-desktop find --app chrome --role textfield --first          # the address bar
+```powershell
+agent-desktop find --app chrome.exe --role button --name Reload --first
+agent-desktop find --app chrome.exe --role textfield --first          # the address bar
 ```
 
 Against the session above, the second `find` returned the address bar, `"name": "Address and search bar"`, with the page agent-browser had opened as its value. Use `snapshot --surface` for a native file dialog or sheet the web contents open; see [Surfaces](/desktop/surfaces).
 
 ## 4. Close the app
 
-```bash
-agent-desktop close-app chrome
+```powershell
+agent-desktop close-app chrome.exe
 ```
 
 `close-app` ends the process and with it the port; the run above returned `delivered_verified` with `details.evidence: "process_instance_exited"`, and the endpoint stopped answering. While the port is open, any local process can control the app's web contents, including processes of other accounts on the same machine, because the DevTools port has no authentication. Request `--cdp` only for the steps that need it.

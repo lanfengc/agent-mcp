@@ -65,8 +65,8 @@ const READ_HEALTH_PROBES: [TreeProperty; 6] = [
 /// Windows. A `button` role reaching this function with the `STATE_SYSTEM_PRESSED`
 /// bit set represents a different pattern: a button whose pressed state is
 /// exposed through the legacy MSAA interface rather than through UI Automation
-/// patterns. macOS's `state_reader.rs` emits `pressed` for toggle buttons in
-/// the same logical pattern (role `button` + checked value).
+/// patterns. The same logical pattern - role `button` plus a checked value -
+/// is what this function reports below.
 ///
 /// # Known vs Unknown
 /// `LocatorField::Unknown` is returned only when every [`READ_HEALTH_PROBES`]
@@ -130,11 +130,10 @@ fn read_health_failed(properties: &ElementProperties) -> bool {
         .all(|property| matches!(properties.get(*property), PropertyOutcome::Unknown))
 }
 
-/// `ToggleState`, role-gated exactly as macOS's `state_reader.rs:35-41` gates
-/// the same source for `checked`/`indeterminate` on a toggleable role.
-/// `state_reader.rs:57-59`'s sibling `pressed` arm has no counterpart here;
-/// see `resolve_states`'s doc comment for why the role that arm needs can
-/// never reach this function.
+/// `ToggleState`, role-gated: this source supplies `checked`/`indeterminate`
+/// only on a toggleable role. There is no sibling `pressed` arm here; see
+/// `resolve_states`'s doc comment for why the role that arm needs can never
+/// reach this function.
 fn push_toggle_state(properties: &ElementProperties, role: &str, states: &mut Vec<String>) {
     let Some(toggle) = properties.gated_number(TreeProperty::ToggleState) else {
         return;

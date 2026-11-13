@@ -2,10 +2,8 @@
 //! environment variable, creating it privately on first use, and refusing
 //! (never repairing) anything that does not validate as private.
 //!
-//! Three independent checks port all three things
-//! `ensure_unix_runtime_directory` / `validate_unix_runtime_directory` do
-//! (`crates/core/src/session/interaction_lease.rs:163-203`) to a platform where
-//! `mkdir` does not yield euid ownership: an owner check that accepts
+//! Three independent checks, because this platform has no single ownership
+//! guarantee to rely on: an owner check that accepts
 //! either `TokenOwner` or `TokenUser` - the two shapes an elevated
 //! administrator's own created directories actually carry on this platform -
 //! a `GetFinalPathNameByHandle` comparison that catches a junction at any

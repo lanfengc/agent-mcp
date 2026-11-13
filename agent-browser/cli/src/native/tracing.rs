@@ -286,14 +286,7 @@ pub async fn profiler_stop(
         }
     };
 
-    let clock_domain = get_clock_domain();
-    let mut profile = json!({ "traceEvents": events });
-    if let Some(cd) = clock_domain {
-        profile
-            .as_object_mut()
-            .unwrap()
-            .insert("metadata".to_string(), json!({ "clock-domain": cd }));
-    }
+    let profile = json!({ "traceEvents": events });
 
     let json_str = serde_json::to_string(&profile)
         .map_err(|e| format!("Failed to serialize profile: {}", e))?;
@@ -344,16 +337,6 @@ async fn read_io_stream(
         }
     }
     Ok(data)
-}
-
-fn get_clock_domain() -> Option<&'static str> {
-    if cfg!(target_os = "linux") {
-        Some("LINUX_CLOCK_MONOTONIC")
-    } else if cfg!(target_os = "macos") {
-        Some("MAC_MACH_ABSOLUTE_TIME")
-    } else {
-        None
-    }
 }
 
 fn get_traces_dir() -> PathBuf {

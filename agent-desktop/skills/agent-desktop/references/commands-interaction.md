@@ -12,8 +12,8 @@ Which gestures have a headless path:
 
 | Command | Headless |
 |---------|----------|
-| `click`, `set-value`, `clear`, `select`, `check`, `uncheck`, `toggle`, `expand`, `collapse`, `scroll`, `scroll-to` | Yes, where the element advertises a semantic action (not `scroll` on Linux) |
-| `type`, `right-click`, `focus` | OS-dependent. Read the platform skill for which need `--headed` |
+| `click`, `set-value`, `clear`, `select`, `check`, `uncheck`, `toggle`, `expand`, `collapse`, `scroll`, `scroll-to` | Yes, where the element advertises a semantic action |
+| `type`, `right-click`, `focus` | OS-dependent. Read the Windows skill for which need `--headed` |
 | `double-click`, `triple-click`, `hover`, `drag`, `mouse-*` | No. They need `--headed` |
 
 Native cross-app drag and drop may not start from synthetic events. It works for same-view drags and for web drag and drop.
@@ -58,9 +58,9 @@ Exit codes: `0` success, `1` structured error, `2` argument error. The `error` o
 | `NOTIFICATION_NOT_FOUND` | Notification index or fingerprint no longer matches | List again |
 | `INTERNAL` | Unexpected OS failure | Read `message`. Retry once only if `disposition.retry` is `safe` |
 
-`ELEMENT_NOT_FOUND` with `details.kind: "surface_absent"` and `details.complete: true` is complete absence evidence. An absent `menubar` can mean the app exposes no menu bar. For `surface: menu`, snapshot `menubar` when it exists, click its item without `--headed`, then snapshot `--surface menu`. Missing `complete`, `complete: false`, a timeout or an incomplete read is unknown, not absent. If the earlier action has `delivery_uncertain` and `retry: unsafe`, inspect the current UI before any action; do not repeat it.
+`ELEMENT_NOT_FOUND` with `details.kind: "surface_absent"` and `details.complete: true` is complete absence evidence. Missing `complete`, `complete: false`, a timeout or an incomplete read is unknown, not absent. If the earlier action has `delivery_uncertain` and `retry: unsafe`, inspect the current UI before any action; do not repeat it.
 
-`TIMEOUT` `details.kind` values: `actionability_timeout` (the target never became actionable), `wait_timeout` (a `wait` condition; carries `predicate`, `timeout_ms`, `last_observed` or `last_error`), `chain_deadline` (an activation chain ran out of time; carries `value_before`, `value_at_timeout`, `target`, `mutated`), and `focus_verification` (macOS did not observe `AXFrontmost` for the app or `AXMain` for the window before the bounded focus readback ended). With `chain_deadline`, `mutated: true` or an unknown expanded state means re-read before you retry. `mutated: false` means a direct retry is safe. With `focus_verification`, `physical_delivery_started: false` means target input had not started; read `disposition` because a dispatched activation can still be `delivered_unverified`.
+`TIMEOUT` `details.kind` values: `actionability_timeout` (the target never became actionable), `wait_timeout` (a `wait` condition; carries `predicate`, `timeout_ms`, `last_observed` or `last_error`), and `chain_deadline` (an activation chain ran out of time; carries `value_before`, `value_at_timeout`, `target`, `mutated`). With `chain_deadline`, `mutated: true` or an unknown expanded state means re-read before you retry. `mutated: false` means a direct retry is safe.
 
 ## Actionability
 
@@ -138,7 +138,7 @@ agent-desktop scroll @s8f3k2p9:e1 --direction down --amount 3
 agent-desktop scroll-to @s8f3k2p9:e8
 ```
 
-- `scroll` moves a scroll area. Headless uses native scroll paths, but on Linux `scroll` is physical wheel input and needs `--headed` and X11 (see the Linux skill). Headed sends a physical wheel gesture where possible. With no safe mechanism it returns a structured error.
+- `scroll` moves a scroll area. Headless uses native scroll paths; headed sends a physical wheel gesture where possible. With no safe mechanism it returns a structured error.
 - `scroll-to` brings an element into view. Success means a re-read found it visible. It needs a ref. When only `bounds` exist, scroll the container with `scroll` or use `--headed mouse-wheel`.
 - `mouse-wheel --x --y [--dx] [--dy]` posts a raw wheel event at a screen point. Use it for canvases and custom scroll surfaces with no accessibility scroll action.
 
@@ -147,10 +147,10 @@ agent-desktop scroll-to @s8f3k2p9:e8
 ```bash
 agent-desktop press return
 agent-desktop press ctrl+shift+z
-agent-desktop press cmd+s --app "TextEdit" --wait-for "button:Save" --wait-timeout 5000
+agent-desktop press ctrl+s --app notepad.exe --wait-for "button:Save" --wait-timeout 5000
 ```
 
-- Key names: `return`, `escape`, `tab`, `space`, `delete`, `up`, `down`, `left`, `right`, `f1` to `f12`. Modifiers: `cmd`/`meta`, `ctrl`, `alt`, `shift`, joined with `+`. Modifier names and blocked combos differ by OS. Read the platform skill.
+- Key names: `return`, `escape`, `tab`, `space`, `delete`, `up`, `down`, `left`, `right`, `f1` to `f12`. Modifiers: `cmd`/`meta`, `ctrl`, `alt`, `shift`, joined with `+`. On Windows `cmd`/`meta` is the Windows key. Read the Windows skill for blocked combinations.
 - A bare uppercase letter adds Shift: `press H` sends `shift+h`.
 - `--app` or `--window-id` targets one app. Use `--window-id` when several instances share a name and `--app` alone is `AMBIGUOUS_TARGET`. Unscoped `press` goes to the foreground app.
 - `press` reports `delivered_unverified`, because delivery does not prove the shortcut did its job. Wait for the expected effect once with `--wait-for` or `--wait-for-gone`. A timeout keeps the delivered result and is unsafe to retry blindly.
@@ -162,7 +162,7 @@ agent-desktop press cmd+s --app "TextEdit" --wait-for "button:Save" --wait-timeo
 Global flags that poll the tree until a selector matches (or stops matching) and then return a snapshot envelope.
 
 ```bash
-agent-desktop snapshot --app Finder -w "button:OK"
+agent-desktop snapshot --app notepad.exe -w "button:OK"
 agent-desktop click @s8f3k2p9:e5 -w ":Saved!"
 agent-desktop click @s8f3k2p9:e5 --wait-for-gone "progressindicator" --wait-timeout 5000
 ```
@@ -170,7 +170,7 @@ agent-desktop click @s8f3k2p9:e5 --wait-for-gone "progressindicator" --wait-time
 - The selector is `role:text`, split on the first `:`. `"button"` is role only. `":Saved!"` is text only. Text searches name, value and description.
 - They work on `snapshot`, `press` and every ref action. Other commands (`find`, `launch`, ...) return `INVALID_ARGS`. `--root` cannot combine with them. Batch entries never inherit an outer `-w`.
 - `--wait-timeout` defaults to 30000. On expiry: exit `1`, `TIMEOUT`, `details.kind: "wait_timeout"`, `details.snapshot_id` of the last tree. A post-action timeout also embeds `details.after_action`.
-- A ref action polls its original process. Application-owned refs keep their source surface, including macOS `menu` and `menubar` without a window. Window-owned refs observe their original pinned window, even when captured from `sheet`, `alert`, `popover`, `focused`, or a window-owned `menu` such as a Linux menu. This reads the whole window: a selector elsewhere in the parent can satisfy `--wait-for` early or keep `--wait-for-gone` from succeeding. On Linux, GTK3 context menus and Chromium popups can be exposed outside that window tree, so a gone wait cannot establish that a popup outside the observed scope was dismissed. To observe the overlay itself, use a separate `snapshot` with the desired `--surface` and wait selector. The action result is kept under `after_action`.
+- A ref action polls its original process and observes its original pinned window, even when the ref was captured from `sheet`, `alert`, `popover`, `focused`, or a window-owned `menu`. This reads the whole window: a selector elsewhere in the parent can satisfy `--wait-for` early or keep `--wait-for-gone` from succeeding. To observe the overlay itself, use a separate `snapshot` with the desired `--surface` and wait selector. The action result is kept under `after_action`.
 - After `delivery_uncertain`, `error.details.post_action_observation` reports read-only evidence with `outcome`, `selector`, `expected`, `surface`, `process_identity`, and `elapsed_ms`; optional fields are `source_window_id`, `selector_matches`, `process_state`, and `last_observation_error`. `surface` names the observed scope. `process_state` is `unresponsive`, `exited` or `crashed`; `running` is never emitted. Outcomes are `expected_state_observed`, `process_exited`, `process_crashed`, `owner_unavailable`, `observation_failed`, `timed_out`, and `identity_unavailable`. Transient read errors that persist to the deadline end as `timed_out` with the last error; `observation_failed` means a terminal error stopped observation. The original error and unsafe retry disposition remain unchanged, even when the expected state is observed. The wait has its own `--wait-timeout` budget.
 - `--wait-for-gone` succeeds with `{ "gone": true, "target_absent": true }` when the app or window itself closed.
 - For `drag`, `--wait-for-scope to|from` picks which endpoint window to poll (default `to`).
@@ -189,9 +189,9 @@ agent-desktop --headed mouse-move --xy 100,200
 - With `--headed`, a ref endpoint must focus its exact window first. If focus cannot be confirmed, the command fails before delivery. Coordinate-only input never focuses.
 - `drag` accepts refs, coordinates, or a mix. The destination app is never pre-focused, because raising it could cover the source point. For a cross-app drag, keep the destination visible. Both endpoints still pass visibility, stability and hit-test checks.
 - `drag --timeout-ms` covers the whole gesture as well as target preparation. An explicit `--duration` plus `--drop-delay` at or above the budget returns `INVALID_ARGS` before target work. Leave additional room for platform pickup/default delays, resolution and completion: for a 5000 ms movement, use `--duration 5000 --timeout-ms 10000`. A valid request can still return `TIMEOUT` if preparation consumes the remaining gesture budget. Optional `--wait-for`/`--wait-for-gone` verification has its own separate wait budget.
-- A drop target often needs the item to dwell over it. The default `--drop-delay` is 500 ms (150 ms on Linux, where a longer hold opens a hovered Files folder). Raise it (800 to 1200) for list reorders and cross-window drops.
+- A drop target often needs the item to dwell over it. The default `--drop-delay` is 500 ms. Raise it (800 to 1200) for list reorders and cross-window drops.
 - `mouse-click` takes `--button left|right|middle`, `--count`, and `--modifiers`.
-- On Windows, `mouse-click --background --window-id ID [--capture-id ID] --xy X,Y` posts the click to that window without `--headed`, cursor movement or focus. Without `--capture-id`, `X,Y` are screen coordinates. With a `capture_id` from `screenshot --window-id`, they are pixels in the saved image and are mapped through the capture's `capture_bounds`. `--restore-minimized` restores a minimized target for the click and minimizes it again, `--cursor-fallback` aims the cursor at the point while messages are posted, and `--semantic` invokes the UI Automation element at the point instead of posting messages. The report is `delivered_unverified`: verify the app changed. `--modifiers` is refused with `--background`.
+- On Windows, `mouse-click --background --window-id ID [--capture-id ID] --xy X,Y` posts the click to that window. It needs no `--headed`, and the cursor and focus stay put unless `--cursor-fallback` or `--restore-minimized` is added. Without `--capture-id`, `X,Y` are screen coordinates. With a `capture_id` from `screenshot --window-id`, they are pixels in that image and are mapped through the capture's `capture_bounds`. `--restore-minimized` restores a minimized target for the click and minimizes it again, which shows the window for a moment. `--cursor-fallback` aims the cursor at the point while messages are posted, then puts it back. `--semantic` invokes the UI Automation element at the point instead of posting messages; it accepts only the left button and falls back to posted messages when nothing there can be invoked. `--count N` posts N single clicks and never a double-click message. The report is `delivered_unverified`: verify the app changed. `--modifiers` is refused with `--background`.
 
 ## Choose the command
 

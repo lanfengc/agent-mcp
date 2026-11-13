@@ -295,7 +295,7 @@ fn invalid_display_index_is_not_delivered_through_the_entry_point() {
 }
 
 #[test]
-fn minimized_window_capture_is_not_delivered_through_the_entry_point() {
+fn minimized_window_is_captured_through_the_entry_point_and_minimized_again() {
     let _capture = live_graphics_capture_lock();
     bootstrap();
     let fixture = LocalPatternFixture::create().expect("pattern fixture");
@@ -309,14 +309,24 @@ fn minimized_window_capture_is_not_delivered_through_the_entry_point() {
     std::thread::sleep(std::time::Duration::from_millis(50));
     let info = window_info_for(fixture.handle(), Some(live_token()));
 
-    let error = backend_hooks::with_force_unsupported(|| {
-        screenshot(ScreenshotTarget::ExactWindow(info), deadline(10_000))
-    })
-    .expect_err("a minimized window must be refused before native capture");
-    assert_eq!(error.code, ErrorCode::InvalidArgs);
-    assert_eq!(
-        error.disposition.delivery(),
-        DeliveryDisposition::NotDelivered
+    let image = screenshot(ScreenshotTarget::ExactWindow(info), deadline(10_000))
+        .expect("a minimized window is routed to the capture that restores it briefly");
+    assert_png_metadata(&image);
+
+    let (bgra, width, _height) =
+        decode_png_to_bgra(&image.data, deadline(10_000)).expect("decode window PNG");
+    let expectation = fixture.expectation();
+    let mut samples = [[0u8; 3]; 4];
+    for (index, point) in expectation.sample_points().into_iter().enumerate() {
+        samples[index] = sample_rgb(&bgra, width, point.x, point.y);
+    }
+    assert!(
+        expectation.matches_samples(&samples),
+        "the restored frame must carry the fixture's pixels, not an empty surface"
+    );
+    assert!(
+        unsafe { windows_sys::Win32::UI::WindowsAndMessaging::IsIconic(handle) } != 0,
+        "the window must be minimized again after capture"
     );
 }
 

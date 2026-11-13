@@ -1,12 +1,8 @@
 use super::*;
 use agent_desktop_core::WindowOp;
 
-/// Wire-shape assertion for a class-(a) condition - one both platforms can
-/// reach for the same real-world event, per the taxonomy
-/// `lifecycle_envelope_parity.rs` documents. This never reads or compares
-/// against macOS source; each call site's own doc comment states what, if
-/// anything, is independently verified against `crates/macos` for that
-/// specific condition.
+/// Wire-shape assertion for a shared condition - one core contract every
+/// adapter can reach for the same real-world event.
 fn assert_class_a_envelope(error: &AdapterError, code: ErrorCode, expected: DeliverySemantics) {
     assert_code_wire(error, code);
     assert_disposition_wire(error, expected);
@@ -18,10 +14,6 @@ fn assert_class_a_envelope(error: &AdapterError, code: ErrorCode, expected: Deli
 /// other tests' in-process `LocalFixture` windows running in parallel, so
 /// targeting it here would destroy them. A fixture host that swallows
 /// `WM_CLOSE` never closes, so the deadline genuinely expires.
-///
-/// macOS pins the identical pair for the identical condition - a deadline
-/// that expires waiting for exit after termination was already requested -
-/// in `crates/macos/src/system/app/app_ops.rs`'s `wait_for_exit`.
 #[test]
 fn shared_timeout_after_close_delivery_pins_the_windows_envelope() {
     #[cfg(target_os = "windows")]
@@ -51,13 +43,9 @@ fn shared_timeout_after_close_delivery_pins_the_windows_envelope() {
     }
 }
 
-/// `budget_exhausted(false)` is Windows' own focus-steal-retry-budget
-/// exhaustion; macOS's activation path carries no equivalent budget to
-/// exhaust, so no macOS call site pins this exact pair. The pair still
-/// expresses a cross-platform rule rather than a Windows-only one:
-/// `crates/macos/src/actions/chain/mod.rs::exhaustion_disposition` reports the
-/// identical `ActionFailed`/not-delivered pair whenever its own chain, too,
-/// has issued no successful step.
+/// `budget_exhausted(false)` is the focus-steal-retry-budget exhaustion
+/// path. The pair expresses a core rule: a chain that issued no successful
+/// step reports `ActionFailed`/not-delivered.
 #[test]
 fn shared_action_failed_before_delivery_pins_the_windows_envelope() {
     let error = budget_exhausted(false);
@@ -69,13 +57,11 @@ fn shared_action_failed_before_delivery_pins_the_windows_envelope() {
     assert_eq!(error_wire(&error)["disposition"]["retry"], "safe");
 }
 
-/// `AdapterError::permission_denied()` is the core constructor Windows'
+/// `AdapterError::permission_denied()` is the core constructor the Windows
 /// write-path classifier
 /// (`crates/windows/src/actions/mutation.rs::classify_hresult`, on
-/// `E_ACCESSDENIED`) and macOS's own AX-permission gates (for example
-/// `crates/macos/src/actions/ax_mutation.rs`) both call for "the OS denied
-/// this process accessibility access," so the pair cannot drift between
-/// platforms without an edit to core. No lifecycle adapter function reaches
+/// `E_ACCESSDENIED`) calls for "the OS denied this process accessibility
+/// access." No lifecycle adapter function reaches
 /// that condition on Windows today - close, launch, window-op, and focus
 /// never probe whole-process UI Automation access - so this test drives the
 /// real Windows call site that does, instead of a hand-written literal
@@ -102,13 +88,8 @@ fn shared_perm_denied_before_delivery_pins_the_windows_envelope() {
 
 /// Windows raises `StaleRef` here because `window_op_impl` has no
 /// process-instance token to verify before mutating the window, so the
-/// write is refused before any native call. That code choice is not a
-/// verified macOS match: macOS's own "no identity to verify" cases choose
-/// different codes for the same missing-token shape -
-/// `crates/macos/src/system/app/app_ops.rs::close_app_impl` reports
-/// `InvalidArgs`, and
-/// `crates/macos/src/system/window/window_resolve.rs::verify_window_record`
-/// reports `WindowNotFound`. This test therefore pins only the Windows wire
+/// write is refused before any native call. The code choice follows this
+/// crate's resolved-reference contract. This test pins the Windows wire
 /// shape.
 #[test]
 fn adapter_window_op_without_a_process_instance_keeps_the_stale_ref_envelope() {

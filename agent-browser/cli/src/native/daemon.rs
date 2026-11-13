@@ -53,57 +53,11 @@ pub async fn run_daemon(session: &str) {
         }
     };
 
-    // When debug mode is on, redirect stderr to a log file so daemon
-    // output can be inspected (the daemon normally has stderr piped to its
-    // parent which drops the read end after startup).
-    #[cfg(unix)]
-    if env::var("AGENT_BROWSER_DEBUG").is_ok() {
-        let log_path = SessionFile::Log.path_in(&socket_dir, session);
-        if let Ok(file) = fs::File::create(&log_path) {
-            use std::os::unix::io::IntoRawFd;
-            let fd = file.into_raw_fd();
-            unsafe {
-                libc::dup2(fd, 2);
-                libc::close(fd);
-            }
-            let _ = writeln!(
-                std::io::stderr(),
-                "[daemon] Debug logging started for session: {}",
-                session
-            );
-        }
-    } else {
-        // Redirect stderr to /dev/null to prevent daemon crash when the
-        // parent CLI drops the piped stderr handle after startup.  Cloud
-        // providers (AgentCore, Browserbase, etc.) may write to stderr
-        // during connection setup; a broken pipe would kill the daemon.
-        #[cfg(unix)]
-        {
-            use std::os::unix::io::IntoRawFd;
-            if let Ok(devnull) = fs::File::create("/dev/null") {
-                let fd = devnull.into_raw_fd();
-                unsafe {
-                    libc::dup2(fd, 2);
-                    libc::close(fd);
-                }
-            }
-        }
-    }
-
     let pid_path = SessionFile::Pid.path_in(&socket_dir, session);
     let _ = fs::write(&pid_path, process::id().to_string());
 
     let version_path = SessionFile::Version.path_in(&socket_dir, session);
     let _ = fs::write(&version_path, env!("CARGO_PKG_VERSION"));
-
-    // On Unix the daemon listens on a Unix domain socket; on Windows it uses
-    // TCP, so there is no .sock file — only a .port file written by the server.
-    let socket_path = SessionFile::Socket.path_in(&socket_dir, session);
-
-    #[cfg(unix)]
-    if socket_path.exists() {
-        let _ = fs::remove_file(&socket_path);
-    }
 
     #[cfg(windows)]
     {
@@ -154,7 +108,7 @@ pub async fn run_daemon(session: &str) {
     let autosave_interval_ms = autosave_interval_ms_from_env();
 
     let result = run_socket_server(
-        &socket_path,
+        &socket_dir,
         session,
         stream_client,
         stream_server_instance,
@@ -208,159 +162,9 @@ fn autosave_interval_ms_from_env() -> u64 {
         .unwrap_or(30_000)
 }
 
-#[cfg(unix)]
-async fn run_socket_server(
-    socket_path: &PathBuf,
-    _session: &str,
-    stream_client: Option<Arc<RwLock<Option<Arc<CdpClient>>>>>,
-    stream_server: Option<Arc<StreamServer>>,
-    idle_activity: Arc<IdleActivity>,
-    autosave_interval_ms: u64,
-    startup: Startup,
-) -> Result<(), String> {
-    use tokio::net::UnixListener;
-
-    // Auto-shutdown the daemon after this many ms of inactivity (no commands
-    // or dashboard input received). Applies a default when
-    // AGENT_BROWSER_IDLE_TIMEOUT_MS is unset; an explicit 0 disables idle
-    // shutdown entirely.
-    let idle_timeout = startup.settings.idle_timeout();
-    let security = startup.settings.security();
-    let store = startup.store.clone();
-    idle_activity.set_timeout(idle_timeout);
-    let idle_timeout_ms = idle_timeout.map(|t| t.ms);
-
-    let listener =
-        UnixListener::bind(socket_path).map_err(|e| format!("Failed to bind socket: {}", e))?;
-    repair_stored_security(store.as_ref(), &security);
-
-    let state: std::sync::Arc<tokio::sync::Mutex<DaemonState>> =
-        std::sync::Arc::new(tokio::sync::Mutex::new(DaemonState::new_with_stream(
-            startup.settings,
-            startup.store,
-            stream_client,
-            stream_server,
-            idle_activity.clone(),
-        )));
-
-    // Lets handle_connection end the daemon loop after a "close" command,
-    // instead of calling process::exit() which skips destructors and can
-    // leave Chrome processes orphaned (issue #1113).
-    let close = Arc::new(CloseHandshake::default());
-    let mut closed_by_command = false;
-
-    let mut drain_interval = tokio::time::interval(Duration::from_millis(100));
-    drain_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-
-    let idle_sleep = idle_timeout_ms.map(|ms| tokio::time::sleep(Duration::from_millis(ms)));
-    let mut idle_sleep_pin = idle_sleep.map(Box::pin);
-    let mut idle_lock: Option<IdleLock> = None;
-
-    loop {
-        let idle_timeout = idle_activity.timeout();
-        let idle_timeout_ms = idle_timeout.map(|t| t.ms);
-        tokio::select! {
-            accept_result = listener.accept() => {
-                match accept_result {
-                    Ok((stream, _)) => {
-                        let state = state.clone();
-                        let idle_activity = idle_activity.clone();
-                        let close = close.clone();
-                        tokio::spawn(async move {
-                            handle_connection(stream, state, idle_activity, close).await;
-                        });
-                    }
-                    Err(e) => {
-                        let _ = writeln!(std::io::stderr(), "Accept error: {}", e);
-                    }
-                }
-            }
-            _ = drain_interval.tick() => {
-                spawn_background_tick_if_idle(state.clone(), autosave_interval_ms);
-            }
-            _ = async {
-                match idle_sleep_pin {
-                    Some(ref mut s) => s.as_mut().await,
-                    None => std::future::pending::<()>().await,
-                }
-            }, if idle_timeout_ms.is_some() && idle_lock.is_none() => {
-                // Wait for the state lock in its own branch so a command
-                // holding it does not stop the loop accepting connections.
-                idle_lock = Some(Box::pin(state.clone().lock_owned()));
-            }
-            s = async { idle_lock.as_mut().expect("idle lock armed").await }, if idle_lock.is_some() => {
-                idle_lock = None;
-                let mut s = s;
-                let idle_timeout = idle_activity.timeout();
-                let Some(timeout_ms) = idle_timeout.map(|t| t.ms) else {
-                    idle_sleep_pin = None;
-                    continue;
-                };
-                // The timer may have expired while a command held the state
-                // lock. Command completion refreshes the shared activity
-                // clock before releasing that lock, so re-check it here.
-                if let Some(remaining) =
-                    remaining_idle_timeout(&idle_activity, timeout_ms)
-                {
-                    idle_sleep_pin = Some(Box::pin(tokio::time::sleep(remaining)));
-                    continue;
-                }
-                // The default timeout is a leak backstop, not a lifecycle
-                // policy: never pull a headed, WebDriver, or attached browser
-                // out from under a human. Re-arm and keep waiting instead.
-                if idle_timeout.is_some_and(|t| t.is_default)
-                    && s.blocks_default_idle_shutdown()
-                {
-                    idle_sleep_pin =
-                        Some(Box::pin(tokio::time::sleep(Duration::from_millis(timeout_ms))));
-                    continue;
-                }
-                if idle_timeout.is_some_and(|t| t.is_default) {
-                    let _ = writeln!(
-                        std::io::stderr(),
-                        "Idle for {}m with no commands or dashboard input; saving configured restore state and shutting down (AGENT_BROWSER_IDLE_TIMEOUT_MS=0 disables)",
-                        DEFAULT_IDLE_TIMEOUT_MS / 60_000
-                    );
-                }
-                let _ = auto_save_restore_state(&mut s).await;
-                let _ = close_all_browser_backends(&mut s).await;
-                break;
-            }
-            _ = idle_activity.notified() => {
-                idle_sleep_pin = arm_idle_sleep(&idle_activity);
-                continue;
-            }
-            _ = close.requested.notified() => {
-                // "close" command was handled; browser already closed by
-                // handle_close(). Break to run cleanup and exit gracefully
-                // so destructors fire.
-                closed_by_command = true;
-                break;
-            }
-            _ = shutdown_signal() => {
-                // An armed idle lock already holds a place in the lock queue;
-                // await it rather than queueing behind it.
-                let mut s = match idle_lock.take() {
-                    Some(idle_lock) => idle_lock.await,
-                    None => state.clone().lock_owned().await,
-                };
-                let _ = auto_save_restore_state(&mut s).await;
-                let _ = close_all_browser_backends(&mut s).await;
-                break;
-            }
-        }
-    }
-
-    if closed_by_command {
-        close.finish(listener).await;
-    }
-
-    Ok(())
-}
-
 #[cfg(windows)]
 async fn run_socket_server(
-    socket_path: &PathBuf,
+    socket_dir: &std::path::Path,
     session: &str,
     stream_client: Option<Arc<RwLock<Option<Arc<CdpClient>>>>>,
     stream_server: Option<Arc<StreamServer>>,
@@ -394,7 +198,6 @@ async fn run_socket_server(
         .map_err(|e| format!("Failed to get local address: {}", e))?
         .port();
 
-    let socket_dir = socket_path.parent().unwrap_or(std::path::Path::new("."));
     let port_path = SessionFile::Port.path_in(socket_dir, session);
     let _ = fs::write(&port_path, actual_port.to_string());
     repair_stored_security(store.as_ref(), &security);
@@ -415,9 +218,9 @@ async fn run_socket_server(
     let mut idle_sleep_pin = idle_sleep.map(Box::pin);
     let mut idle_lock: Option<IdleLock> = None;
 
-    // Mirror the unix loop's background tick: reap a browser the user closed
-    // by hand, and drain CDP events (dialog state in particular) before
-    // autosave so a save never runs against a dialog-blocked renderer.
+    // Background tick: reap a browser the user closed by hand, and drain CDP
+    // events (dialog state in particular) before autosave so a save never
+    // runs against a dialog-blocked renderer.
     let mut drain_interval = tokio::time::interval(Duration::from_millis(100));
     drain_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
@@ -468,8 +271,8 @@ async fn run_socket_server(
                     continue;
                 }
                 // The default timeout is a leak backstop, not a lifecycle
-                // policy: never pull a headed, WebDriver, or attached browser
-                // out from under a human. Re-arm and keep waiting instead.
+                // policy: never pull a headed or attached browser out from
+                // under a human. Re-arm and keep waiting instead.
                 if idle_timeout.is_some_and(|t| t.is_default)
                     && s.blocks_default_idle_shutdown()
                 {
@@ -696,42 +499,6 @@ fn close_completed_response(action: &str, response: &Value) -> bool {
 }
 
 async fn shutdown_signal() {
-    #[cfg(unix)]
-    {
-        let mut sigint = match signal::unix::signal(signal::unix::SignalKind::interrupt()) {
-            Ok(s) => s,
-            Err(e) => {
-                let _ = writeln!(std::io::stderr(), "Failed to install SIGINT handler: {}", e);
-                process::exit(1);
-            }
-        };
-        let mut sigterm = match signal::unix::signal(signal::unix::SignalKind::terminate()) {
-            Ok(s) => s,
-            Err(e) => {
-                let _ = writeln!(
-                    std::io::stderr(),
-                    "Failed to install SIGTERM handler: {}",
-                    e
-                );
-                process::exit(1);
-            }
-        };
-        let mut sighup = match signal::unix::signal(signal::unix::SignalKind::hangup()) {
-            Ok(s) => s,
-            Err(e) => {
-                let _ = writeln!(std::io::stderr(), "Failed to install SIGHUP handler: {}", e);
-                process::exit(1);
-            }
-        };
-
-        tokio::select! {
-            _ = sigint.recv() => {}
-            _ = sigterm.recv() => {}
-            _ = sighup.recv() => {}
-        }
-    }
-
-    #[cfg(windows)]
     {
         if let Err(e) = signal::ctrl_c().await {
             let _ = writeln!(std::io::stderr(), "Failed to install Ctrl+C handler: {}", e);
@@ -806,15 +573,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_default_idle_timeout_does_not_close_webdriver_sessions() {
-        let mut state = DaemonState::new();
-        assert!(!state.blocks_default_idle_shutdown());
-
-        state.backend_type = crate::native::actions::BackendType::WebDriver;
-        assert!(state.blocks_default_idle_shutdown());
-    }
-
     #[tokio::test]
     async fn test_idle_activity_receives_dashboard_activity() {
         let activity = Arc::new(IdleActivity::new());
@@ -868,12 +626,10 @@ mod tests {
     fn test_daemon_socket_dir_matches_client_namespace() {
         let guard = crate::test_utils::EnvGuard::new(&[
             "AGENT_BROWSER_SOCKET_DIR",
-            "XDG_RUNTIME_DIR",
             "AGENT_BROWSER_NAMESPACE",
         ]);
         let dir = tempfile::tempdir().unwrap();
         guard.set("AGENT_BROWSER_SOCKET_DIR", dir.path().to_str().unwrap());
-        guard.remove("XDG_RUNTIME_DIR");
         guard.set("AGENT_BROWSER_NAMESPACE", "Worktree: One");
 
         let socket_dir = get_daemon_socket_dir();
@@ -956,19 +712,14 @@ mod tests {
             .expect("background tick should release the state lock");
     }
 
-    /// Guard against re-introducing `waitpid(-1)` in daemon code.
+    /// Guard against re-introducing a global child reaper in daemon code.
     ///
-    /// Issue #1035: a SIGCHLD handler that called `waitpid(-1, WNOHANG)` was
-    /// added in v0.22.3 to reap zombie Chrome processes. This races with
-    /// Rust's `Child::try_wait()` / `Child::wait()` because `waitpid(-1)`
-    /// reaps *any* child, stealing the exit status before Rust can collect
-    /// it. The result is ECHILD errors in `BrowserManager::has_process_exited()`
-    /// and `ChromeProcess::kill()`, which can leave the daemon in a broken
-    /// state or cause hangs on certain Linux configurations.
-    ///
-    /// The fix uses the existing 500ms drain interval to call
-    /// `has_process_exited()` (which delegates to `Child::try_wait()`)
-    /// for targeted, race-free zombie detection.
+    /// Issue #1035: a global `waitpid(-1, ...)` races with Rust's
+    /// `Child::try_wait()` / `Child::wait()` because it reaps *any* child,
+    /// stealing the exit status before Rust can collect it. The daemon uses
+    /// the existing 500ms drain interval to call `has_process_exited()`
+    /// (which delegates to `Child::try_wait()`) for targeted, race-free
+    /// zombie detection instead.
     #[test]
     fn test_no_waitpid_minus_one_in_daemon() {
         let source = include_str!("daemon.rs");
@@ -980,39 +731,6 @@ mod tests {
              Use Child::try_wait() via has_process_exited() instead. \
              See issue #1035."
         );
-    }
-
-    /// Verify that `Child::try_wait()` correctly detects a crashed child
-    /// without needing a global SIGCHLD handler or `waitpid(-1)`.
-    /// This is what `has_process_exited()` uses in the fixed code.
-    #[cfg(unix)]
-    #[test]
-    fn test_child_try_wait_detects_exit_without_sigchld_handler() {
-        use std::process::{Command, Stdio};
-
-        let mut child = Command::new("/bin/sh")
-            .args(["-c", "exit 42"])
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .expect("failed to spawn child");
-
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-        let status = loop {
-            match child.try_wait() {
-                Ok(Some(status)) => break status,
-                Ok(None) if std::time::Instant::now() >= deadline => {
-                    let _ = child.kill();
-                    let _ = child.wait();
-                    panic!("child did not exit before the deadline");
-                }
-                Ok(None) => std::thread::sleep(std::time::Duration::from_millis(10)),
-                Err(e) => panic!("try_wait() should succeed without waitpid(-1): {}", e),
-            }
-        };
-
-        assert_eq!(status.code(), Some(42));
     }
 
     /// Regression test for #1101: idle timeout must fire even while the
@@ -1069,44 +787,5 @@ mod tests {
             elapsed,
             idle_timeout_ms,
         );
-    }
-
-    /// Verify that `ChromeProcess::has_exited()` (which uses `Child::try_wait()`)
-    /// correctly detects a killed child, the same way the drain interval does
-    /// in the fixed daemon code. This ensures crash detection works without
-    /// a SIGCHLD handler.
-    #[cfg(unix)]
-    #[test]
-    fn test_has_exited_detects_killed_process() {
-        use std::process::{Command, Stdio};
-
-        let mut child = Command::new("/bin/sh")
-            .args(["-c", "sleep 60"])
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .expect("failed to spawn child");
-
-        // Process should be running
-        match child.try_wait() {
-            Ok(None) => {} // expected
-            other => panic!("expected Ok(None) for running process, got {:?}", other),
-        }
-
-        // Kill it (simulates Chrome crash)
-        child.kill().expect("failed to kill child");
-        std::thread::sleep(std::time::Duration::from_millis(100));
-
-        // try_wait should detect the exit
-        match child.try_wait() {
-            Ok(Some(_)) => {} // expected: detected the crash
-            other => panic!(
-                "expected Ok(Some(_)) after kill, got {:?}. \
-                 Crash detection via try_wait() must work for the drain \
-                 interval fix (issue #1035) to function correctly.",
-                other
-            ),
-        }
     }
 }

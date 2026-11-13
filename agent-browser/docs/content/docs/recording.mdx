@@ -7,11 +7,10 @@ Use `record` to capture browser automation as a WebM or MP4 video for debugging,
 
 ## Requirements
 
-Recording pipes frames into `ffmpeg`, which must be on `PATH` with the `libvpx` and `libx264` encoders (the default builds from Homebrew and Debian/Ubuntu include both):
+Recording pipes frames into `ffmpeg`, which must be on `PATH` with the `libvpx` and `libx264` encoders (the Windows builds from [ffmpeg.org](https://ffmpeg.org/download.html) include both):
 
-```bash
-brew install ffmpeg        # macOS
-sudo apt install ffmpeg    # Debian/Ubuntu
+```powershell
+winget install --id Gyan.FFmpeg
 agent-browser doctor       # reports ffmpeg and its encoders under "Recording"
 ```
 

@@ -37,7 +37,7 @@ Global flags work before or after the command name, so `agent-desktop --headed c
 
 **Commands that accept them.** `snapshot`, `press`, `hover`, `drag`, and every ref action (`click`, `double-click`, `triple-click`, `right-click`, `type`, `set-value`, `clear`, `focus`, `select`, `toggle`, `check`, `uncheck`, `expand`, `collapse`, `scroll`, `scroll-to`). Every other command returns `INVALID_ARGS`. `snapshot --root` cannot combine with them, and a `batch` entry never inherits them.
 
-**Which owner is polled.** For `snapshot`, the selected surface owner. For a ref action, the original process. Application-owned refs keep their source surface; a macOS `menu` or `menubar` ref is observed through its application without requiring a document window. Window-owned refs observe their original pinned window, even when captured from `sheet`, `alert`, `popover`, `focused`, or a window-owned `menu` such as a Linux menu. The wait reads the whole window, so a selector elsewhere in the parent can satisfy `--wait-for` early or keep `--wait-for-gone` from succeeding. On Linux, GTK3 context menus and Chromium popups can be exposed outside that window tree, so a gone wait cannot establish that a popup outside the observed scope was dismissed. To observe the overlay itself, run a separate `snapshot` with the desired `--surface` and wait selector. For `press`, the `--app` or `--window-id` window, else the focused one. For `drag`, the destination window, or the source with `--wait-for-scope from`.
+**Which owner is polled.** For `snapshot`, the selected surface owner. For a ref action, the original process. Application-owned refs keep their source surface. Window-owned refs observe their original window, even when captured from `sheet`, `alert`, `popover`, `focused`, or `menu`. The wait reads the whole window, so a selector elsewhere in the window can satisfy `--wait-for` early or keep `--wait-for-gone` from succeeding. To observe the overlay itself, run a separate `snapshot` with the desired `--surface` and wait selector. For `press`, the `--app` or `--window-id` window, else the focused one. For `drag`, the destination window, or the source with `--wait-for-scope from`.
 
 **Results.**
 
@@ -50,7 +50,7 @@ Global flags work before or after the command name, so `agent-desktop --headed c
 ```bash
 agent-desktop click @s8f3k2p9:e5 --wait-for ":Saved" --wait-timeout 5000
 agent-desktop click @s8f3k2p9:e5 --wait-for-gone "progressindicator"
-agent-desktop snapshot --app gnome-calculator -w "button:7"
+agent-desktop snapshot --app notepad.exe -w "textfield:Text editor"
 ```
 
 ## Environment variables
@@ -63,52 +63,59 @@ agent-desktop snapshot --app gnome-calculator -w "button:7"
     <tr><td><code>AGENT_DESKTOP_HOME</code></td><td>Relocates the <a href="#state-root">state root</a>. Must be an absolute path.</td></tr>
     <tr><td><code>AGENT_DESKTOP_SESSION</code></td><td>Session id used when <code>--session</code> is not passed. <code>session start</code> prints the line that sets it. An empty value is <code>INVALID_ARGS</code>.</td></tr>
     <tr><td><code>AGENT_DESKTOP_AGENT_ID</code></td><td>Subagent id used when <code>--agent-id</code> is not passed.</td></tr>
-    <tr><td><code>AGENT_DESKTOP_READ_ONLY</code></td><td>Boolean (<code>0</code>/<code>1</code>, <code>true</code>/<code>false</code>, <code>yes</code>/<code>no</code>, <code>on</code>/<code>off</code>). Refuses every mutating command with <code>POLICY_DENIED</code>.</td></tr>
+    <tr><td><code>AGENT_DESKTOP_READ_ONLY</code></td><td>Boolean (<code>0</code>/<code>1</code>, <code>true</code>/<code>false</code>, <code>yes</code>/<code>no</code>, <code>on</code>/<code>off</code>). Refuses every command that changes state with <code>POLICY_DENIED</code>. Observation commands still run. See <a href="#execution-policy">Execution policy</a>.</td></tr>
     <tr><td><code>AGENT_DESKTOP_ALLOWED_COMMANDS</code></td><td>Comma-separated command names. Refuses every command not listed. Setting it also disables <code>batch</code>.</td></tr>
-    <tr><td><code>AGENT_DESKTOP_AUDIT_LOG</code></td><td>Absolute path to a JSONL audit file. Writes one outcome record per command, with no command output or arguments.</td></tr>
+    <tr><td><code>AGENT_DESKTOP_AUDIT_LOG</code></td><td>Absolute path to a JSONL audit file in a directory that exists. Writes one outcome record per command, with no command output or arguments.</td></tr>
     <tr><td><code>AGENT_DESKTOP_MAX_CAPTURE_AGE_MS</code></td><td>Maximum age in milliseconds for a <code>capture_id</code> used by <code>mouse-click --background</code>; default <code>10000</code>, range 1 to 86400000.</td></tr>
-    <tr><td><code>AGENT_DESKTOP_MACOS_HELPER_PATH</code></td><td>macOS only. Absolute path to the packaged <code>agent-desktop-macos-helper</code>. The npm launcher sets it.</td></tr>
     <tr><td><code>RUST_LOG</code></td><td>Log filter for stderr logs. A valid value replaces the default level.</td></tr>
   </tbody>
 </table>
 
-An invalid value returns `INVALID_ARGS` with `not_delivered`, and nothing runs. In PowerShell, set a variable with `$env:AGENT_DESKTOP_HOME = "$env:TEMP\ad-scratch"`. On Linux the adapter also reads the desktop session's `DISPLAY`, `WAYLAND_DISPLAY`, `XDG_RUNTIME_DIR`, and `DBUS_SESSION_BUS_ADDRESS`; see [Linux](/desktop/platforms/linux).
+An invalid value returns `INVALID_ARGS` with `not_delivered`, and nothing runs. In PowerShell, set a variable with `$env:AGENT_DESKTOP_HOME = "$env:TEMP\ad-scratch"`.
 
 ## Execution policy
 
 The policy is read from the environment of each process, so it also applies to `batch` entries and MCP calls. A restrictive policy refuses `batch` entirely, because a batch could otherwise reach a denied command. Commands run individually with the same policy.
 
-```bash
+```powershell
 # Read-only evaluation: observations, screenshots and reads succeed; clicks and typing do not.
-AGENT_DESKTOP_READ_ONLY=1 agent-desktop screenshot --window-id w-123 shot.png
+$env:AGENT_DESKTOP_READ_ONLY = '1'
+agent-desktop screenshot --window-id w-123 shot.png
+Remove-Item Env:AGENT_DESKTOP_READ_ONLY          # end the read-only phase
 
 # Interactive phase: allow only the commands this run needs.
-AGENT_DESKTOP_ALLOWED_COMMANDS=screenshot,mouse-click,list-windows agent-desktop mouse-click --background --window-id w-123 --xy 100,80
+$env:AGENT_DESKTOP_ALLOWED_COMMANDS = 'screenshot,mouse-click,list-windows'
+agent-desktop mouse-click --background --window-id w-123 --xy 100,80
 
 # Keep an outcome trail. The log records time, command, ok, error code and duration.
-AGENT_DESKTOP_AUDIT_LOG=/var/log/agent-desktop/audit.jsonl agent-desktop list-windows
+$env:AGENT_DESKTOP_AUDIT_LOG = "$HOME\agent-desktop-audit.jsonl"
+agent-desktop list-windows
 ```
 
-The audit record deliberately omits command output, arguments, text typed and coordinates, so it can be kept without storing application data. `AGENT_DESKTOP_READ_ONLY` and `AGENT_DESKTOP_ALLOWED_COMMANDS` are checked before the command touches an application; a refusal is `POLICY_DENIED` with `not_delivered`.
+Read-only mode refuses every command that changes an application, the desktop, the clipboard, a session, or a sandbox. That includes `batch`, `cursor-overlay`, and every `session` action except `session list`. `snapshot`, `find`, `get`, `is`, `wait`, the `list-*` commands, `status`, and `permissions` without `--request` still run. So do the three that only write a file you name: `screenshot PATH`, `clipboard-get --out`, and `trace export`. One side effect remains on Windows: a screenshot of a minimized window restores it for the capture and minimizes it again.
+
+Each audit record is one JSON object on its own line with `ts_ms`, `command`, `ok`, `error` (the error code, or `null`), and `duration_ms`. It omits command output, arguments, typed text, and coordinates, so it can be kept without storing application data. The file is opened for appending, and a path that cannot be opened returns `INVALID_ARGS` before anything runs. `sandbox exec` is not recorded.
+
+`AGENT_DESKTOP_READ_ONLY` and `AGENT_DESKTOP_ALLOWED_COMMANDS` are checked before the command touches an application. A refusal is `POLICY_DENIED` with `not_delivered`, and it is recorded in the audit log. On Windows, the check also runs before a command started outside the desktop session is [rerun there](/desktop/platforms/windows#requirements); the caller records that run with `relaunched: true` and the rerun command's `exit_code` in place of `error`.
 
 ## State root
 
-agent-desktop keeps its state under one directory: `.agent-desktop` in your home directory by default. `agent-desktop status` reports the resolved path as `state_root`. `AGENT_DESKTOP_HOME` replaces the default:
+agent-desktop keeps its state under one directory: `.agent-desktop` in your user profile by default, `C:\Users\you\.agent-desktop` on a typical install. `agent-desktop status` reports the resolved path as `state_root`. `AGENT_DESKTOP_HOME` replaces the default:
 
-- It must be an absolute path. If it exists, it must be a directory you own and not a symlink.
-- It does not need to exist yet; it is created on first use with mode `0700` on macOS and Linux.
+- It must be an absolute path. If it exists, it must be a directory you own and not a junction or symbolic link.
+- It does not need to exist yet; it is created on first use with a private DACL that grants only your account, SYSTEM, and Administrators.
 
-On macOS and Linux the state root must stay private. A root that is group-writable or readable by other users makes commands that write there fail with `INTERNAL`, "private file parent is accessible by group or other users". Run `chmod 700` on it, or let agent-desktop create it. A fresh root per run isolates refs:
+On Windows the state root must stay private. A root whose DACL grants access to any other principal makes commands that write there fail with `INTERNAL`, "private file DACL grants an untrusted principal". Remove the extra access entry, or let agent-desktop create the directory. A fresh root per run isolates refs:
 
-```bash
-export AGENT_DESKTOP_HOME="$(mktemp -d)"   # absolute and private
-agent-desktop status                       # data.state_root shows this path
+```powershell
+$env:AGENT_DESKTOP_HOME = Join-Path $env:TEMP "ad-scratch-$([guid]::NewGuid())"   # absolute; created on first use
+agent-desktop status                                                                # data.state_root shows this path
 ```
 
 ### Layout
 
 ```text
-~/.agent-desktop/                     state root
+C:\Users\you\.agent-desktop\          state root
   latest_snapshot_id                  newest snapshot in the global namespace
   snapshots/
     s8f3k2p9/refmap.json              one refmap per snapshot
@@ -126,4 +133,4 @@ agent-desktop status                       # data.state_root shows this path
 - **Sessions.** `session start` creates `sessions/<id>/` with its own `snapshots/`, so one session's refs are invisible to another. `session gc` deletes ended sessions with their traces. See [Sessions](/desktop/sessions).
 - **Traces.** A tracing session writes one JSONL segment per process under `trace/`, plus `screens/` and `refmaps/` with `--screenshots`. See [Traces](/desktop/guides/traces).
 
-The cross-process interaction lock lives outside the state root (under `/tmp` on macOS and Linux), so every agent of one user shares it whatever their `AGENT_DESKTOP_HOME`. Files you name yourself, such as a `--trace` path or a screenshot path, are also outside it.
+The cross-process interaction lock lives outside the state root, at `%ProgramData%\agent-desktop\<your SID>\interaction.lock`, so every agent of one user shares it whatever their `AGENT_DESKTOP_HOME`. Files you name yourself, such as a `--trace` path or a screenshot path, are also outside it.

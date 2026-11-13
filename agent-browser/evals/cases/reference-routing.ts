@@ -64,10 +64,10 @@ export const cases: EvalCase[] = [
   },
   {
     id: "rr-04",
-    name: "Loads WebGPU reference for a headless Linux CI screenshot",
+    name: "Loads WebGPU reference for a headless CI screenshot",
     category: "reference-routing",
     prompt:
-      "In our headless Linux CI job, take a screenshot of https://demo.example.com, a three.js page that renders with WebGPU",
+      "In our headless CI job, take a screenshot of https://demo.example.com, a three.js page that renders with WebGPU",
     expectedPatterns: [refPattern("webgpu")],
     forbiddenPatterns: FULL_OR_PATH,
     rubric: RUBRIC,

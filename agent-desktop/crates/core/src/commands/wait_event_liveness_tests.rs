@@ -130,7 +130,7 @@ fn not_supported_process_state_still_reports_a_genuine_termination() {
 }
 
 #[test]
-fn macos_shaped_population_where_every_member_has_exited_still_reports_every_termination() {
+fn a_population_whose_members_have_all_exited_still_reports_every_termination() {
     for (pid, instance) in [(42u32, "alpha-instance"), (77u32, "beta-instance")] {
         let seed = baseline_with_apps(vec![terminating_app(pid, instance)]);
         let adapter = LivenessAdapter::new(

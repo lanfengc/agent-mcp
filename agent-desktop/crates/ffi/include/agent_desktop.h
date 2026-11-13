@@ -680,8 +680,7 @@ typedef struct AdRefGeometry {
   bool has_bounds_hash;
   /**
    * Coordinate frame of `bounds`; use an `AD_BOUNDS_SPACE_*` constant.
-   * macOS and Windows geometry must be screen-relative. Linux geometry
-   * must be window-relative.
+   * Windows geometry must be screen-relative.
    */
   int32_t bounds_space;
 } AdRefGeometry;
@@ -1222,12 +1221,12 @@ void ad_adapter_destroy(struct AdAdapter *adapter);
 AdResult ad_check_permissions(const struct AdAdapter *adapter);
 
 /**
- * Closes the application identified by `id` (bundle id on macOS,
- * executable path on other platforms). `force = true` skips the
+ * Closes the application identified by `id` (an executable path or a bare
+ * executable name). `force = true` skips the
  * graceful-shutdown path, terminates matching app processes, and escalates
  * survivors when the platform supports it. Session-critical processes
- * (for example loginwindow and Dock on macOS, csrss.exe and winlogon.exe
- * on Windows) are refused with `AD_RESULT_ERR_INVALID_ARGS` — the protected-process
+ * (for example csrss.exe and winlogon.exe) are refused with
+ * `AD_RESULT_ERR_INVALID_ARGS` — the protected-process
  * guard is enforced inside the adapter, so FFI and CLI behave
  * identically.
  *
@@ -1237,8 +1236,8 @@ AdResult ad_check_permissions(const struct AdAdapter *adapter);
 AdResult ad_close_app(const struct AdAdapter *adapter, const char *id, bool force);
 
 /**
- * Launches the application identified by `id` (bundle id on macOS,
- * executable path on other platforms) and, on success, writes the first
+ * Launches the application identified by `id` (an executable path or a bare
+ * executable name) and, on success, writes the first
  * generation-pinned window that becomes available into `*out`. Waits for the
  * windows the launch itself produces, bounded by `timeout_ms`; zero means
  * "no wait". An application that presents no window fails with
@@ -1375,8 +1374,7 @@ AdResult ad_execute_by_ref_timeout(const struct AdAdapter *adapter,
  *
  * The JSON shape matches `agent-desktop snapshot`:
  * `{"version":"2.6","ok":true,"command":"snapshot","data":{"app":"...","window":{...},"ref_count":N,"snapshot_id":"...","complete":true,"tree":{...}}}`.
- * On macOS, `window` is omitted for application-owned menu and menubar surfaces
- * and when a background app with no window is read through its process.
+ * On a process-owned snapshot of a background app with no window, `window` is omitted.
  *
  * `data.complete` is always present. A snapshot that exhausts its observation
  * budget still succeeds with `"complete":false` and the tree it did observe,
@@ -1401,11 +1399,11 @@ AdResult ad_execute_by_ref_timeout(const struct AdAdapter *adapter,
  * - valid UTF-8 string — use the named app's owner selected by `surface`.
  * - non-null but invalid UTF-8 or exceeding `AD_MAX_STRING_BYTES` — returns `ErrInvalidArgs`.
  *
- * `surface` is an `AdSnapshotSurface` discriminant (0 = Window, 1 = Focused, …). On macOS,
- * `Menu` and `Menubar` are application-owned surfaces and do not require an open window.
+ * `surface` is an `AdSnapshotSurface` discriminant (0 = Window, 1 = Focused, …).
  * An out-of-range value returns `ErrInvalidArgs`.
  *
- * Window-owned snapshots include `data.window`; application-owned menu and menubar snapshots omit it.
+ * Window-owned snapshots include `data.window`; a process-owned snapshot of an app
+ * with no window omits it.
  * Explicit window targeting (`window_id`), skeleton mode and `--root` drill-down are not exposed
  * over the ABI. Use the CLI when you need those options.
  *
@@ -1619,9 +1617,9 @@ const char *ad_last_error_suggestion(void);
 
 /**
  * Returns a borrowed C string carrying a platform-specific diagnostic
- * for the last error (AX error codes, COM HRESULTs, AT-SPI messages,
- * etc.), or null if the adapter didn't supply one. Same lifetime rules
- * as `ad_last_error_message`.
+ * for the last error (a COM HRESULT, a Win32 error code, etc.), or null
+ * if the adapter didn't supply one. Same lifetime rules as
+ * `ad_last_error_message`.
  */
 const char *ad_last_error_platform_detail(void);
 

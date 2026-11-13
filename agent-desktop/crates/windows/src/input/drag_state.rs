@@ -1,7 +1,7 @@
 //! Drag delivery/release-guard state.
 //!
-//! A `MouseInputEvent` batch is plain data - unlike macOS's `CGEvent`-backed
-//! guard, constructing the corrective batch here cannot fail. The guard
+//! A `MouseInputEvent` batch is plain data, so
+//! constructing the corrective batch here cannot fail. The guard
 //! arms immediately before the first committed injection (mouse-down) and
 //! disarms only after the final release posts; its `Drop` is the sole place
 //! that posts corrective input, and it always targets the **origin**, never

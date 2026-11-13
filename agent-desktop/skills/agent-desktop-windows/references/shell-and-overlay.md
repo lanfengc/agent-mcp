@@ -63,7 +63,7 @@ shape when none are, and a top-level `ClearAllButton`.
   `ACTION_FAILED` (`delivered_unverified`). `dismiss-all-notifications` is
   judged against the entries captured before the clear, so entries that arrive
   while it runs are not failures.
-- **`wait --notification` opens and closes the center per poll**, as on macOS.
+- **`wait --notification` opens and closes the center per poll.**
   Each poll adopts an already-open center and restores the entry state after.
   Measured cost: 1243.5 ms per poll at the minimum, 1254.2 ms at the median.
   The wait also sleeps up to 500 ms between polls, so size `--timeout` for
@@ -110,7 +110,7 @@ agent-desktop cursor-overlay disable
 - **It draws above the taskbar and other topmost shell chrome.**
 - **It ignores the "Show animations in Windows" setting.** Windows reports
   animations off by default on a stock Windows Server host, so the explicit
-  `enable` counts as the opt-in. macOS honours Reduce Motion instead.
+  `enable` counts as the opt-in.
 - **The label is a black pill with white Segoe UI text**, sized to the text.
   `--fill` and `--rim` colour only the cursor, not the label.
 - **The label shows only when there is something to say.** `enable` without

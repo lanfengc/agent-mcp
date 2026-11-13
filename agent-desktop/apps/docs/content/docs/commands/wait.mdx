@@ -4,7 +4,7 @@ navTitle: Wait
 description: Reference for the wait command, with every mode, the element predicates, the event kinds, timeouts and their defaults, and the timeout error details.
 ---
 
-`wait` blocks until a condition holds, so you do not need a fixed sleep. Each call uses exactly one mode. When to use `wait` and when to use the post-action `--wait-for` flags is in [Waiting without sleeps](/desktop/guides/waiting); those flags are in [Configuration](/desktop/configuration#post-action-wait-flags). The examples are real output from Linux.
+`wait` blocks until a condition holds, so you do not need a fixed sleep. Each call uses exactly one mode. When to use `wait` and when to use the post-action `--wait-for` flags is in [Waiting without sleeps](/desktop/guides/waiting); those flags are in [Configuration](/desktop/configuration#post-action-wait-flags). The examples are real output from Windows.
 
 ## wait
 
@@ -49,10 +49,10 @@ Flags from two modes, or no mode at all, return `INVALID_ARGS`. The wait polls a
 
 ### Element
 
-`--element REF` polls the live element behind a ref until the predicate holds. The ref names its snapshot, so no `--app` is needed. This waits for the calculator display to read `7`:
+`--element REF` polls the live element behind a ref until the predicate holds. The ref names its snapshot, so no `--app` is needed. This waits for the Notepad editor to read the text:
 
 ```bash
-agent-desktop wait --element @s2txcl95uvubmn:e6 --predicate value --value 7 --timeout 5000
+agent-desktop wait --element @s130xb68qxnjxe:e1 --predicate value --value "hello from agent-desktop" --timeout 5000
 ```
 
 ```json
@@ -61,11 +61,11 @@ agent-desktop wait --element @s2txcl95uvubmn:e6 --predicate value --value 7 --ti
   "ok": true,
   "command": "wait",
   "data": {
-    "elapsed_ms": 286,
+    "elapsed_ms": 68,
     "found": true,
-    "observed": { "expected_chars": 1, "matched": true, "value_chars": 1, "value_present": true },
+    "observed": { "expected_chars": 24, "matched": true, "value_chars": 24, "value_present": true },
     "predicate": "value",
-    "ref": "@s2txcl95uvubmn:e6"
+    "ref": "@s130xb68qxnjxe:e1"
   }
 }
 ```
@@ -77,7 +77,7 @@ agent-desktop wait --element @s2txcl95uvubmn:e6 --predicate value --value 7 --ti
 `--window TITLE` waits for any window whose title contains `TITLE`, focused or not.
 
 ```bash
-agent-desktop wait --window Calculator --app gnome-calculator --timeout 3000
+agent-desktop wait --window Notepad --app notepad.exe --timeout 3000
 ```
 
 The result is `{ "elapsed_ms", "found": true, "window": WINDOW }`, where `WINDOW` has the fields `list-windows` returns.
@@ -87,7 +87,7 @@ The result is `{ "elapsed_ms", "found": true, "window": WINDOW }`, where `WINDOW
 `--text TEXT` snapshots the app's window each poll and looks for the text in node names, values, and descriptions, as a case-insensitive substring.
 
 ```bash
-agent-desktop wait --text Calculator --app gnome-calculator --timeout 3000
+agent-desktop wait --text Notepad --app notepad.exe --timeout 3000
 ```
 
 ```json
@@ -95,7 +95,7 @@ agent-desktop wait --text Calculator --app gnome-calculator --timeout 3000
   "version": "2.6",
   "ok": true,
   "command": "wait",
-  "data": { "elapsed_ms": 112, "found": true, "ref": null, "role": "window", "snapshot_id": "s2uiek94hz3vms", "text": "Calculator" }
+  "data": { "elapsed_ms": 112, "found": true, "ref": null, "role": "window", "snapshot_id": "s2uiek94hz3vms", "text": "Notepad" }
 }
 ```
 
@@ -103,11 +103,11 @@ agent-desktop wait --text Calculator --app gnome-calculator --timeout 3000
 
 ### Menu
 
-`--menu` waits until a menu surface is open, and `--menu-closed` until it is gone. Both return `{ "elapsed_ms", "found": true }`. On Linux, `--menu-closed` on a menu that never opened is true at once, so wait for `--menu` first.
+`--menu` waits until a menu surface is open, and `--menu-closed` until it is gone. Both return `{ "elapsed_ms", "found": true }`. `--menu-closed` on a menu that never opened is true at once, so wait for `--menu` first when the menu is about to appear.
 
 ### Notification
 
-`--notification` takes a baseline of the notification list when it starts and returns the first notification not in it. `--text` and `--app` filter which notifications count. The result is `{ "condition": "notification", "matched": true, "notification": {...}, "elapsed_ms" }`. Headless limits on macOS and Windows are on the [notification commands](/desktop/commands/notifications) page.
+`--notification` takes a baseline of the notification list when it starts and returns the first notification not in it. `--text` and `--app` filter which notifications count. The result is `{ "condition": "notification", "matched": true, "notification": {...}, "elapsed_ms" }`. Headless limits are on the [notification commands](/desktop/commands/notifications) page.
 
 ### Event
 
@@ -119,11 +119,11 @@ agent-desktop wait --text Calculator --app gnome-calculator --timeout 3000
   "data": {
     "elapsed_ms": 144,
     "event": {
-      "app": "gtk3-demo",
+      "app": "notepad.exe",
       "kind": "window_opened",
-      "pid": 23270,
-      "title": "Application Class",
-      "window_id": "w-1.167-org-a11y-atspi-accessible-44"
+      "pid": 11980,
+      "title": "Untitled - Notepad",
+      "window_id": "w-40307104"
     },
     "found": true
   },
@@ -157,9 +157,9 @@ A wait that runs out of time returns `TIMEOUT` with `details.kind: "wait_timeout
       "retry_after_ms": 250
     },
     "details": {
-      "app": "gedit",
+      "app": "notepad.exe",
       "kind": "wait_timeout",
-      "last_observed": { "count": 1, "titles": ["Untitled Document 1 - gedit"], "truncated": false },
+      "last_observed": { "count": 1, "titles": ["Untitled - Notepad"], "truncated": false },
       "predicate": "window",
       "timeout_ms": 1000,
       "title": "Save As"
@@ -169,6 +169,4 @@ A wait that runs out of time returns `TIMEOUT` with `details.kind: "wait_timeout
 }
 ```
 
-Element waits carry `ref` and `last_observed`; text waits carry `text_chars` and `expected_count` but not the text; event waits carry `baseline_counts`; any mode can carry `last_error`. Other errors: `INVALID_ARGS` for a bad mode combination or a bare ref, the ref errors for `--element`, `APP_UNRESPONSIVE` when the app stops answering, and `PERM_DENIED`.
-
-Platform limits: see [macOS](/desktop/platforms/macos), [Windows](/desktop/platforms/windows), and [Linux](/desktop/platforms/linux).
+Element waits carry `ref` and `last_observed`; text waits carry `text_chars` and `expected_count` but not the text; event waits carry `baseline_counts`; any mode can carry `last_error`. Other errors: `INVALID_ARGS` for a bad mode combination or a bare ref, the ref errors for `--element`, `APP_UNRESPONSIVE` when the app stops answering, and `PERM_DENIED` when UIPI blocks access to a higher-integrity app.

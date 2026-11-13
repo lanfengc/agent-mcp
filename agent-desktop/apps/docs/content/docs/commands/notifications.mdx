@@ -4,21 +4,13 @@ navTitle: Notifications
 description: Reference for list-notifications, dismiss-notification, dismiss-all-notifications, and notification-action on the operating system notification surface.
 ---
 
-These commands drive the OS notification surface: Notification Center on macOS, Action Center on Windows, and the GNOME Shell message list on Linux. Command names, arguments, and JSON fields are the same everywhere. Titles and bodies are returned verbatim and are not redacted, so treat them as sensitive.
+These commands drive the Windows Action Center. Command names, arguments, and JSON fields are the same everywhere. Titles and bodies are returned verbatim and are not redacted, so treat them as sensitive.
 
-- **Listing** is read-only. Linux lists without `--headed`, even when the list is closed. On macOS and Windows a headless call works only while the surface is already open; otherwise it returns `POLICY_DENIED`, and `--headed` may open the surface.
+- **Listing** is read-only. A headless call works only while the Action Center is already open; otherwise it returns `POLICY_DENIED`, and `--headed` may open it.
 - **Mutations** (`dismiss-notification`, `dismiss-all-notifications`, `notification-action`) always need `--headed`, because they open and focus the notification surface.
 - **Identity guard.** Notifications reorder between listings, so `dismiss-notification` and `notification-action` need `--expected-app` or `--expected-title` copied from the same `list-notifications` result. If the row at `INDEX` no longer matches, nothing is pressed and the command returns `NOTIFICATION_NOT_FOUND`.
 
-To block until a new notification arrives, use [`wait --notification`](/desktop/commands/wait#notification). The JSON examples on this page are built from the command code and tests; notifications could not be exercised in the Linux session the other examples came from, which had no notification service:
-
-```json
-{
-  "code": "PLATFORM_NOT_SUPPORTED",
-  "message": "No notification service is running in this session",
-  "details": { "daemon": "absent", "detail": "no service owns org.freedesktop.Notifications" }
-}
-```
+To block until a new notification arrives, use [`wait --notification`](/desktop/commands/wait#notification). The JSON examples on this page are built from the command code and tests.
 
 ## list-notifications
 
@@ -53,7 +45,7 @@ agent-desktop list-notifications [--app NAME] [--text TEXT] [--limit N]
 }
 ```
 
-`index` is 1-based and counts the unfiltered list, so a filtered result can start above 1. `body` and `actions` are omitted when empty. Errors: `POLICY_DENIED` on macOS or Windows with the surface closed, and `PLATFORM_NOT_SUPPORTED` when there is no notification service (on Linux, an owner other than GNOME Shell).
+`index` is 1-based and counts the unfiltered list, so a filtered result can start above 1. `body` and `actions` are omitted when empty. Errors: `POLICY_DENIED` when the Action Center is closed and the command is headless.
 
 ## dismiss-notification
 
@@ -97,4 +89,4 @@ agent-desktop --headed notification-action INDEX ACTION --expected-app NAME
 
 `ACTION` is a name from the notification's `actions`. The result is an action report, usually `delivered_unverified`: check the effect in the app. Errors: as for `dismiss-notification`, plus `ACTION_NOT_SUPPORTED` when the notification has no button with that name.
 
-Platform limits: GNOME Shell only on Linux, with mutations on X11; see [macOS](/desktop/platforms/macos), [Windows](/desktop/platforms/windows), and [Linux](/desktop/platforms/linux).
+Notifications are read from the Windows Action Center. See [Windows](/desktop/platforms/windows#what-works-headless).

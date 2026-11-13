@@ -1,61 +1,52 @@
 use crate::{
     AdapterError, AppError, BackgroundClickOptions, Deadline, DeliverySemantics, ErrorCode,
     MouseButton, Point, WindowFilter, WindowInfo, adapter::PlatformAdapter,
-    commands::operation_response::operation_response, context::CommandContext,
-    system::capture_token::CaptureToken,
+    commands::operation_response::operation_response, system::capture_token::CaptureToken,
 };
 use serde_json::{Value, json};
 
+/// A click posted to one window. With `capture_id` the point is in the pixels
+/// of that capture; without it the point is in screen coordinates.
 pub struct BackgroundClickArgs {
     pub window_id: String,
     pub capture_id: Option<String>,
-    pub space: String,
+    pub x: f64,
+    pub y: f64,
     pub max_capture_age_ms: u64,
-    pub restore_minimized: bool,
-    pub cursor_fallback: bool,
-    pub semantic: bool,
+    pub options: BackgroundClickOptions,
 }
 
 pub fn execute(
     args: BackgroundClickArgs,
-    x: f64,
-    y: f64,
-    button: MouseButton,
-    count: u32,
     adapter: &dyn PlatformAdapter,
-    _context: &CommandContext,
 ) -> Result<Value, AppError> {
-    crate::validate_mouse_click_count(count)?;
+    crate::validate_mouse_click_count(args.options.count)?;
+    if args.options.semantic && !matches!(args.options.button, MouseButton::Left) {
+        return Err(AppError::invalid_input_with_suggestion(
+            "--semantic invokes the element's primary action, so it accepts only the left button",
+            "Drop --semantic to post a right or middle click to the window.",
+        ));
+    }
     let deadline = Deadline::standard()?;
     let lease = crate::commands::helpers::acquire_interaction_lease(adapter)?;
     let window = resolve_window(&args.window_id, adapter, deadline)?;
-    let (screen_point, image_point) = resolve_point(&args, &window, x, y)?;
-    let report = adapter.background_click(
-        &window,
-        screen_point.clone(),
-        BackgroundClickOptions {
-            button,
-            count,
-            restore_minimized: args.restore_minimized,
-            cursor_fallback: args.cursor_fallback,
-            semantic: args.semantic,
-        },
-        &lease,
-    )?;
+    let screen_point = resolve_point(&args, &window)?;
     let mut request = json!({
         "window_id": window.id,
-        "space": args.space,
+        "space": "screen",
         "screen_x": screen_point.x,
         "screen_y": screen_point.y,
-        "capture_id": args.capture_id,
-        "restore_minimized": args.restore_minimized,
-        "cursor_fallback": args.cursor_fallback,
-        "semantic": args.semantic,
+        "restore_minimized": args.options.restore_minimized,
+        "cursor_fallback": args.options.cursor_fallback,
+        "semantic": args.options.semantic,
     });
-    if let Some((image_x, image_y)) = image_point {
-        request["image_x"] = json!(image_x);
-        request["image_y"] = json!(image_y);
+    if let Some(capture_id) = args.capture_id {
+        request["space"] = json!("image");
+        request["capture_id"] = json!(capture_id);
+        request["image_x"] = json!(args.x);
+        request["image_y"] = json!(args.y);
     }
+    let report = adapter.background_click(&window, screen_point, args.options, &lease)?;
     operation_response(&report, request)
 }
 
@@ -97,57 +88,33 @@ fn resolve_window(
     Ok(window)
 }
 
-fn resolve_point(
-    args: &BackgroundClickArgs,
-    window: &WindowInfo,
-    x: f64,
-    y: f64,
-) -> Result<(Point, Option<(f64, f64)>), AppError> {
-    let space = args.space.to_ascii_lowercase();
-    match space.as_str() {
-        "screen" => {
-            let point = Point { x, y };
-            point.validate()?;
-            Ok((point, None))
-        }
-        "image" => {
-            let capture_id = args.capture_id.as_deref().ok_or_else(|| {
-                AppError::invalid_input_with_suggestion(
-                    "Image coordinates require a capture_id from screenshot",
-                    "Take a screenshot and pass its capture_id unchanged.",
-                )
-            })?;
-            let token = CaptureToken::decode(capture_id)?;
-            if token.window_id != window.id {
-                return Err(
-                    stale_capture("The capture belongs to a different window", capture_id).into(),
-                );
-            }
-            if token.process_instance != window.process_instance.as_deref().unwrap_or_default() {
-                return Err(stale_capture(
-                    "The window now belongs to a different process",
-                    capture_id,
-                )
-                .into());
-            }
-            if token.age_ms() > args.max_capture_age_ms {
-                return Err(stale_capture("The capture is older than allowed", capture_id).into());
-            }
-            if window.bounds != Some(token.window_bounds) {
-                return Err(stale_capture(
-                    "The window moved or resized since the capture",
-                    capture_id,
-                )
-                .into());
-            }
-            let point = token.image_to_screen(x, y)?;
-            Ok((point, Some((x, y))))
-        }
-        _ => Err(AppError::invalid_input_with_suggestion(
-            format!("Unsupported coordinate space '{space}'"),
-            "Use --space screen or --space image.",
-        )),
+fn resolve_point(args: &BackgroundClickArgs, window: &WindowInfo) -> Result<Point, AppError> {
+    let Some(capture_id) = args.capture_id.as_deref() else {
+        let point = Point {
+            x: args.x,
+            y: args.y,
+        };
+        point.validate()?;
+        return Ok(point);
+    };
+    let token = CaptureToken::decode(capture_id)?;
+    if token.window_id != window.id {
+        return Err(stale_capture("The capture belongs to a different window", capture_id).into());
     }
+    if token.process_instance != window.process_instance.as_deref().unwrap_or_default() {
+        return Err(
+            stale_capture("The window now belongs to a different process", capture_id).into(),
+        );
+    }
+    if token.age_ms() > args.max_capture_age_ms {
+        return Err(stale_capture("The capture is older than allowed", capture_id).into());
+    }
+    if window.bounds != Some(token.window_bounds) {
+        return Err(
+            stale_capture("The window moved or resized since the capture", capture_id).into(),
+        );
+    }
+    Ok(token.image_to_screen(args.x, args.y)?)
 }
 
 fn stale_capture(reason: &str, capture_id: &str) -> AdapterError {

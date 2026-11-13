@@ -37,7 +37,7 @@ If `open` announces WebMCP tools and one directly matches the authorized task, p
 
 A saved flow (experimental) is a task recorded once that now runs over direct HTTP first, with the page as fallback. It works best on pages that change rarely; a run can fail on a site that changed or answers differently each time. If `open` lists one that matches the task, run it instead of driving the page: `agent-browser flow run <name> --param key=value --where field=value --fields a,b.c --limit 5`. A run tries direct HTTP, then the same request from the page, then a replay of the recorded commands; if every way fails or the response no longer has the recorded shape, the flow is marked unverified, so continue with the UI. To record a task you will repeat, open the session with `--capture flow`, do the task, then run `agent-browser flow save <name> --param key=<value you typed>`. Saved flows keep no cookies or tokens; `references/commands.md` has the rest.
 
-Install once with `npm i -g agent-browser && agent-browser install` (on Linux, `agent-browser install --with-deps` also installs browser libraries). The browser stays running between commands. Run `agent-browser close` when you're done.
+Install once with `npm i -g agent-browser && agent-browser install`. The browser stays running between commands. Run `agent-browser close` when you're done.
 
 ## Load more when you need it
 
@@ -52,7 +52,7 @@ agent-browser skills get core --ref references/authentication.md --ref templates
 
 | Load | When you need |
 | --- | --- |
-| `references/commands.md` | Any command or flag not shown here, global options, environment variables, `agent-browser.json` keys, the MCP server and its tool profiles, eve integration, network mocking and HAR, accessibility audits, React and Web Vitals, the dashboard, WebMCP commands, `doctor` |
+| `references/commands.md` | Any command or flag not shown here, global options, environment variables, `agent-browser.json` keys, the MCP server and its tool profiles, network mocking and HAR, accessibility audits, React and Web Vitals, the dashboard, WebMCP commands, `doctor` |
 | `references/snapshot-refs.md` | How refs are assigned, kept, and invalidated |
 | `references/authentication.md` | Auth vault, `--no-navigate`, credential provider plugins, importing a logged-in browser |
 | `references/session-management.md` | Persistence, `--restore` policies, idle shutdown, tab pinning, parallel sessions |
@@ -61,7 +61,7 @@ agent-browser skills get core --ref references/authentication.md --ref templates
 | `references/profiling.md` | Chrome DevTools tracing and profiling |
 | `references/streaming.md` | Live viewport streaming and remote input |
 | `references/proxy-support.md` | Proxies and CA certificates |
-| `references/webgpu.md` | WebGPU pages on headless, Linux, CI, and Windows |
+| `references/webgpu.md` | WebGPU pages on headless and headed Windows sessions |
 | `templates/*.sh` | Starter scripts for auth, capture, and form automation |
 
 Load another skill with `agent-browser skills get <name>` when the task is outside ordinary web pages:
@@ -73,7 +73,6 @@ Load another skill with `agent-browser skills get <name>` when the task is outsi
 | `dogfood` | Exploratory testing, QA, and bug hunts with a report |
 | `derive-client` | Record a HAR and generate a standalone API client for a site |
 | `webmcp-gen` | Build and validate WebMCP tools for a page |
-| `vercel-sandbox` | agent-browser inside Vercel Sandbox microVMs |
 | `protected-vercel-deployments` | Vercel deployments behind Authentication, SSO, or Deployment Protection |
 | `agentcore` | AWS Bedrock AgentCore cloud browsers |
 
@@ -253,7 +252,7 @@ Run `agent-browser doctor` before anything else when a command fails unexpectedl
 - **Click does nothing**: an overlay is covering the target. If `click` reports `covered by <...>`, dismiss that element first.
 - **Fill or type has no effect**: a custom input is intercepting key events. Run `focus @e1`, then `keyboard inserttext "text"` (or `keyboard type "text"` for raw keystrokes).
 - **Cross-origin iframe missing from the snapshot**: it blocks accessibility access. Try `frame "#iframe"`; otherwise use `eval` in that origin.
-- **WebGPU page screenshots black**: relaunch with `--webgpu`, wait for the first rendered frame, then capture. Load `references/webgpu.md` for Linux and Windows.
+- **WebGPU page screenshots black**: relaunch with `--webgpu`, wait for the first rendered frame, then capture on a logged-in desktop. Load `references/webgpu.md`.
 
 ## Working safely
 

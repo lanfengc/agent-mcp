@@ -4,11 +4,8 @@ mod batch;
 mod cli;
 mod cli_args;
 mod command_policy;
-#[cfg(target_os = "windows")]
-mod desktop_session;
 mod diagnostic;
 mod dispatch;
-mod logging;
 mod mcp;
 mod visual_debug;
 
@@ -36,10 +33,7 @@ use std::process::ExitCode;
 const EXIT_INVALID_ARGS: u8 = 2;
 
 fn main() -> ExitCode {
-    let code = run_command();
-    #[cfg(target_os = "linux")]
-    agent_desktop_linux::end_input_session();
-    code
+    run_command()
 }
 
 fn run_command() -> ExitCode {
@@ -50,36 +44,10 @@ fn run_command() -> ExitCode {
             ExitCode::FAILURE
         };
     }
-    #[cfg(target_os = "macos")]
-    if let Some(exit_code) = run_permission_prompt_helper() {
-        return exit_code;
-    }
-    #[cfg(target_os = "macos")]
-    if let Some(exit_code) = agent_desktop_macos::permission_guide_from_env() {
-        return ExitCode::from(exit_code);
-    }
-    #[cfg(target_os = "macos")]
-    agent_desktop_macos::stop_legacy_command_hosts();
     run()
 }
 
-#[cfg(target_os = "macos")]
-fn run_permission_prompt_helper() -> Option<ExitCode> {
-    let (exit_code, response) = agent_desktop_macos::permission_prompt_helper_from_env()?;
-    let stdout = std::io::stdout();
-    let mut writer = BufWriter::new(stdout.lock());
-    let result = writer
-        .write_all(response.as_bytes())
-        .and_then(|()| writer.write_all(b"\n"))
-        .and_then(|()| writer.flush());
-    Some(match result {
-        Ok(()) => ExitCode::from(exit_code),
-        Err(error) => report_output_failure(error),
-    })
-}
-
 fn run() -> ExitCode {
-    #[cfg(target_os = "windows")]
     let _ = agent_desktop_core::install_private_file_ops(Box::new(
         agent_desktop_windows::WindowsPrivateFile,
     ));
@@ -96,7 +64,7 @@ fn run() -> ExitCode {
         Err(e) => return report_parse_failure(e),
     };
 
-    logging::init(cli.visual_debug.verbose);
+    diagnostic::logging::init(cli.visual_debug.verbose);
 
     let mut cmd = match cli.command.take() {
         Some(c) => c,
@@ -109,25 +77,25 @@ fn run() -> ExitCode {
     };
 
     let cmd_name = cmd.name();
-    #[cfg(target_os = "windows")]
-    if let Some(exit_code) = desktop_session::guard(cmd_name) {
-        return exit_code;
-    }
     let safety = match command_policy::safety::SafetyPolicy::from_env() {
         Ok(policy) => policy,
         Err(error) => return finish(cmd_name, Err(error)),
     };
+    let started = std::time::Instant::now();
+    if let Err(error) = safety.check(&cmd) {
+        let refused = Err(error);
+        safety.audit(cmd_name, &refused, started.elapsed());
+        return finish(cmd_name, refused);
+    }
+    if let Some(exit_code) = dispatch::desktop_session::guard(cmd_name, &safety) {
+        return exit_code;
+    }
     if let Commands::Sandbox(args) = &cmd
         && let SandboxActionCli::Exec(exec) = &args.action
     {
-        if let Err(error) = safety.check(&cmd) {
-            return finish(cmd_name, Err(error));
-        }
         return dispatch::sandbox::run_exec(&cli, exec, cmd_name, &build_adapter());
     }
-    let started = std::time::Instant::now();
     let result = (|| {
-        safety.check(&cmd)?;
         let stdin = cli_args::stdin::input(&mut cmd).is_some();
         cli_args::stdin::resolve_stdin_text(&mut cmd, std::io::stdin().lock())?;
         cli_args::stdin::redact_result(execute(cli, cmd), stdin)
@@ -276,7 +244,6 @@ fn execute_with_adapter(
     debug: &visual_debug::options::DebugOptions,
     deadline: Option<agent_desktop_core::Deadline>,
 ) -> Result<serde_json::Value, AppError> {
-    #[cfg(target_os = "windows")]
     if let Err(bootstrap_error) = agent_desktop_windows::ensure_owned_process_mta_and_dpi() {
         return Err(pre_dispatch_error(bootstrap_error.into()));
     }
@@ -371,24 +338,7 @@ fn emit_response(response: &impl serde::Serialize) -> std::io::Result<()> {
 }
 
 fn build_adapter() -> impl agent_desktop_core::PlatformAdapter {
-    #[cfg(target_os = "macos")]
-    {
-        agent_desktop_macos::MacOSAdapter::new()
-    }
-
-    #[cfg(target_os = "windows")]
-    {
-        agent_desktop_windows::WindowsAdapter::new()
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        agent_desktop_linux::release_input_on_signals();
-        agent_desktop_linux::LinuxAdapter::new()
-    }
-
-    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
-    compile_error!("Unsupported platform")
+    agent_desktop_windows::WindowsAdapter::new()
 }
 
 #[cfg(test)]

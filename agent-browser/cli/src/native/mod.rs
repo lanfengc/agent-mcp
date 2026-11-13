@@ -49,8 +49,6 @@ pub mod tab_binding;
 #[allow(dead_code)]
 pub mod tracing;
 #[allow(dead_code)]
-pub mod webdriver;
-#[allow(dead_code)]
 pub mod webmcp;
 
 #[cfg(test)]

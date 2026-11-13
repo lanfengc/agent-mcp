@@ -102,7 +102,7 @@ impl SystemOps for WindowsAdapter {
     /// window, a Chromium modal-as-sheet, an open application menu, and the
     /// shell kinds the shell-surface resolver reaches on this build. Core
     /// validates the requested surface against this list before the adapter
-    /// is ever called (the mirror of macOS `supported_surfaces`), so a kind
+    /// is ever called, so a kind
     /// advertised here always has a matching `surface_root` arm - advertising
     /// without an arm would convert the old emit/advertise asymmetry into an
     /// advertise/resolve one. `quick-settings` is deliberately absent: this
@@ -141,8 +141,7 @@ impl SystemOps for WindowsAdapter {
     }
 
     /// The focused window is the focused-only filter's first result, composed
-    /// from `list_windows` rather than a second native path (mirroring
-    /// `focused_window` in `crates/macos/src/system/adapter.rs`). Whatever HWND-shape a
+    /// from `list_windows` rather than a second native path. Whatever HWND-shape a
     /// host presents, it maps to the same identity `list_windows` reports.
     fn focused_window(&self, deadline: Deadline) -> Result<Option<WindowInfo>, AdapterError> {
         let filter = WindowFilter {
@@ -303,8 +302,7 @@ impl SystemOps for WindowsAdapter {
     }
 
     /// The other half of `wait`'s menu surface: a bounded poll over the
-    /// two-source menu predicate, structured as a port of the macOS poll
-    /// loop.
+    /// two-source menu predicate.
     fn wait_for_menu(
         &self,
         process: ProcessIdentity,
@@ -326,12 +324,11 @@ impl SystemOps for WindowsAdapter {
         crate::system::signal::signals::capture_signal_baseline_impl(filter, deadline)
     }
 
-    /// Listing carries the same lease-consistency check the macOS adapter
-    /// runs - a headed observation must hold the cross-process lease - and
-    /// then delegates. The focus-steal floor itself is the notifications
-    /// module's: it refuses only when the closed center would have to be
-    /// raised, so an already-present center stays listable headlessly, which
-    /// is the same conditional shape macOS's own listing floor has.
+    /// Listing carries the lease-consistency check - a headed observation must
+    /// hold the cross-process lease - and then delegates. The focus-steal floor
+    /// itself is the notifications module's: it refuses only when the closed
+    /// center would have to be raised, so an already-present center stays
+    /// listable headlessly.
     fn list_notifications(
         &self,
         filter: &NotificationFilter,

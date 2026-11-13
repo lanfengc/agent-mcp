@@ -21,8 +21,8 @@ puts the tree in your context.
 ## The loop
 
 ```sh
-node scripts/jev/run.mjs --app Finder "open the Applications folder"
-node scripts/jev/run.mjs --app TextEdit --cursor --text "A line to write." "write the supplied sentence into the document"
+node scripts/jev/run.mjs --app explorer.exe "open the Documents folder"
+node scripts/jev/run.mjs --app notepad.exe --cursor --text "A line to write." "write the supplied sentence into the document"
 ```
 
 Each turn reads the screen, asks for one operation and a target for that
@@ -30,7 +30,7 @@ operation in the same request, carries it out, and reads again. It prints one
 JSON line per turn and one when it stops (shown trimmed).
 
 ```json
-{"turn":{"step":1,"operation":"CLICK","target":"treeitem \"Applications\"",
+{"turn":{"step":1,"operation":"CLICK","target":"treeitem \"Documents\"",
          "confidence":1,"ok":true,"delivery":"delivered_verified","changed":true}}
 {"stop":"done","confidence":0.96}
 ```
@@ -64,7 +64,7 @@ one.
 **Text goes in by whichever route the application accepts.** A direct value
 write (`set-value`) is one verified call. Only when the application refuses it
 and the refusal says a retry is safe does the value go through the clipboard and
-a `cmd+v` paste (macOS only). The clipboard is put back when the run ends, or
+a `ctrl+v` paste. The clipboard is put back when the run ends, or
 emptied if it held anything but text. One key press per character is never used:
 it drops characters and loses capitals.
 
@@ -123,15 +123,15 @@ You keep the goal, the plan and the memory. You send one sentence. You get back
 one small object.
 
 ```sh
-node scripts/jev/act.mjs --app TextEdit --execute \
-  --text "Morning over the dock." "type this text into the main writing area"
+node scripts/jev/act.mjs --app notepad.exe --execute \
+  --text "Morning over the harbour." "type this text into the main writing area"
 ```
 
 ```json
 {
   "ok": true,
   "intent": "type this text into the main writing area",
-  "app": "TextEdit", "window": "Untitled 3", "window_id": "w-4521", "surface": "sheet",
+  "app": "notepad.exe", "window": "Untitled - Notepad", "window_id": "w-4521", "surface": "sheet",
   "element": { "ref": "@s1:e139", "role": "textfield", "name": "Save As:",
                "where": "sheet \"save\" > group" },
   "command": "set-value",
@@ -236,7 +236,7 @@ router to use an OpenRouter key as `TYPESAFE_API_KEY`:
 TYPESAFE_BASE_URL=https://openrouter.ai/api/alpha/decisions \
 TYPESAFE_MODEL=typesafe/jev-1.13 \
 TYPESAFE_API_KEY=sk-or-... \
-node scripts/jev/run.mjs --app Finder "open the Applications folder"
+node scripts/jev/run.mjs --app explorer.exe "open the Documents folder"
 ```
 
 `TYPESAFE_MODEL` may stay at its `jev-latest` default: against OpenRouter a bare

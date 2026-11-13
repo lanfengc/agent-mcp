@@ -56,18 +56,17 @@ impl ActionabilityRequirements {
     }
 
     /// Whether visibility must be proven from pointer bounds. Strictly headless
-    /// semantic delivery (AXPress/AXShowMenu, or an advertised editable-text
-    /// capability) does not use a pointer, so closed-menu items and editors
-    /// without usable bounds stay actionable. The visibility gate applies this
-    /// only to targets that report bounds but no owning window (`offscreen`
-    /// unknown), the shape macOS closed-menu items have: a zero-size control
-    /// inside a known window still needs bounds. A separately proven nonspatial
-    /// protocol target needs complete live state instead of geometry. Explicit
-    /// hidden/offscreen state still gates both. Headed pointer
-    /// paths keep the geometry requirement, but an action typed through the
-    /// keyboard never uses a pointer: a Wayland field reports no bounds, and
-    /// waiting for one that can never arrive spends the whole budget on a
-    /// check the session cannot answer.
+    /// semantic delivery (a UIA Invoke, Toggle or Expand action, or an
+    /// advertised editable-text capability) does not use a pointer, so closed
+    /// menu items and editors without usable bounds stay actionable. The
+    /// visibility gate applies this only to targets that report bounds but no
+    /// owning window (`offscreen` unknown): a zero-size control inside a known
+    /// window still needs bounds. A separately proven nonspatial protocol
+    /// target needs complete live state instead of geometry. Explicit
+    /// hidden/offscreen state still gates both. Headed pointer paths keep the
+    /// geometry requirement, but an action typed through the keyboard never
+    /// uses a pointer, and waiting for bounds that can never arrive spends the
+    /// whole budget on a check the session cannot answer.
     pub(crate) fn requires_geometry(
         &self,
         request: &crate::ActionRequest,

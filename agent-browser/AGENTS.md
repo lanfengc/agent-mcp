@@ -57,7 +57,7 @@ To prepare a release:
 5. Add a matching entry to `docs/content/docs/changelog.mdx` at the top (below the frontmatter)
 6. Open a PR and merge to `main`
 
-When the PR merges, CI compares `package.json` version to what's on npm. If it differs, it builds all 7 platform binaries, publishes to npm, and creates the GitHub release automatically. The GitHub release body is extracted from the content between the `<!-- release:start -->` and `<!-- release:end -->` markers in `CHANGELOG.md`.
+When the PR merges, CI compares `package.json` version to what's on npm. If it differs, it builds the Windows x64 binary, publishes to npm, and creates the GitHub release automatically. The GitHub release body is extracted from the content between the `<!-- release:start -->` and `<!-- release:end -->` markers in `CHANGELOG.md`.
 
 ### Writing the changelog
 

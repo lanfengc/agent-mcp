@@ -9,27 +9,9 @@ agent-browser manages Lightpanda the same way it manages Chrome -- spawning the 
 
 ## Installation
 
-Install the Lightpanda binary before using it with agent-browser:
+Install the Lightpanda binary before using it with agent-browser and put `lightpanda.exe` on your `PATH` (or in `%USERPROFILE%\.lightpanda\lightpanda.exe`).
 
-<table>
-  <thead>
-    <tr><th>Platform</th><th>Command</th></tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>macOS (Apple Silicon)</td>
-      <td><code>curl -L -o lightpanda https://github.com/lightpanda-io/browser/releases/download/nightly/lightpanda-aarch64-macos && chmod a+x ./lightpanda</code></td>
-    </tr>
-    <tr>
-      <td>Linux (x86_64)</td>
-      <td><code>curl -L -o lightpanda https://github.com/lightpanda-io/browser/releases/download/nightly/lightpanda-x86_64-linux && chmod a+x ./lightpanda</code></td>
-    </tr>
-  </tbody>
-</table>
-
-Move the binary somewhere in your `PATH` (e.g. `/usr/local/bin/lightpanda` or `~/.local/bin/lightpanda`).
-
-See the [Lightpanda installation docs](https://lightpanda.io/docs/open-source/installation) for more options.
+See the [Lightpanda installation docs](https://lightpanda.io/docs/open-source/installation) for the available builds.
 
 ## Usage
 
@@ -61,7 +43,7 @@ Or in `~/.agent-browser/config.json` or a file loaded with `--config`:
 If the `lightpanda` binary is not in your `PATH`, use `--executable-path`:
 
 ```bash
-agent-browser --engine lightpanda --executable-path /path/to/lightpanda open example.com
+agent-browser --engine lightpanda --executable-path "C:\Tools\lightpanda\lightpanda.exe" open example.com
 ```
 
 ## Differences from Chrome

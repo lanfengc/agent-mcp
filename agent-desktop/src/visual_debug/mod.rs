@@ -55,11 +55,6 @@ impl DebugCapture {
         };
         let mut open = OpenOptions::new();
         open.write(true).create_new(true);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::OpenOptionsExt;
-            open.mode(0o600);
-        }
         let file = open.open(path).map_err(|error| AppError::invalid_input(format!(
             "Cannot create debug output '{}': {error}. Choose a new .html path in an existing directory.", path.display()
         )))?;

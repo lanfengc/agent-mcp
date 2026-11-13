@@ -3,7 +3,6 @@
 const {
   chmodSync,
   existsSync,
-  linkSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
@@ -14,12 +13,11 @@ const {
   unlinkSync,
   writeFileSync,
 } = require('fs');
-const { basename, dirname, isAbsolute, join } = require('path');
+const { basename, dirname, join } = require('path');
 const { platform, arch } = require('os');
 const { execFileSync } = require('child_process');
 const { createHash } = require('crypto');
 const {
-  MACOS_HELPER_NAME,
   helperNames,
   releasedKeys,
   resolve,
@@ -33,7 +31,6 @@ const packageJson = JSON.parse(readFileSync(join(projectRoot, 'package.json'), '
 const version = packageJson.version;
 
 const GITHUB_REPO = 'vercel-labs/agent-desktop';
-const MACOS_HELPER_PATH_ENV = 'AGENT_DESKTOP_MACOS_HELPER_PATH';
 
 function log(msg) {
   process.stderr.write(`agent-desktop: ${msg}\n`);
@@ -112,19 +109,12 @@ function matchesRecordedDigest(destination) {
   }
 }
 
-function customHelperPath(customBinaryPath, helperName = MACOS_HELPER_NAME) {
-  const override = helperName === MACOS_HELPER_NAME ? process.env[MACOS_HELPER_PATH_ENV] : undefined;
-  if (override) {
-    if (!isAbsolute(override)) {
-      throw new Error(`${MACOS_HELPER_PATH_ENV} must be an absolute path`);
-    }
-    return override;
-  }
+function customHelperPath(customBinaryPath, helperName) {
   return join(dirname(customBinaryPath), helperName);
 }
 
 function validateArchive(tarballPath, expectedEntries) {
-  const listing = execFileSync(tarCommand(platform(), process.env), ['-tzf', tarballPath], {
+  const listing = execFileSync(tarCommand(process.env), ['-tzf', tarballPath], {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
     timeout: 30000,
@@ -143,7 +133,7 @@ function installArchive(tarballPath, binaryPath, helperPath, entry) {
   validateArchive(tarballPath, entry.entries);
   const staging = mkdtempSync(join(binDir, '.extract-'));
   try {
-    execFileSync(tarCommand(platform(), process.env), ['-xzf', tarballPath, '-C', staging], {
+    execFileSync(tarCommand(process.env), ['-xzf', tarballPath, '-C', staging], {
       stdio: 'pipe',
       timeout: 30000,
     });
@@ -169,75 +159,21 @@ function installArchive(tarballPath, binaryPath, helperPath, entry) {
   }
 }
 
-const BIN_ENTRY_NAME = 'agent-desktop';
-
 function isInstalledPackage(directory) {
   return basename(dirname(dirname(directory))) === 'node_modules';
 }
 
-function isNodeWrapper(path) {
-  try {
-    return readFileSync(path).subarray(0, 2).toString() === '#!';
-  } catch {
-    return false;
-  }
-}
-
 const LINKED_NOTICE = 'Native binary linked: each call runs without the Node launcher.';
 
-/** Runs the installed binary once on macOS so it stops command hosts that earlier versions left running. */
-function stopLeftoverHosts(binaryPath) {
-  if (platform() !== 'darwin') return;
-  try {
-    execFileSync(binaryPath, ['version'], { stdio: 'ignore', timeout: 5000 });
-  } catch (err) {
-    log(`Could not stop command hosts left by an earlier version: ${err.message}`);
-    log('Run `agent-desktop version` once to stop them.');
-  }
-}
-
-function linkBinEntry(directory, binaryName, osPlatform = platform()) {
+function linkBinEntry(directory, binaryName) {
   if (!isInstalledPackage(directory)) return false;
-  if (osPlatform === 'win32') {
-    const linked = require('../lib/windows-bin')(directory, binaryName);
-    if (linked) log(LINKED_NOTICE);
-    return linked;
-  }
-  const entryPath = join(directory, BIN_ENTRY_NAME);
-  const binaryPath = join(directory, binaryName);
-  const temporary = `${entryPath}.link-${process.pid}`;
-  try {
-    const binaryStat = lstatSync(binaryPath);
-    try {
-      const entryStat = lstatSync(entryPath);
-      if (entryStat.ino === binaryStat.ino && entryStat.dev === binaryStat.dev) return false;
-    } catch {}
-    rmSync(temporary, { force: true });
-    linkSync(binaryPath, temporary);
-    renameSync(temporary, entryPath);
-    log(LINKED_NOTICE);
-    return true;
-  } catch (err) {
-    if (isNodeWrapper(entryPath)) {
-      log(`Could not link bin entry, keeping the Node wrapper: ${err.message}`);
-    } else {
-      log(`Could not link bin entry to the installed native binary: ${err.message}`);
-      process.exitCode = 1;
-    }
-    return false;
-  } finally {
-    try { unlinkSync(temporary); } catch {}
-  }
+  const linked = require('../lib/windows-bin')(directory, binaryName);
+  if (linked) log(LINKED_NOTICE);
+  return linked;
 }
 
 function promptSkillInstall() {
-  const platformSkill = {
-    darwin: 'agent-desktop-macos',
-    win32: 'agent-desktop-windows',
-    linux: 'agent-desktop-linux',
-  }[platform()];
-  const skills = ['agent-desktop', 'agent-desktop-ffi'];
-  if (platformSkill) skills.push(platformSkill);
+  const skills = ['agent-desktop', 'agent-desktop-ffi', 'agent-desktop-windows'];
 
   log('');
   log('Claude Code skills available for agent-desktop!');
@@ -294,11 +230,6 @@ function main() {
     mkdirSync(binDir, { recursive: true });
   }
 
-  if (platform() === 'linux') {
-    const mode = lstatSync(binDir).mode;
-    if (mode & 0o022) chmodSync(binDir, mode & 0o755);
-  }
-
   if (process.env.AGENT_DESKTOP_BINARY_PATH) {
     const customPath = process.env.AGENT_DESKTOP_BINARY_PATH;
     try {
@@ -315,7 +246,6 @@ function main() {
       installExecutable(customPath, binaryPath);
       log(`Using binary from AGENT_DESKTOP_BINARY_PATH: ${customPath}`);
       linkBinEntry(binDir, binaryName);
-      stopLeftoverHosts(binaryPath);
       promptSkillInstall();
     } catch (err) {
       log(`Failed to install from AGENT_DESKTOP_BINARY_PATH: ${err.message}`);
@@ -343,7 +273,6 @@ function main() {
         : `Native executable ready: ${binaryName}`,
     );
     linkBinEntry(binDir, binaryName);
-    stopLeftoverHosts(binaryPath);
     promptSkillInstall();
     return;
   }
@@ -386,7 +315,6 @@ function main() {
   }
 
   linkBinEntry(binDir, binaryName);
-  stopLeftoverHosts(binaryPath);
 
   promptSkillInstall();
 }

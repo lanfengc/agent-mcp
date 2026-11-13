@@ -5,11 +5,9 @@
 //! redirects where the product writes — no ACL on the intended destination
 //! prevents a write that never reaches it. Every component of a write path is
 //! therefore opened with `FILE_FLAG_OPEN_REPARSE_POINT` (never following the
-//! link) and refused if it carries `FILE_ATTRIBUTE_REPARSE_POINT`. This is
-//! the Windows analogue of the unix per-component symlink rejection in core's
-//! `private_file_parent.rs`, and it restores the check the deleted v0.5.0
-//! layer carried. Reads guard only the leaf, exactly as the unix baseline's
-//! `O_NOFOLLOW` does.
+//! link) and refused if it carries `FILE_ATTRIBUTE_REPARSE_POINT`. Reads
+//! guard only the leaf, because a read follows the final component's target
+//! only after the leaf itself has passed the same check.
 
 use std::fs::{File, OpenOptions};
 use std::io::ErrorKind;

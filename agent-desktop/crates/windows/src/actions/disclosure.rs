@@ -68,7 +68,7 @@ pub(crate) fn invoke_allowed(current: Option<ExpandKind>, want_expanded: bool) -
     current.is_some_and(|state| state.is_known_opposite(want_expanded))
 }
 
-/// Satisfied / leaf / mutable plan from a pre-read (macOS disclosure_plan parity).
+/// Satisfied / leaf / mutable plan from a pre-read.
 pub(crate) fn disclosure_plan(
     current: Option<ExpandKind>,
     want_expanded: bool,

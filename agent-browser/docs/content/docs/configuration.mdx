@@ -78,14 +78,13 @@ Global options can be set in a trusted config file using their camelCase equival
     <tr><td><code>extensions</code></td><td><code>--extension</code></td><td>string[]</td></tr>
     <tr><td><code>initScripts</code></td><td><code>--init-script</code></td><td>string[]</td></tr>
     <tr><td><code>enable</code></td><td><code>--enable</code></td><td>string[]</td></tr>
-    <tr><td><code>profile</code></td><td><code>--profile</code></td><td>string; Chrome profile name or persistent profile directory. Local Chrome launches without it use a persistent per-session directory under the agent-browser state directory.</td></tr>
+    <tr><td><code>profile</code></td><td><code>--profile</code></td><td>string</td></tr>
     <tr><td><code>state</code></td><td><code>--state</code></td><td>string</td></tr>
     <tr><td><code>proxy</code></td><td><code>--proxy</code></td><td>string</td></tr>
     <tr><td><code>proxyBypass</code></td><td><code>--proxy-bypass</code></td><td>string</td></tr>
     <tr><td><code>args</code></td><td><code>--args</code></td><td>string</td></tr>
     <tr><td><code>userAgent</code></td><td><code>--user-agent</code></td><td>string</td></tr>
     <tr><td><code>provider</code></td><td><code>-p, --provider</code></td><td>string</td></tr>
-    <tr><td><code>device</code></td><td><code>--device</code></td><td>string</td></tr>
     <tr><td><code>hideScrollbars</code></td><td><code>--hide-scrollbars</code></td><td>boolean</td></tr>
     <tr><td><code>webgpu</code></td><td><code>--webgpu</code></td><td>boolean</td></tr>
     <tr><td><code>noWebmcp</code></td><td><code>--no-webmcp</code> or <code>AGENT_BROWSER_NO_WEBMCP</code></td><td>boolean</td></tr>
@@ -140,13 +139,11 @@ The examples below use settings outside the project config allowlist. Save them 
 {
   "proxy": "http://proxy.corp.example.com:8080",
   "proxyBypass": "localhost,*.internal.com",
-  "caCert": "/etc/ssl/certs/proxy-ca.crt"
+  "caCert": "C:\\certs\\proxy-ca.crt"
 }
 ```
 
-`caCert` imports the supplied CA certificate or PEM bundle into an isolated NSS database for locally launched Chromium on Linux. Hostname, validity period, and unrelated CA verification remain enabled. The CA remains active when later commands omit it. Setting different certificate content or `clearCaCert: true` relaunches Chromium without restarting the daemon. `agent-browser install --with-deps` installs the required `certutil`; otherwise install `libnss3-tools` on Debian/Ubuntu or `nss-tools` on RPM Linux. Browser trust does not support Chrome profiles, CDP attach, providers, Lightpanda, macOS, or Windows.
-
-`caCert` and `useSystemCa` also apply to the CLI's own HTTPS requests on every platform. `read`, `install`, `upgrade`, and `doctor` make their own HTTPS requests and trust the built-in Mozilla roots by default. On every platform, `--ca-cert` adds the CA to those requests, and `--use-system-ca` switches them to the operating system trust store, which already holds a CA deployed by MDM or an enterprise image. `SSL_CERT_FILE` is used as a fallback CA file and is ignored with a warning when unusable. Neither option disables certificate or hostname verification. For `read`, a selection given on the command line stays in effect for the session until `close`, including across daemon restarts; `--no-ca-cert` or `--use-system-ca false` turns it off. `read` never launches or relaunches a browser because of these options. They do not yet change how agent-browser connects to a remote browser over `--cdp`, `--auto-connect`, or a provider.
+`caCert` and `useSystemCa` apply to the CLI's own HTTPS requests. `read`, `install`, `upgrade`, and `doctor` make their own HTTPS requests and trust the built-in Mozilla roots by default. `--ca-cert` adds the CA to those requests, and `--use-system-ca` switches them to the operating system trust store, which already holds a CA deployed by MDM or an enterprise image. CA trust for a locally launched Chromium is not supported on Windows, so browser launch commands reject `--ca-cert`. `SSL_CERT_FILE` is used as a fallback CA file and is ignored with a warning when unusable. Neither option disables certificate or hostname verification. For `read`, a selection given on the command line stays in effect for the session until `close`, including across daemon restarts; `--no-ca-cert` or `--use-system-ca false` turns it off. `read` never launches or relaunches a browser because of these options. They do not yet change how agent-browser connects to a remote browser over `--cdp`, `--auto-connect`, or a provider.
 
 Without the CA certificate on hand, fall back to ignoring every certificate error, which is less secure:
 
@@ -168,15 +165,6 @@ Without the CA certificate on hand, fall back to ignoring every certificate erro
 ```
 
 Set these in `~/.agent-browser/config.json` or a file loaded with `--config`; the auto-discovered `./agent-browser.json` ignores `args` with a warning.
-
-### iOS Testing
-
-```json
-{
-  "provider": "ios",
-  "device": "iPhone 16 Pro"
-}
-```
 
 ### AI Agent Security
 
@@ -281,7 +269,7 @@ These environment variables configure additional daemon and runtime behavior:
     <tr><td><code>NO_PROXY</code></td><td>Standard proxy bypass fallback.</td><td>(none)</td></tr>
     <tr><td><code>AGENT_BROWSER_ARGS</code></td><td>Browser launch arguments, separated by newlines or by commas before another flag. Commas inside a value are kept.</td><td>(none)</td></tr>
     <tr><td><code>AGENT_BROWSER_USER_AGENT</code></td><td>Custom User-Agent string.</td><td>(browser default)</td></tr>
-    <tr><td><code>AGENT_BROWSER_PROVIDER</code></td><td>Browser provider such as <code>ios</code>, <code>browserbase</code>, <code>kernel</code>, <code>browseruse</code>, <code>browserless</code>, <code>agentcore</code>, or a configured <code>browser.provider</code> plugin name.</td><td>(local browser)</td></tr>
+    <tr><td><code>AGENT_BROWSER_PROVIDER</code></td><td>Browser provider such as <code>browserbase</code>, <code>kernel</code>, <code>browseruse</code>, <code>browserless</code>, <code>agentcore</code>, or a configured <code>browser.provider</code> plugin name.</td><td>(local browser)</td></tr>
     <tr><td><code>AGENT_BROWSER_HIDE_SCROLLBARS</code></td><td>Hide native scrollbars in headless Chromium screenshots.</td><td><code>true</code></td></tr>
     <tr><td><code>AGENT_BROWSER_COLOR_SCHEME</code></td><td>Color scheme preference (<code>dark</code>, <code>light</code>, <code>no-preference</code>).</td><td>(none)</td></tr>
     <tr><td><code>AGENT_BROWSER_DOWNLOAD_PATH</code></td><td>Default directory for browser downloads.</td><td>(temp directory)</td></tr>
@@ -300,8 +288,7 @@ These environment variables configure additional daemon and runtime behavior:
     <tr><td><code>AGENT_BROWSER_INIT_SCRIPTS</code></td><td>Comma-separated paths to page init scripts.</td><td>(none)</td></tr>
     <tr><td><code>AGENT_BROWSER_ENABLE</code></td><td>Comma-separated built-in init script features such as <code>react-devtools</code>.</td><td>(none)</td></tr>
     <tr><td><code>AGENT_BROWSER_HEADED</code></td><td>Show browser window instead of running headless (<code>1</code> to enable).</td><td>(disabled)</td></tr>
-    <tr><td><code>AGENT_BROWSER_WEBGPU</code></td><td>Enable WebGPU; SwiftShader software Vulkan on Linux, no GPU required (<code>1</code> to enable).</td><td>(disabled)</td></tr>
-    <tr><td><code>AGENT_BROWSER_NO_XVFB</code></td><td>Disable automatic Xvfb virtual display for headed mode on displayless Linux hosts (<code>1</code> to disable).</td><td>(auto-Xvfb enabled)</td></tr>
+    <tr><td><code>AGENT_BROWSER_WEBGPU</code></td><td>Enable WebGPU; software rendering when no GPU is available (<code>1</code> to enable).</td><td>(disabled)</td></tr>
     <tr><td><code>AGENT_BROWSER_NO_VERSION_CHECK</code></td><td>Skip the outdated Chrome check, which fetches the Chrome Releases blog once per browser version in each session (<code>1</code> to disable).</td><td>(check enabled)</td></tr>
     <tr><td><code>AGENT_BROWSER_CLEAR_CA_CERT</code></td><td>Clear CA trust retained by the running browser session.</td><td>(disabled)</td></tr>
     <tr><td><code>AGENT_BROWSER_USE_SYSTEM_CA</code></td><td>Use the operating system trust store for the CLI's own HTTPS requests (<code>1</code> to enable).</td><td>(disabled)</td></tr>
@@ -314,9 +301,7 @@ These environment variables configure additional daemon and runtime behavior:
     <tr><td><code>AGENT_BROWSER_STREAM_QUALITY</code></td><td>JPEG quality for streamed frames, 0 to 100. Lower values cut bandwidth: quality 20 costs about half the bytes of the default on a busy page.</td><td><code>80</code></td></tr>
     <tr><td><code>AGENT_BROWSER_STREAM_MAX_WIDTH</code></td><td>Cap the encoded frame width in pixels. Caps the frame only and leaves the page size alone, so pointer coordinates are unaffected.</td><td>the viewport</td></tr>
     <tr><td><code>AGENT_BROWSER_STREAM_MAX_HEIGHT</code></td><td>Cap the encoded frame height in pixels.</td><td>the viewport</td></tr>
-    <tr><td><code>AGENT_BROWSER_IDLE_TIMEOUT_MS</code></td><td>Auto-shutdown the daemon after N ms without commands or dashboard input. Set <code>0</code> to disable. Headed browsers, Safari and iOS WebDriver sessions, and user-attached browsers are exempt from the default. Provider-owned cloud browsers are eligible for cleanup, and an explicit value applies to every browser.</td><td><code>3600000</code> (1 hour)</td></tr>
-    <tr><td><code>AGENT_BROWSER_IOS_DEVICE</code></td><td>Default iOS device name for the <code>ios</code> provider.</td><td>(none)</td></tr>
-    <tr><td><code>AGENT_BROWSER_IOS_UDID</code></td><td>Default iOS device UDID for the <code>ios</code> provider.</td><td>(none)</td></tr>
+    <tr><td><code>AGENT_BROWSER_IDLE_TIMEOUT_MS</code></td><td>Auto-shutdown the daemon after N ms without commands or dashboard input. Set <code>0</code> to disable. Headed and user-attached browsers are exempt from the default. Provider-owned cloud browsers are eligible for cleanup, and an explicit value applies to every browser.</td><td><code>3600000</code> (1 hour)</td></tr>
     <tr><td><code>AGENT_BROWSER_DEBUG</code></td><td>Enable debug output (<code>1</code> to enable).</td><td>(disabled)</td></tr>
     <tr><td><code>AGENT_BROWSER_CONTENT_BOUNDARIES</code></td><td>Wrap page output in boundary markers for LLM safety.</td><td>(disabled)</td></tr>
     <tr><td><code>AGENT_BROWSER_MAX_OUTPUT</code></td><td>Max characters for page output (truncates beyond limit).</td><td>(unlimited)</td></tr>

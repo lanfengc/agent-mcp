@@ -2,13 +2,11 @@
 
 ## Host-thread contract
 
-FFI entrypoints may be called from any host thread. The library applies no
-blanket macOS main-thread guard to Accessibility (`AXUIElement`) or Quartz event
-(`CGEvent`) calls, and Apple publishes no main-thread requirement for them
-([Thread Safety Summary](https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/Multithreading/ThreadSafetySummary/ThreadSafetySummary.html)).
-Code paths that use Cocoa objects create their own autorelease pools, and FFI
-initialization starts one `NSThread`, so Cocoa installs its multithreading locks
-before any worker-thread AppKit call.
+FFI entrypoints may be called from any host thread. When the first adapter is
+created, the DLL registers process-wide COM multithreaded-apartment usage with
+`CoIncrementMTAUsage` and applies per-monitor-v2 DPI awareness. An STA host is
+supported, and no entrypoint requires the main thread or an `NSThread`
+equivalent. UI Automation work runs on the calling thread.
 
 ## Concurrency and mutation ordering
 
@@ -31,10 +29,9 @@ threads, but the snapshot can overlap the action; callers that require
 observe-then-act ordering must wait for the snapshot result before dispatching
 the action.
 
-Desktop mutations take a process-independent lock: on macOS and Linux an
-advisory lock at `/tmp/agent-desktop-<uid>/interaction.lock`, on Windows a
-token-derived lock file. CLI and FFI builds therefore serialize mutations across
-threads, processes and different HOME values for the same user. The lock is
+Desktop mutations take a process-independent lock: a token-derived lock file
+under the user's state root. CLI and FFI builds therefore serialize mutations across
+threads, processes and different `AGENT_DESKTOP_HOME` values for the same user. The lock is
 command-scoped, not transaction-scoped: another actor may change the UI between
 an observation and a later action, or between two separate actions.
 
@@ -93,10 +90,11 @@ same discipline when tasks can migrate between worker threads.
 
 ## Accessibility permission identity
 
-`ad_check_permissions` calls macOS `AXIsProcessTrusted()`, which reports trust
-for the hosting executable (`python3`, `node`, a Swift app, and so on), not for
-the dylib as a separate executable. Permission prompts and deployment guidance
-must identify the host process that loads `libagent_desktop_ffi.dylib`.
+Windows has no accessibility grant dialog. `ad_check_permissions` reports
+`accessibility: granted` when UI Automation answers and `automation: not_required`.
+An app running at a higher integrity level can be read but not driven; the call
+returns `AD_RESULT_ERR_PERM_DENIED` with `E_ACCESSDENIED` in the last-error
+details. The hosting executable's identity does not change this; elevation does.
 
 ## Last error and blocking calls
 

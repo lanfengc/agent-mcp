@@ -93,13 +93,12 @@ function Invoke-SheetLifecycleLeg {
 }
 
 function Invoke-Ae6Legs {
-    <# The mechanism macOS's own AE6 leg (tests/e2e/scenarios/acceptance.sh)
-       uses: `batch` captures the signal baseline immediately before the
-       acting (click) entry runs, so the modal genuinely opens mid-wait with
-       no concurrency of any kind needed - one process, two sequential
-       entries. Each leg reopens the sheet itself (via its own click entry)
-       rather than reusing the lifecycle leg's own open, since that leg may
-       have already closed it, or may itself have failed. #>
+    <# The mechanism the AE6 legs use: `batch` captures the signal baseline
+       immediately before the acting (click) entry runs, so the modal genuinely
+       opens mid-wait with no concurrency of any kind needed - one process,
+       two sequential entries. Each leg reopens the sheet itself (via its own
+       click entry) rather than reusing the lifecycle leg's own open, since
+       that leg may have already closed it, or may itself have failed. #>
     param([Parameter(Mandatory = $true)][string]$App)
     try {
         Enter-Stage -Lock DesktopLease -Body {
@@ -156,8 +155,8 @@ function Invoke-Ae6Legs {
 }
 
 function Invoke-MenuDispatchLeg {
-    <# macOS can only assert enumerability; this platform can assert
-       dispatch too. Enumeration: --role menuitem must resolve menu-fire-item
+    <# This platform can assert enumeration and dispatch. Enumeration:
+       --role menuitem must resolve menu-fire-item
        specifically, not merely some element of that role somewhere in the
        tree (Observation.ps1's role-coverage leg already proves the role
        exists at all). Dispatch: the counter-suffixed status is asserted to

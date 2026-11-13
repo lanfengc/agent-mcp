@@ -6,11 +6,10 @@ fn key_name_to_vk(key: &str) -> Result<u16, AdapterError> {
     resolve_key(key).map(|resolved| resolved.vk)
 }
 
-/// Every key name `crates/macos/src/input/keyboard/keyboard_map.rs::key_name_to_code`
-/// accepts, transcribed as data. A silently-narrower Windows vocabulary must
-/// fail this test rather than ship: the name *resolves* on both
-/// platforms even though the combo it forms does not mean the same thing.
-const MACOS_KEY_VOCABULARY: &[&str] = &[
+/// Every key name the shared vocabulary accepts, transcribed as data. A
+/// silently-narrower Windows vocabulary must fail this test rather than ship:
+/// the name *resolves* even though the combo it forms is Windows-specific.
+const RECORDED_KEY_VOCABULARY: &[&str] = &[
     "a",
     "b",
     "c",
@@ -86,8 +85,8 @@ const MACOS_KEY_VOCABULARY: &[&str] = &[
 ];
 
 #[test]
-fn every_macos_key_name_resolves_on_windows() {
-    let unmapped: Vec<&str> = MACOS_KEY_VOCABULARY
+fn every_recorded_key_name_resolves_on_windows() {
+    let unmapped: Vec<&str> = RECORDED_KEY_VOCABULARY
         .iter()
         .copied()
         .filter(|name| key_name_to_vk(name).is_err())
@@ -95,7 +94,7 @@ fn every_macos_key_name_resolves_on_windows() {
 
     assert!(
         unmapped.is_empty(),
-        "Windows must resolve every macOS key name; unmapped: {unmapped:?}"
+        "Windows must resolve every recorded key name; unmapped: {unmapped:?}"
     );
 }
 

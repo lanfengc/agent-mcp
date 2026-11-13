@@ -1,18 +1,8 @@
 use agent_desktop_core::{AdapterError, Rect};
 
-/// A top-level window handle, typed for the compiling platform.
-///
-/// `windows-sys`'s `HWND` is a raw pointer that only exists on Windows; the
-/// crate still must compile on the Linux cross-check lane, so the system
-/// modules name this alias in signatures and keep the Windows-only calls
-/// behind `#[cfg]`. The non-Windows alias stays a raw pointer so
-/// `std::ptr::null_mut()` and pointer casts type-check identically.
-#[cfg(target_os = "windows")]
+/// A top-level window handle.
 pub(crate) type WindowHandle = windows_sys::Win32::Foundation::HWND;
-#[cfg(not(target_os = "windows"))]
-pub(crate) type WindowHandle = *mut core::ffi::c_void;
 
-#[cfg(target_os = "windows")]
 use windows_sys::Win32::Foundation::HWND;
 #[cfg(target_os = "windows")]
 use windows_sys::Win32::Graphics::Dwm::DWMWA_CLOAKED;

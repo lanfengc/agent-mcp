@@ -19,7 +19,7 @@ import subprocess
 import sys
 import tempfile
 
-PLATFORMS = ("macos", "windows", "linux")
+PLATFORMS = ("windows",)
 PLATFORM_PACKAGES = {f"agent-desktop-{p}" for p in PLATFORMS}
 WIRING_PACKAGES = {"agent-desktop", "agent-desktop-ffi"}
 TOP_PACKAGES = {"agent-desktop", "agent-desktop-ffi"}
@@ -50,16 +50,12 @@ CORE_OS_ALLOWLIST = {
     "commands/screenshot_tests.rs",
     "commands/session.rs",
     "commands/skills_tests.rs",
-    "commands/skills.rs",
     "context/context_tests.rs",
     "cursor_overlay/image_tests.rs",
     "cursor_overlay/image.rs",
-    "lib.rs",
     "refs/mod.rs",
     "refs/refs_store_tests.rs",
     "refs/refs_tests.rs",
-    "session/interaction_lease_tests.rs",
-    "session/interaction_lease.rs",
     "session/session_gc_tests.rs",
     "session/session_tests.rs",
     "session/tree_tests.rs",
@@ -67,7 +63,6 @@ CORE_OS_ALLOWLIST = {
     "storage/file_lock.rs",
     "storage/private_file_parent.rs",
     "storage/private_file_tests.rs",
-    "storage/private_file.rs",
     "storage/state_root.rs",
     "trace/trace_artifact_budget_tests.rs",
     "trace/trace_artifacts_more_tests.rs",
@@ -88,13 +83,12 @@ CORE_OS_ALLOWLIST = {
 # is a review decision. Test files and inline test modules are not scanned.
 LISTENER_ALLOWLIST = {
     "crates/core/src/system/cdp_endpoint.rs",
-    "crates/macos/src/system/cursor_overlay/child.rs",
     "crates/windows/src/system/cursor_overlay/server.rs",
 }
 LISTENER = re.compile(r"(?<![A-Za-z0-9_])(?:(?:UnixListener|TcpListener|UdpSocket|UnixDatagram)\s*::\s*bind\w*"
                       r"|CreateNamedPipe[AW]?|NamedPipeServer|ServerOptions|libc\s*::\s*listen)(?![A-Za-z0-9_])")
 HOST_MARKER = "AGENT_DESKTOP_INTERNAL_COMMAND_HOST"
-HOST_MARKER_ALLOWLIST = {"crates/macos/src/system/process/legacy_host.rs"}
+HOST_MARKER_ALLOWLIST = set()
 TEST_FILE = re.compile(r"(^|/)tests/|_tests\.rs$|test_support")
 TEST_MODULE = re.compile(r"#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]\s*(?:pub(?:\s*\([^)]*\))?\s+)?mod\s+\w+\s*\{")
 
@@ -525,7 +519,7 @@ def check(repo):
 
 
 CLEAN = {
-    "Cargo.toml": '[workspace]\nmembers = ["crates/core", "crates/macos", "crates/windows", "crates/linux", "crates/ffi", "src"]\n'
+    "Cargo.toml": '[workspace]\nmembers = ["crates/core", "crates/windows", "crates/ffi", "src"]\n'
                   'resolver = "2"\n[workspace.dependencies]\nserde = "1"\nsmallvec = "1"\n'
                   'agent-desktop-core = { path = "crates/core" }\n',
     "crates/core/Cargo.toml": '[package]\nname = "agent-desktop-core"\nversion = "0.0.0"\nedition = "2021"\n'
@@ -541,10 +535,10 @@ CLEAN = {
     "crates/core/src/commands/mod.rs": "pub mod version;\n",
     "crates/core/src/commands/version.rs": "pub fn execute() {}\n",
     "crates/ffi/Cargo.toml": '[package]\nname = "agent-desktop-ffi"\nversion = "0.0.0"\nedition = "2021"\n'
-                             '[target.\'cfg(target_os = "macos")\'.dependencies]\nagent-desktop-macos = { path = "../macos" }\n',
+                             '[target.\'cfg(target_os = "windows")\'.dependencies]\nagent-desktop-windows = { path = "../windows" }\n',
     "crates/ffi/src/lib.rs": "\n",
     "src/Cargo.toml": '[package]\nname = "agent-desktop"\nversion = "0.0.0"\nedition = "2021"\n[[bin]]\nname = "agent-desktop"\npath = "main.rs"\n'
-                      '[target.\'cfg(target_os = "linux")\'.dependencies]\nagent-desktop-linux = { path = "../crates/linux" }\n',
+                      '[target.\'cfg(target_os = "windows")\'.dependencies]\nagent-desktop-windows = { path = "../crates/windows" }\n',
     "src/main.rs": "mod batch;\nmod cli;\nmod cli_args;\nmod command_policy;\nmod diagnostic;\nmod dispatch;\n"
                    "mod visual_debug;\n#[cfg(test)]\n#[path = \"tests/main_tests.rs\"]\nmod main_tests;\nfn main() {}\n",
     "src/tests/main_tests.rs": "\n",
@@ -566,41 +560,37 @@ for _p in PLATFORMS:
     CLEAN[f"crates/{_p}/src/notifications/double_tests.rs"] = "struct D;\nimpl SystemOps for D {}\n"
 
 PLANTS = {
-    "G1": [("crates/linux/Cargo.toml", CLEAN["crates/linux/Cargo.toml"] + 'agent-desktop-windows = { path = "../windows" }\n'),
-           ("crates/linux/Cargo.toml", CLEAN["crates/linux/Cargo.toml"] + 'other = { package = "agent-desktop-macos", path = "../macos" }\n'),
-           ("crates/core/Cargo.toml", CLEAN["crates/core/Cargo.toml"] + '[dev-dependencies]\nagent-desktop-macos = { path = "../macos" }\n')],
-    "G2": [("crates/core/Cargo.toml", CLEAN["crates/core/Cargo.toml"] + '[target.x86_64-unknown-linux-gnu.dependencies]\nserde_json = "1"\n'),
+    "G1": [("crates/core/Cargo.toml", CLEAN["crates/core/Cargo.toml"] + '[dev-dependencies]\nagent-desktop-windows = { path = "../windows" }\n')],
+    "G2": [("crates/core/Cargo.toml", CLEAN["crates/core/Cargo.toml"] + '[target.x86_64-pc-windows-msvc.dependencies]\nserde_json = "1"\n'),
            ("crates/core/Cargo.toml", CLEAN["crates/core/Cargo.toml"] + 'zbus = "5"\n'),
            ("crates/core/Cargo.toml", CLEAN["crates/core/Cargo.toml"] + '"windows-sys" = "0.61"\n'),
            ("crates/core/Cargo.toml", CLEAN["crates/core/Cargo.toml"] + 'base64 = { package = "windows-sys", version = "0.61" }\n'),
            ("Cargo.toml", CLEAN["Cargo.toml"].replace('smallvec = "1"', 'smallvec = { package = "x11rb", version = "0.14" }')),
            ("crates/core/Cargo.toml", CLEAN["crates/core/Cargo.toml"].replace("[package]\n", '[package]\nbuild = "custom.rs"\n')),
            ("crates/core/Cargo.toml", CLEAN["crates/core/Cargo.toml"] + '[dependencies.thiserror]\npackage = "zbus"\nversion = "5"\n')],
-    "G3": [("crates/core/src/tree/leak.rs", "use agent_desktop_macos::MacOSAdapter;\n"),
-           ("crates/linux/src/tree/leak.rs", "fn f() { let _ = agent_desktop_windows::X; }\n")],
-    "G4": [("crates/core/src/tree/leak.rs", "const S: &str = include_str!(\"../../../macos/src/adapter.rs\");\n"),
-           ("crates/core/src/tree/leak.rs", "const S: &str = include_str! { \"../../../macos/src/adapter.rs\" };\n"),
-           ("crates/core/src/tree/leak.rs", "const S: &str = include_str!(\"../../../\\x6dacos/src/adapter.rs\");\n"),
-           ("crates/core/src/tree/leak.rs", "const S: &str = include_str!(concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/../macos/src/adapter.rs\"));\n"),
-           ("crates/windows/src/tree/mod.rs", "#[path = \"../../../linux/src/adapter.rs\"]\nmod other;\n")],
+    "G3": [("crates/core/src/tree/leak.rs", "use agent_desktop_windows::WindowsAdapter;\n")],
+    "G4": [("crates/core/src/tree/leak.rs", "const S: &str = include_str!(\"../../../windows/src/adapter.rs\");\n"),
+           ("crates/core/src/tree/leak.rs", "const S: &str = include_str! { \"../../../windows/src/adapter.rs\" };\n"),
+           ("crates/core/src/tree/leak.rs", "const S: &str = include_str!(\"../../../\\x77indows/src/adapter.rs\");\n"),
+           ("crates/core/src/tree/leak.rs", "const S: &str = include_str!(concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/../windows/src/adapter.rs\"));\n"),
+           ("crates/core/src/tree/mod.rs", "pub mod node;\n#[path = \"../../../windows/src/adapter.rs\"]\nmod other;\n")],
     "G5": [("crates/core/src/tree/leak.rs", "#[cfg(target_os = \"windows\")]\nfn f() {}\n"),
            ("crates/core/src/tree/leak.rs", "use std::{fs::Permissions, os::unix::fs::PermissionsExt};\n"),
            ("crates/core/src/tree/leak.rs", "use std::os::{unix::fs::OpenOptionsExt};\n"),
            ("crates/core/src/tree/leak.rs", "use std::os as native;\n"),
            ("crates/core/src/tree/leak.rs", "use libc as native;\nfn f() { unsafe { native::getpid() }; }\n"),
            ("crates/core/src/tree/leak.rs", "unsafe extern \"system\" { fn GetTickCount() -> u32; }\n")],
-    "G6": [("crates/macos/src/cf_type.rs", "pub struct CfType;\n"),
-           ("crates/windows/src/sys/mod.rs", "\n"),
-           ("crates/linux/src/adapter.rs", None)],
+    "G6": [("crates/windows/src/sys/mod.rs", "\n"),
+           ("crates/windows/src/adapter.rs", None)],
     "G7": [("crates/core/src/loose.rs", "pub struct Loose;\n"),
            ("crates/core/src/misc/mod.rs", "\n"),
            ("src/helper.rs", "\n"),
            ("crates/core/src/wait/mod.rs", None)],
-    "G8": [("crates/linux/src/input/keyboard.rs", "impl SystemOps for crate::adapter::A {}\n"),
-           ("crates/linux/src/system/adapter.rs", "use agent_desktop_core::SystemOps as LifecycleOps;\nimpl LifecycleOps for crate::adapter::A {}\n"),
-           ("crates/linux/src/input/fake_adapter.rs", "impl SystemOps for crate::adapter::A {}\n"),
-           ("crates/linux/src/input/mod.rs", "mod adapter;\n#[path = \"real_tests.rs\"]\nmod real_tests;\n"),
-           ("crates/linux/src/input/keys.rs", "impl/* c /* n */ */SystemOps for crate::adapter::A {}\n")],
+    "G8": [("crates/windows/src/input/keyboard.rs", "impl SystemOps for crate::adapter::A {}\n"),
+           ("crates/windows/src/system/adapter.rs", "use agent_desktop_core::SystemOps as LifecycleOps;\nimpl LifecycleOps for crate::adapter::A {}\n"),
+           ("crates/windows/src/input/fake_adapter.rs", "impl SystemOps for crate::adapter::A {}\n"),
+           ("crates/windows/src/input/mod.rs", "mod adapter;\n#[path = \"real_tests.rs\"]\nmod real_tests;\n"),
+           ("crates/windows/src/input/keys.rs", "impl/* c /* n */ */SystemOps for crate::adapter::A {}\n")],
     "G9": [("crates/core/src/tree/leak.rs", "use crate::commands;\nfn f() { commands::version::execute(); }\n"),
            ("crates/core/src/tree/leak.rs", "use crate::{commands::version, tree};\n"),
            ("crates/core/src/lib.rs", CLEAN["crates/core/src/lib.rs"] + "pub(crate) use crate::commands::version::execute as command_version;\n")],
@@ -612,15 +602,14 @@ PLANTS = {
             ("crates/core/src/tree/mod.rs", "pub mod node;\n#[path = \"@ABS@/crates/core/src/input/mod.rs\"]\nmod misplaced;\n")],
 }
 PLANTS["G12"] = [
-    ("providers/macos/provider.sh", "#!/bin/sh\nsocat TCP-LISTEN:9000,fork EXEC:sh\n"),
-    ("providers/macos/vmhost.swift", "import Network\nlet l = try NWListener(using: .tcp)\n"),
-    ("crates/macos/src/system/host.rs", "fn f() { let _ = std::os::unix::net::UnixListener::bind(\"/tmp/h.sock\"); }\n"),
+    ("providers/test/provider.sh", "#!/bin/sh\nsocat TCP-LISTEN:9000,fork EXEC:sh\n"),
+    ("providers/test/vmhost.swift", "import Network\nlet l = try NWListener(using: .tcp)\n"),
     ("crates/core/src/system/host.rs", "fn f() { let _ = std::net::TcpListener::bind((\"127.0.0.1\", 0)); }\n"),
     ("crates/windows/src/system/host.rs", "fn f() { let _ = CreateNamedPipeW; }\n"),
     ("src/host.rs", "const MARKER: &str = \"AGENT_DESKTOP_INTERNAL_COMMAND_HOST=1\";\n"),
 ]
 SUPPORT = {"G2": {"crates/core/custom.rs": "fn main() {}\n"},
-           "G8": {"crates/linux/src/input/real_tests.rs": "impl SystemOps for crate::adapter::A {}\n"}}
+           "G8": {"crates/windows/src/input/real_tests.rs": "impl SystemOps for crate::adapter::A {}\n"}}
 
 
 def self_test():
@@ -645,7 +634,7 @@ def self_test():
                 full = os.path.join(tmp, path)
                 os.makedirs(os.path.dirname(full), exist_ok=True)
                 with open(full, "w", encoding="utf-8") as fh:
-                    fh.write(text.replace("@ABS@", tmp))
+                    fh.write(text.replace("@ABS@", tmp.replace(os.sep, "/")))
 
         CORE_OS_ALLOWLIST = set()
         LISTENER_ALLOWLIST = set()

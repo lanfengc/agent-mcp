@@ -1,7 +1,8 @@
 param(
     [switch]$Release,
     [switch]$SkipDesktop,
-    [switch]$SkipBrowser
+    [switch]$SkipBrowser,
+    [switch]$SkipAndroid
 )
 
 $ErrorActionPreference = 'Stop'
@@ -64,15 +65,37 @@ if (-not $SkipBrowser) {
     Copy-Item -Path $browserExe -Destination $launcherExe -Force
     $browserEntry = Join-Path $binDir 'agent-browser.exe'
     Copy-Item -Path $browserExe -Destination $browserEntry -Force
+    foreach ($name in 'skill-data', 'skills') {
+        $skillCopy = Join-Path $binDir $name
+        if (Test-Path $skillCopy) {
+            if ((Get-Item -Force $skillCopy).Attributes -band [IO.FileAttributes]::ReparsePoint) {
+                throw "$skillCopy is a link, not a copy. Remove the link and run the build again."
+            }
+            Remove-Item -Path $skillCopy -Recurse -Force
+        }
+        Copy-Item -Path (Join-Path $browser $name) -Destination $skillCopy -Recurse
+    }
     Write-Host "browser: $browserExe"
     Write-Host "entry:   $browserEntry"
+    Write-Host "skills:  $(Join-Path $binDir 'skill-data')"
     Write-Host "launcher: $launcherExe"
 }
 
+if (-not $SkipAndroid) {
+    $android = Join-Path $root 'agent-android'
+    Invoke-Cargo -Directory $android -Arguments $cargoArgs
+    $androidExe = Join-Path $android "target\$profile\agent-android.exe"
+    $androidEntry = Join-Path $binDir 'agent-android.exe'
+    Copy-Item -Path $androidExe -Destination $androidEntry -Force
+    Write-Host "android: $androidExe"
+    Write-Host "entry:   $androidEntry"
+}
+
 Write-Host ''
-if (-not $SkipDesktop) {
-    $versionExe = Join-Path $binDir 'agent-desktop.exe'
-    if (Test-Path $versionExe) {
-        & $versionExe --version
-    }
+$built = @()
+if (-not $SkipDesktop) { $built += 'agent-desktop.exe' }
+if (-not $SkipBrowser) { $built += 'agent-browser.exe' }
+if (-not $SkipAndroid) { $built += 'agent-android.exe' }
+foreach ($name in $built) {
+    & (Join-Path $binDir $name) --version
 }

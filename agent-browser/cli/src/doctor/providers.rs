@@ -1,11 +1,10 @@
 //! Check remote browser providers: API key presence for Browserless,
-//! Browserbase, Browser Use, Kernel, AgentCore (AWS), Appium for iOS, and
-//! the AI Gateway chat key. Info-level unless the provider is selected
-//! via `AGENT_BROWSER_PROVIDER`.
+//! Browserbase, Browser Use, Kernel, AgentCore (AWS), and the AI Gateway
+//! chat key. Info-level unless the provider is selected via
+//! `AGENT_BROWSER_PROVIDER`.
 
 use std::env;
 
-use super::helpers::which_exists;
 use super::{Check, Status};
 
 pub(super) fn check(checks: &mut Vec<Check>) {
@@ -75,27 +74,6 @@ pub(super) fn check(checks: &mut Vec<Check>) {
             .with_fix("export AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY or AWS_PROFILE");
     }
     checks.push(agentcore_check);
-
-    if normalized == "ios" {
-        if which_exists("appium") {
-            checks.push(Check::new(
-                "providers.ios",
-                category,
-                Status::Pass,
-                "iOS: appium binary on PATH",
-            ));
-        } else {
-            checks.push(
-                Check::new(
-                    "providers.ios",
-                    category,
-                    Status::Fail,
-                    "iOS: appium binary not found on PATH",
-                )
-                .with_fix("npm install -g appium && appium driver install xcuitest"),
-            );
-        }
-    }
 
     let chat_key_present = env::var("AI_GATEWAY_API_KEY").is_ok();
     if chat_key_present {

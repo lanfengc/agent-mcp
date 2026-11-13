@@ -3,8 +3,14 @@
 //! `OpenInputDesktop` alone cannot tell a session-0 service desktop from the
 //! logged-in one: both are named `Default`. The process is placed first by its
 //! WTS session id and only then judged by the input desktop's name, so a
-//! service is offered the relaunch path while a locked or UAC-secured
-//! workstation is refused instead of silently acting on the wrong desktop.
+//! service is offered the relaunch path while a workstation whose input
+//! belongs to the secure desktop is refused instead of silently acting on the
+//! wrong desktop. A lock screen that still runs on `Default` is not told apart
+//! from an unlocked session.
+//!
+//! A host can have several active sessions at once, one per connected user.
+//! A process that runs in any of them acts on its own desktop; only a process
+//! outside all of them is sent to the first.
 
 use windows_sys::Win32::Foundation::{ERROR_ACCESS_DENIED, GetLastError};
 use windows_sys::Win32::System::RemoteDesktop::{
@@ -19,14 +25,16 @@ use windows_sys::Win32::System::Threading::GetCurrentProcessId;
 /// The desktop this process can reach.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DesktopSession {
-    /// The process runs in the logged-in session on the `Default` desktop.
+    /// The process runs in an active session on the `Default` desktop.
     Interactive,
-    /// The process runs in the active session, but another desktop owns input;
-    /// the value names it (`Winlogon` for a lock or UAC prompt).
+    /// The process runs in an active session, but another desktop owns input;
+    /// the value names it (`Winlogon` for the sign-in screen or a UAC prompt).
     Locked(String),
-    /// The process runs in a different session than the logged-in user.
+    /// The process runs outside every active session; `active` is the first
+    /// one Windows lists.
     OtherSession { current: u32, active: u32 },
-    /// Nobody is logged on to an interactive session.
+    /// No session is active: nobody is logged on, or every logged-on session
+    /// is disconnected.
     NoActiveSession,
     /// The input desktop exists but could not be read; the value is the Win32
     /// error code.
@@ -35,17 +43,20 @@ pub enum DesktopSession {
 
 /// Classifies the desktop this process can act on.
 pub fn desktop_session() -> DesktopSession {
-    let active = active_session_id();
+    let active = active_session_ids();
     let current = current_session_id();
-    session_verdict(current, active).unwrap_or_else(|| desktop_verdict(input_desktop_name()))
+    session_verdict(current, &active).unwrap_or_else(|| desktop_verdict(input_desktop_name()))
 }
 
-fn session_verdict(current: Option<u32>, active: Option<u32>) -> Option<DesktopSession> {
-    match (current, active) {
-        (Some(current), Some(active)) if current != active => {
-            Some(DesktopSession::OtherSession { current, active })
-        }
-        (Some(0), _) | (_, None) => Some(DesktopSession::NoActiveSession),
+fn session_verdict(current: Option<u32>, active: &[u32]) -> Option<DesktopSession> {
+    let Some(&first_active) = active.first() else {
+        return Some(DesktopSession::NoActiveSession);
+    };
+    match current {
+        Some(current) if !active.contains(&current) => Some(DesktopSession::OtherSession {
+            current,
+            active: first_active,
+        }),
         _ => None,
     }
 }
@@ -59,34 +70,34 @@ fn desktop_verdict(desktop: Result<String, u32>) -> DesktopSession {
     }
 }
 
-/// The session id of the user who is currently interactive, if any.
+/// The session a command outside every active session is relaunched into:
+/// the first one Windows lists.
 pub(crate) fn active_session_id() -> Option<u32> {
+    active_session_ids().first().copied()
+}
+
+/// Every session with a user at its desktop right now, in the order Windows
+/// lists them. Session 0 hosts services and is never one of them.
+fn active_session_ids() -> Vec<u32> {
     let mut sessions: *mut WTS_SESSION_INFOW = std::ptr::null_mut();
     let mut count = 0u32;
     if unsafe { WTSEnumerateSessionsW(WTS_CURRENT_SERVER_HANDLE, 0, 1, &mut sessions, &mut count) }
         == 0
     {
-        return console_session_id();
+        return console_session_id().into_iter().collect();
     }
-    let mut active = None;
-    for index in 0..count as usize {
-        let session = unsafe { &*sessions.add(index) };
-        if session.State == WTSActive {
-            active = Some(session.SessionId);
-            break;
-        }
-    }
+    let active = (0..count as usize)
+        .map(|index| unsafe { &*sessions.add(index) })
+        .filter(|session| session.State == WTSActive && session.SessionId != 0)
+        .map(|session| session.SessionId)
+        .collect();
     unsafe { WTSFreeMemory(sessions as *mut core::ffi::c_void) };
     active
 }
 
 fn console_session_id() -> Option<u32> {
     let session = unsafe { WTSGetActiveConsoleSessionId() };
-    if session == u32::MAX {
-        None
-    } else {
-        Some(session)
-    }
+    (session != u32::MAX && session != 0).then_some(session)
 }
 
 fn current_session_id() -> Option<u32> {

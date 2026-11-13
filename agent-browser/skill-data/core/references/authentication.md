@@ -26,15 +26,8 @@ The fastest way to authenticate is to reuse cookies from a Chrome session you ar
 
 **Step 1: Start Chrome with remote debugging**
 
-```bash
-# macOS
-"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --remote-debugging-port=9222
-
-# Linux
-google-chrome --remote-debugging-port=9222
-
-# Windows
-"C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222
+```powershell
+& "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222
 ```
 
 Log in to your target site(s) in this Chrome window as you normally would.
@@ -410,8 +403,11 @@ fi
 
 4. **Use short-lived sessions for CI/CD**
    ```bash
-   # Don't persist state in CI
-   agent-browser open https://app.example.com/login
+   # Don't persist state in CI. Local Chrome keeps a profile for each session,
+   # so launch with a throwaway profile and delete it afterwards.
+   PROFILE="$(mktemp -d)"
+   agent-browser --profile "$PROFILE" open https://app.example.com/login
    # ... login and perform actions ...
-   agent-browser close  # Session ends, nothing persisted
+   agent-browser close
+   rm -rf "$PROFILE"  # Session ends, nothing persisted
    ```

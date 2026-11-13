@@ -40,8 +40,7 @@ unsafe extern "system" {
 /// Requires the caller to have already verified window identity. Performs the
 /// pump-liveness pre-probe immediately before the native capture call.
 ///
-/// A minimized window is first asked for its normal placement. When
-/// `PrintWindow` cannot paint that frame, the window is restored for the
+/// A minimized window paints nothing, so it is always restored for the
 /// capture and minimized again afterwards. The restore is a visible side
 /// effect; callers that must never disturb the desktop should use
 /// `restore` explicitly and capture while the window is visible.

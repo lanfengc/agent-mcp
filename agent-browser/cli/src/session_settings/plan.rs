@@ -94,7 +94,6 @@ fn is_local_only(key: Key) -> bool {
             | Key::Extensions
             | Key::Headed
             | Key::HideScrollbars
-            | Key::NoXvfb
             | Key::Profile
             | Key::Proxy
             | Key::ProxyBypass
@@ -129,7 +128,6 @@ fn default_value(key: Key) -> Option<Value> {
         | Key::IgnoreHttpsErrors
         | Key::AllowFileAccess
         | Key::Webgpu
-        | Key::NoXvfb
         | Key::NoAutoDialog
         | Key::PinTab
         | Key::Debug => Some(Value::Bool(false)),

@@ -25,8 +25,6 @@ use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::env;
 use std::fs;
-#[cfg(unix)]
-use std::io::Write;
 use std::path::PathBuf;
 use std::process::{exit, Command};
 
@@ -291,23 +289,21 @@ fn incompatible_launch_mode_error(flags: &Flags) -> Option<&'static str> {
     }
     if flags.ca_cert.is_some() && flags.cdp.is_some() {
         return Some(
-            "Cannot use --ca-cert with --cdp (--ca-cert requires a locally launched Chromium browser on Linux)",
+            "Cannot use --ca-cert with --cdp (--ca-cert requires a locally launched Chromium browser)",
         );
     }
     if flags.ca_cert.is_some() && flags.auto_connect {
         return Some(
-            "Cannot use --ca-cert with --auto-connect (--ca-cert requires a locally launched Chromium browser on Linux)",
+            "Cannot use --ca-cert with --auto-connect (--ca-cert requires a locally launched Chromium browser)",
         );
     }
     if flags.ca_cert.is_some() && flags.provider.is_some() {
         return Some(
-            "Cannot use --ca-cert with -p/--provider (--ca-cert requires a locally launched Chromium browser on Linux)",
+            "Cannot use --ca-cert with -p/--provider (--ca-cert requires a locally launched Chromium browser)",
         );
     }
     if flags.ca_cert.is_some() && flags.profile.is_some() {
-        return Some(
-            "Cannot use --ca-cert with --profile because isolated CA trust would change the profile's NSS environment",
-        );
+        return Some("Cannot use --ca-cert with --profile");
     }
     if flags.ca_cert.is_some()
         && flags
@@ -315,10 +311,10 @@ fn incompatible_launch_mode_error(flags: &Flags) -> Option<&'static str> {
             .as_deref()
             .is_some_and(|engine| !engine.eq_ignore_ascii_case("chrome"))
     {
-        return Some("--ca-cert is supported only with the Chrome engine on Linux");
+        return Some("--ca-cert browser trust is supported only with the Chrome engine");
     }
-    if flags.ca_cert.is_some() && !cfg!(target_os = "linux") {
-        return Some("--ca-cert browser trust is currently supported only on Linux (read, install, upgrade, and doctor accept it on every platform)");
+    if flags.ca_cert.is_some() {
+        return Some("--ca-cert browser trust is not supported on Windows (read, install, upgrade, and doctor accept it for CLI HTTPS trust)");
     }
 
     None
@@ -922,24 +918,7 @@ fn remove_dashboard_sidecars() {
 
 fn write_dashboard_config(config: &DashboardConfig) -> std::io::Result<()> {
     let contents = serde_json::to_vec(config).map_err(std::io::Error::other)?;
-    let path = get_dashboard_config_path();
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-
-        let mut file = fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o600)
-            .open(path)?;
-        file.write_all(&contents)
-    }
-
-    #[cfg(windows)]
-    {
-        fs::write(path, contents)
-    }
+    fs::write(get_dashboard_config_path(), contents)
 }
 
 fn dashboard_config_issue(
@@ -1076,18 +1055,6 @@ fn run_dashboard_start(port: u16, allowed_origins: Vec<String>, json_mode: bool)
         );
     }
 
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        unsafe {
-            cmd.pre_exec(|| {
-                libc::setsid();
-                Ok(())
-            });
-        }
-    }
-
-    #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
         const CREATE_NEW_PROCESS_GROUP: u32 = 0x00000200;
@@ -1214,13 +1181,6 @@ fn run_dashboard_stop(json_mode: bool) {
         return;
     }
 
-    #[cfg(unix)]
-    {
-        unsafe {
-            libc::kill(pid as i32, libc::SIGTERM);
-        }
-    }
-    #[cfg(windows)]
     {
         unsafe {
             let handle = OpenProcess(1, 0, pid); // PROCESS_TERMINATE = 1
@@ -1289,7 +1249,7 @@ fn close_completed(resp: &connection::Response) -> bool {
 }
 
 fn run_close_all(flags: &Flags) {
-    // walk_daemons auto-cleans stale .pid / .sock / .stream sidecar files and
+    // walk_daemons auto-cleans stale .pid / .stream sidecar files and
     // separates out the standalone dashboard. We only want to send `close` to
     // real session daemons; the dashboard has its own `dashboard stop`.
     let inventory = walk_daemons();
@@ -1382,11 +1342,6 @@ fn run_close_all(flags: &Flags) {
                 // sessions are not poisoned.
                 let pid = &pid.unwrap_or_default();
                 if is_agent_browser_process(*pid) {
-                    #[cfg(unix)]
-                    unsafe {
-                        libc::kill(*pid as i32, libc::SIGKILL);
-                    }
-                    #[cfg(windows)]
                     unsafe {
                         let handle = OpenProcess(1, 0, *pid); // PROCESS_TERMINATE = 1
                         if handle != 0 {
@@ -1429,28 +1384,12 @@ fn run_close_all(flags: &Flags) {
 }
 
 fn main() {
-    // Rust ignores SIGPIPE by default, causing println! to panic on broken pipes.
-    // Reset to SIG_DFL so the OS terminates the process cleanly instead.
-    #[cfg(unix)]
-    unsafe {
-        libc::signal(libc::SIGPIPE, libc::SIG_DFL);
-    }
-
     // Prevent MSYS/Git Bash path translation from mangling arguments
-    #[cfg(windows)]
-    {
-        env::set_var("MSYS_NO_PATHCONV", "1");
-        env::set_var("MSYS2_ARG_CONV_EXCL", "*");
-    }
+    env::set_var("MSYS_NO_PATHCONV", "1");
+    env::set_var("MSYS2_ARG_CONV_EXCL", "*");
 
     // Native daemon mode: when AGENT_BROWSER_DAEMON is set, run as the daemon process
     if env::var("AGENT_BROWSER_DAEMON").is_ok() {
-        // Ignore SIGPIPE so the daemon isn't killed when the parent drops
-        // the piped stderr handle after confirming the daemon is ready.
-        #[cfg(unix)]
-        unsafe {
-            libc::signal(libc::SIGPIPE, libc::SIG_IGN);
-        }
         let session = env::var("AGENT_BROWSER_SESSION").unwrap_or_else(|_| "default".to_string());
         if !validation::is_valid_session_name(&session) {
             let msg = validation::session_name_error(&session);
@@ -1516,8 +1455,7 @@ fn main() {
 
     // Handle install separately
     if clean.first().map(|s| s.as_str()) == Some("install") {
-        let with_deps = args.iter().any(|a| a == "--with-deps" || a == "-d");
-        run_install(with_deps);
+        run_install();
         return;
     }
 
@@ -1864,7 +1802,6 @@ fn main() {
         profile: flags.profile.as_deref(),
         state: flags.state.as_deref(),
         provider: flags.provider.as_deref(),
-        device: flags.device.as_deref(),
         session_name: restore_key,
         restore_save: flags.restore_save.as_deref(),
         restore_check_url: flags.restore_check_url.as_deref(),
@@ -2777,7 +2714,7 @@ mod tests {
         flags.webgpu = false;
         flags.auto_connect = auto_connect;
         flags.cdp = cdp.then(|| "9222".to_string());
-        flags.provider = provider.then(|| "ios".to_string());
+        flags.provider = provider.then(|| "browserbase".to_string());
         flags.extensions = if extensions {
             vec!["/tmp/ext".to_string()]
         } else {
@@ -2887,15 +2824,15 @@ mod tests {
         let cases = [
             (
                 with_ca(launch_mode_flags(false, true, false, false)),
-                "Cannot use --ca-cert with --cdp (--ca-cert requires a locally launched Chromium browser on Linux)",
+                "Cannot use --ca-cert with --cdp (--ca-cert requires a locally launched Chromium browser)",
             ),
             (
                 with_ca(launch_mode_flags(true, false, false, false)),
-                "Cannot use --ca-cert with --auto-connect (--ca-cert requires a locally launched Chromium browser on Linux)",
+                "Cannot use --ca-cert with --auto-connect (--ca-cert requires a locally launched Chromium browser)",
             ),
             (
                 with_ca(launch_mode_flags(false, false, true, false)),
-                "Cannot use --ca-cert with -p/--provider (--ca-cert requires a locally launched Chromium browser on Linux)",
+                "Cannot use --ca-cert with -p/--provider (--ca-cert requires a locally launched Chromium browser)",
             ),
             (
                 ignore_errors,
@@ -2903,11 +2840,11 @@ mod tests {
             ),
             (
                 profile,
-                "Cannot use --ca-cert with --profile because isolated CA trust would change the profile's NSS environment",
+                "Cannot use --ca-cert with --profile",
             ),
             (
                 lightpanda,
-                "--ca-cert is supported only with the Chrome engine on Linux",
+                "--ca-cert browser trust is supported only with the Chrome engine",
             ),
             (clear, "Cannot use --ca-cert with --no-ca-cert"),
         ];
@@ -2940,7 +2877,7 @@ mod tests {
 
         let error = incompatible_launch_mode_error(&flags);
         assert!(
-            error.is_none() || error == Some("--ca-cert browser trust is currently supported only on Linux (read, install, upgrade, and doctor accept it on every platform)"),
+            error.is_none() || error == Some("--ca-cert browser trust is not supported on Windows (read, install, upgrade, and doctor accept it for CLI HTTPS trust)"),
             "docs proxy CA configuration is incompatible: {error:?}"
         );
     }

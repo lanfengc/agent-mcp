@@ -202,7 +202,7 @@ mod imp {
     /// `current_exe()` is the host process, which must never be re-launched
     /// as a renderer, and a test binary must not fork one either.
     ///
-    /// The refusal is an `Err` rather than macOS's `Ok(())`, because
+    /// The refusal is an `Err` because
     /// dispatch turns `Ok` into `rendered: true` - which would claim an
     /// overlay that was never started.
     ///
@@ -233,8 +233,7 @@ mod imp {
     /// inherited. A detached renderer that inherits its caller's stdout
     /// keeps that pipe open for its whole life, so any shell reading the
     /// command's output blocks until the overlay is torn down - measured,
-    /// and the reason this path looks like `launch.rs` rather than like the
-    /// macOS spawn it otherwise mirrors.
+    /// and the reason this path is a raw `CreateProcessW` spawn.
     ///
     /// Losing the inherited stdin costs nothing: the control that started
     /// the child is delivered again over the pipe by `await_renderer`, which

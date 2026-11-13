@@ -14,20 +14,18 @@ pub const INDETERMINATE: &str = "indeterminate";
 pub const PRESSED: &str = "pressed";
 pub const READONLY: &str = "readonly";
 pub const OFFSCREEN: &str = "offscreen";
-/// Vocabulary member with no macOS AX producer today (per the producer
-/// survey: no AX attribute maps cleanly to element-level validity). Reserved
-/// for adapters/platforms that can emit it; `assert_states_in_vocabulary`
-/// still accepts it so cross-platform consumers do not have to special-case
-/// macOS.
+/// Vocabulary member with no UIA producer today (per the producer
+/// survey: no property maps cleanly to element-level validity). Reserved for
+/// adapters that can emit it; `assert_states_in_vocabulary` still accepts it
+/// so consumers do not have to special-case an adapter that does.
 pub const INVALID: &str = "invalid";
-/// Vocabulary member with no macOS AX producer today (per the producer
-/// survey: AX exposes selection on the selectable child, not a
-/// multi-select flag on the container). Reserved for adapters/platforms
-/// that can emit it.
+/// Vocabulary member with no UIA producer today (per the producer
+/// survey: UIA exposes selection on the selectable child, not a
+/// multi-select flag on the container). Reserved for adapters that can emit it.
 pub const MULTISELECTABLE: &str = "multiselectable";
-/// Vocabulary member with no macOS AX producer today (per the producer
-/// survey: no direct AX attribute for "has a popup"). Reserved for
-/// adapters/platforms that can emit it.
+/// Vocabulary member with no UIA producer today (per the producer
+/// survey: no direct UIA property for "has a popup"). Reserved for adapters
+/// that can emit it.
 pub const HASPOPUP: &str = "haspopup";
 
 pub const STATE_VOCABULARY: &[&str] = &[

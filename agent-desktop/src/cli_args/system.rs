@@ -323,13 +323,13 @@ pub(crate) struct OpenSystemSurfaceArgs {
 pub(crate) struct PermissionsArgs {
     #[arg(
         long,
-        help = "Request missing permissions in the bounded isolated helper"
+        help = "Request missing permissions (Windows grants no accessibility permission)"
     )]
     #[serde(default)]
     pub request: bool,
     #[arg(
         long,
-        help = "Open System Settings with an on-screen guide for granting the missing permissions (macOS)"
+        help = "Open the system permission guide (not supported on Windows)"
     )]
     #[serde(default)]
     pub guide: bool,

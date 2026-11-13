@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 /// placeholder, and the DOM class list of a web-rendered element.
 ///
 /// Every field is absent by default, so a node that supplies none of them
-/// serializes byte-identically to a node that predates this schema (the macOS
-/// golden fixtures are the regression proof). The group flattened inside
+/// serializes byte-identically to a node that predates this schema (the golden
+/// fixtures are the regression proof). The group flattened inside
 /// [`crate::NodePresentation`] so it appears at the same level a top-level
 /// placement would, without growing that struct past its field cap.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]

@@ -130,9 +130,10 @@ fn app_info_roundtrip_preserves_all_fields() {
     assert_eq!(back.presentation, original.presentation);
 }
 
-/// Agents may produce AppInfo JSON without a bundle_id key (e.g. non-macOS adapters
-/// or older protocol versions). Deserialization must succeed and yield None.
-/// This pins the JSON backward-compat contract: bundle_id is always optional on the wire.
+/// Agents may produce AppInfo JSON without a bundle_id key (for an adapter that
+/// publishes none, or an older protocol version). Deserialization must succeed
+/// and yield None. This pins the JSON backward-compat contract: bundle_id is
+/// always optional on the wire.
 #[test]
 fn app_info_bundle_id_missing_key_deserializes_to_none() {
     let json = r#"{"name":"Finder","pid":42}"#;
@@ -201,7 +202,7 @@ fn descriptor_node() -> AccessibilityNode {
 
 /// The four descriptor fields are absent by default: a node that supplies none
 /// must serialize byte-identically to the schema before they existed. This is
-/// what keeps the macOS golden fixtures the regression proof that core changed
+/// what keeps the golden fixtures the regression proof that core changed
 /// shape without changing output.
 #[test]
 fn descriptor_fields_absent_serialize_to_the_legacy_shape() {

@@ -1,4 +1,4 @@
-//! Screenshot and clipboard command `data` envelope parity with core/macOS.
+//! Screenshot and clipboard command `data` envelope parity with core.
 //!
 //! Pins field names, types, `found: false`, and image-path shapes through
 //! `WindowsAdapter` + core command execute. Also verifies the private versus

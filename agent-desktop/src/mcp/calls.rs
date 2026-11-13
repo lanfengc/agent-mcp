@@ -5,10 +5,6 @@ use std::collections::{HashMap, hash_map::Entry};
 use std::io;
 use std::process::{Child, ChildStderr, ChildStdout, Command};
 use std::sync::{Mutex, MutexGuard, PoisonError};
-use std::time::{Duration, Instant};
-
-const TERMINATE_GRACE: Duration = Duration::from_secs(3);
-const EXIT_POLL: Duration = Duration::from_millis(20);
 
 /// Output pipes of a started call.
 pub(crate) type Pipes = (Option<ChildStdout>, Option<ChildStderr>);
@@ -88,33 +84,10 @@ impl Calls {
     }
 }
 
-/// Asks `child` to exit with SIGTERM, which lets the CLI release held keys and buttons first (it waits up to
-/// 2 s for that on Linux), and kills it if it is still running after `TERMINATE_GRACE`. Without SIGTERM
-/// (Windows) it kills at once.
+/// Kills a cancelled child process.
 fn terminate(mut child: Child) {
-    if request_exit(&child) {
-        let deadline = Instant::now() + TERMINATE_GRACE;
-        while Instant::now() < deadline {
-            match child.try_wait() {
-                Ok(Some(_)) => return,
-                Ok(None) => std::thread::sleep(EXIT_POLL),
-                Err(_) => break,
-            }
-        }
-    }
     let _ = child.kill();
     let _ = child.wait();
-}
-
-#[cfg(unix)]
-fn request_exit(child: &Child) -> bool {
-    libc::pid_t::try_from(child.id())
-        .is_ok_and(|pid| unsafe { libc::kill(pid, libc::SIGTERM) } == 0)
-}
-
-#[cfg(not(unix))]
-fn request_exit(_child: &Child) -> bool {
-    false
 }
 
 #[cfg(test)]

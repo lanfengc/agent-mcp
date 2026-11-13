@@ -293,8 +293,7 @@ pub(super) fn effective_dpi_scale(effective: i32, dpi_x: u32) -> Option<f64> {
     (effective == 0 && dpi_x > 0).then(|| f64::from(dpi_x) / 96.0)
 }
 
-/// Orders the display list with the primary first, mirroring macOS's
-/// primary-first ordering.
+/// Orders the display list with the primary first.
 pub(super) fn primaries_first(displays: &mut [DisplayInfo]) {
     displays.sort_by(|left, right| {
         right

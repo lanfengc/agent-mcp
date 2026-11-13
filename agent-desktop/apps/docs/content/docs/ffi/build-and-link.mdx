@@ -1,21 +1,21 @@
 ---
 title: Build and link
 navTitle: Build and link
-description: Get libagent_desktop_ffi from a release or build it from source, find the header, link a C program against it, and run the ABI handshake.
+description: Get agent_desktop_ffi from a release or build it from source, find the header, link a C program against it, and run the ABI handshake.
 ---
 
 Use a prebuilt archive from a release, or build the library from source with the `release-ffi` profile.
 
 ## Prebuilt archives
 
-Every GitHub release ships `agent-desktop-ffi-v<version>-<target>.tar.gz` (`.zip` on Windows) for macOS arm64 and x86_64, Linux x64 and arm64 (glibc), and Windows x64 and ARM64. Each archive holds:
+Every GitHub release ships `agent-desktop-ffi-v<version>-<target>.zip` for Windows x64 and ARM64. The archive holds a top-level `agent-desktop-ffi-v<version>-<target>/` directory:
 
 <table>
   <thead>
     <tr><th>Path</th><th>Contents</th></tr>
   </thead>
   <tbody>
-    <tr><td><code>lib/</code></td><td>The library and the helper that must stay beside it: <code>agent-desktop-macos-helper</code> on macOS, <code>agent-desktop-linux-clipboard-owner</code> on Linux. On Windows, also <code>agent_desktop_ffi.dll.lib</code>, the import library for MSVC.</td></tr>
+    <tr><td><code>lib/</code></td><td><code>agent_desktop_ffi.dll</code>, plus <code>agent_desktop_ffi.dll.lib</code>, the import library for MSVC</td></tr>
     <tr><td><code>include/agent_desktop.h</code></td><td>The generated C header</td></tr>
   </tbody>
 </table>
@@ -24,13 +24,11 @@ Every GitHub release ships `agent-desktop-ffi-v<version>-<target>.tar.gz` (`.zip
 
 ## Build from source
 
-```bash
-cargo build --profile release-ffi -p agent-desktop-ffi    # writes target/release-ffi/libagent_desktop_ffi.so on Linux
+```powershell
+cargo build --profile release-ffi -p agent-desktop-ffi    # writes target\release-ffi\agent_desktop_ffi.dll
 ```
 
-The output is `libagent_desktop_ffi.dylib` on macOS, `libagent_desktop_ffi.so` on Linux, and `agent_desktop_ffi.dll` on Windows, in `target/release-ffi/`. The `release-ffi` profile keeps `panic = "unwind"`, so every entrypoint can catch a panic and report it as `AD_RESULT_ERR_INTERNAL`. The workspace `release` profile uses `panic = "abort"`, so `cargo build --release` produces a library whose panics abort the host process. Do not ship it.
-
-A source build also needs the platform helper beside the library; see [Installation](/desktop/installation#build-from-source).
+The output is `agent_desktop_ffi.dll` in `target\release-ffi\` for the host target, or `target\<target>\release-ffi\` when you pass `--target`. The crate also emits `agent_desktop_ffi.dll.lib`, the import library for MSVC. The `release-ffi` profile keeps `panic = "unwind"`, so every entrypoint can catch a panic and report it as `AD_RESULT_ERR_INTERNAL`. The workspace `release` profile uses `panic = "abort"`, so `cargo build --release` produces a library whose panics abort the host process. Do not ship it.
 
 ## The header
 
@@ -73,22 +71,22 @@ int main(int argc, char **argv) {
 }
 ```
 
-Compile and run it from the repository root on Linux or macOS:
+Compile and run it from the repository root in a Developer Command Prompt for Visual Studio:
 
-```bash
-cc -std=c11 -I crates/ffi/include main.c \
-   -L target/release-ffi -lagent_desktop_ffi \
-   -Wl,-rpath,"$PWD/target/release-ffi" \
-   -o snapshot_demo
-./snapshot_demo gnome-calculator
+```powershell
+cl /std:c11 /I crates\ffi\include main.c /link /LIBPATH:target\release-ffi agent_desktop_ffi.dll.lib /OUT:snapshot_demo.exe
+.\snapshot_demo.exe notepad.exe
 ```
 
-On Linux against GNOME Calculator it printed this envelope, shown here with the window metadata and `tree` elided:
+The DLL must be beside the executable or in a directory on `PATH` when the program runs; copy `target\release-ffi\agent_desktop_ffi.dll` beside `snapshot_demo.exe`.
+
+The library returns the same envelope as the CLI. Against Notepad it has this shape, with the window metadata and `tree` elided:
 
 ```json
-{"version":"2.6","ok":true,"command":"snapshot","data":{"app":"gnome-calculator","complete":true,"ref_count":2,"snapshot_id":"s18ekeexjf5trb","window":{"id":"...","title":"..."},"tree":{"...":"..."}}}```
+{"version":"2.6","ok":true,"command":"snapshot","data":{"app":"notepad.exe","complete":true,"ref_count":17,"snapshot_id":"s2jmdx3amedsce","window":{"id":"w-299895934","title":"Untitled - Notepad"},"tree":{"...":"..."}}}
+```
 
-The macOS install name is `@rpath/libagent_desktop_ffi.dylib`, so a program that links the library needs an rpath to its directory; `dlopen` and `ctypes` callers load by path and need nothing. On Windows, an MSVC program links `agent_desktop_ffi.dll.lib` and loads the DLL at run time. On Linux the program must run inside the user's graphical session to see apps; see [Linux](/desktop/platforms/linux).
+An MSVC program links `agent_desktop_ffi.dll.lib` and loads `agent_desktop_ffi.dll` at run time through the standard Windows DLL search order. The program must run in the user's interactive session to see apps; see [Windows](/desktop/platforms/windows#requirements).
 
 ## Validate struct sizes
 
@@ -100,8 +98,8 @@ Zero-initialize every caller-allocated struct before you set fields, and set the
 
 `tests/ffi-python/smoke.py` is the reference for non-C hosts and uses only the Python standard library. It checks the ABI version, the size getters, `ad_version`, and the create, snapshot, free, and destroy cycle:
 
-```bash
-python3 tests/ffi-python/smoke.py target/release-ffi/libagent_desktop_ffi.so crates/ffi/include/agent_desktop.h
+```powershell
+python tests\ffi-python\smoke.py target\release-ffi\agent_desktop_ffi.dll crates\ffi\include\agent_desktop.h
 ```
 
-On the Linux test desktop it ended with `All legs passed.`
+A passing run ends with `All legs passed.`

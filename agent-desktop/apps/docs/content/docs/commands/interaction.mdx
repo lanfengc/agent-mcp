@@ -6,11 +6,11 @@ description: Reference for click, double-click, triple-click, right-click, type,
 
 Every command here acts on one element. Pass the qualified ref from [`snapshot`](/desktop/commands/observation#snapshot) or [`find`](/desktop/commands/observation#find), such as `@s8f3k2p9:e1`; a bare `@e1` is rejected with `INVALID_ARGS`.
 
-By default these commands run headless: semantic accessibility calls that do not take focus, move the cursor, synthesize keys, or use the clipboard. If no semantic path exists, the action fails closed. The global `--headed` flag permits physical input and focus changes; see [Headed mode](/desktop/guides/headed-mode). The examples on this page are real output from GNOME Calculator and GTK Widget Factory on Linux.
+By default these commands run headless: semantic accessibility calls that do not take focus, move the cursor, synthesize keys, or use the clipboard. If no semantic path exists, the action fails closed. The global `--headed` flag permits physical input and focus changes; see [Headed mode](/desktop/guides/headed-mode). The examples on this page are real output from Notepad on Windows unless noted.
 
 ## Result shape
 
-Every successful ref action returns an action report in `data`. This is a `click` on a calculator button:
+Every successful ref action returns an action report in `data`. This is a `click` on Notepad's File menu:
 
 ```json
 {
@@ -22,15 +22,17 @@ Every successful ref action returns an action report in `data`. This is a `click
     "details": {
       "auto_wait": {
         "lease_contention_count": 0,
-        "lease_hold_ms": 114,
+        "lease_hold_ms": 111,
         "read_only_preflight_attempts": 1,
         "read_only_resolve_attempts": 1
       }
     },
     "disposition": { "delivery": "delivered_unverified", "retry": "unsafe" },
-    "steps": [{ "label": "Action.DoAction", "mechanism": "semantic_api", "outcome": "succeeded" }],
+    "steps": [{ "label": "InvokePattern.Invoke", "mechanism": "semantic_api", "outcome": "succeeded", "verified": false }],
     "surfaces": [
-      { "id": "w-1.11-org-gnome-Calculator-a11y-948fd89a_9bda_453b_9c10_4a9e9eed3feb", "title": "Calculator", "type": "window" }
+      { "id": "w-10424664", "title": "Untitled - Notepad", "type": "window" },
+      { "id": "w-10424664", "title": "Untitled - Notepad", "type": "focused" },
+      { "id": "w-13435630", "item_count": 8, "title": "File", "type": "menu" }
     ]
   }
 }
@@ -62,7 +64,7 @@ When the target is already in the requested state, nothing is delivered and the 
 
 Every command on this page takes `--timeout-ms MS` (default `5000`; `type` adds 30 ms per character), the budget for resolving the ref and waiting for the element to become actionable. Core polls the transient checks (`visible`, `stable`, `enabled`, and, for pointer delivery, `receives_events`) until they pass. The terminal checks (`supported_action`, `policy`, `editable`) cannot be fixed by waiting and fail at once. `--timeout-ms 0` tries once without polling.
 
-A failed check list appears in `error.details.checks`, each with a `status` of `pass`, `fail`, or `unknown` and a `reason`. This is `double-click` on a text entry without `--headed`:
+A failed check list appears in `error.details.checks`, each with a `status` of `pass`, `fail`, or `unknown` and a `reason`. This is `double-click` on Notepad's editor without `--headed`:
 
 ```json
 {
@@ -100,7 +102,7 @@ A failed check list appears in `error.details.checks`, each with a `status` of `
     <tr><td><code>TIMEOUT</code>, <code>details.kind: actionability_timeout</code></td><td>The target never became actionable within <code>--timeout-ms</code>. <code>details.last_report</code> names the failing check.</td></tr>
     <tr><td><code>ACTION_FAILED</code></td><td>The action was rejected, blocked, or contradicted by the readback.</td></tr>
     <tr><td><code>APP_UNRESPONSIVE</code></td><td>The app stopped responding.</td></tr>
-    <tr><td><code>PERM_DENIED</code></td><td>Accessibility permission is not granted.</td></tr>
+    <tr><td><code>PERM_DENIED</code></td><td>The target runs at a higher integrity level, and UIPI blocks the input.</td></tr>
   </tbody>
 </table>
 
@@ -116,7 +118,7 @@ agent-desktop click <REF> [--timeout-ms MS]
 
 The result is the one in [Result shape](#result-shape). A click usually ends `delivered_unverified`, because a delivered activation does not prove the app acted on it: verify by reading the UI, and check `data.surfaces`.
 
-Platform limits: semantic everywhere headless; `--headed` tries physical input first on macOS and Linux. See [macOS](/desktop/platforms/macos), [Windows](/desktop/platforms/windows), and [Linux](/desktop/platforms/linux).
+`click` uses an element's semantic action in both modes. See [Windows](/desktop/platforms/windows) for what works headless.
 
 ## double-click
 
@@ -127,8 +129,6 @@ agent-desktop --headed double-click <REF> [--timeout-ms MS]
 ```
 
 Without `--headed` and a semantic route, it returns `POLICY_DENIED` (see [Wait budget](#wait-budget)). For raw coordinates use `--headed mouse-click --xy X,Y --count 2` ([`mouse-click`](/desktop/commands/mouse#mouse-click)).
-
-Platform limits: macOS tries `AXOpen` headless; Windows and Linux need `--headed`, and Linux needs X11. See [Linux](/desktop/platforms/linux).
 
 ## triple-click
 
@@ -146,9 +146,7 @@ Opens an element's context menu. Afterward, `data.surfaces` lists the open `menu
 agent-desktop right-click <REF> [--timeout-ms MS]
 ```
 
-Headless delivery needs a context-menu action on the element. On a GTK entry without one, it returns `POLICY_DENIED` with `supported_action` failing. On macOS, a right-click can return `APP_UNRESPONSIVE` with an unsafe disposition after a modal menu opened: look before you retry.
-
-Platform limits: Windows always needs `--headed`. See [Windows](/desktop/platforms/windows).
+Headless, `right-click` returns `POLICY_DENIED`; pass `--headed`. Afterward, check `data.surfaces` before you retry.
 
 ## type
 
@@ -172,17 +170,17 @@ agent-desktop type <REF> --stdin [--timeout-ms MS] [--interval-ms MS]
 
 Use `--stdin` with `type` or `set-value` to read text from a pipe or redirected file. Terminal input is rejected. Replace the example ref with one from your snapshot:
 
-```bash
-printf '%s' 'hello' | agent-desktop type @s8f3k2p9:e2 --stdin
+```powershell
+Get-Content -Raw .\message.txt | agent-desktop type '@s8f3k2p9:e2' --stdin
 ```
 
-The action timeout starts after the input ends; it doesn't limit this wait. Empty input and all line breaks are kept, including a final newline. Use `printf '%s'` to avoid adding one. Input must be valid UTF-8 without NUL bytes (`\0`). The limits are 10,000 bytes for `type` and 128 KiB for `set-value`.
+The action timeout starts after the input ends; it doesn't limit this wait. Empty input and all line breaks are kept, including a final newline. Input must be valid UTF-8 without NUL bytes (`\0`). The limits are 10,000 bytes for `type` and 128 KiB for `set-value`.
 
-Provide either `--stdin` or a command-line value. To enter the text `--stdin`, put it after `--`: `agent-desktop type @s8f3k2p9:e2 -- --stdin`. Batch uses the JSON `text` or `value` field, which puts the text in process arguments. Run secret steps as separate `--stdin` commands.
+Provide either `--stdin` or a command-line value. To enter the text `--stdin`, put it after `--`: `agent-desktop type '@s8f3k2p9:e2' -- --stdin`. Batch uses the JSON `text` or `value` field, which puts the text in process arguments. Run secret steps as separate `--stdin` commands.
 
 `--stdin` keeps text out of process arguments and omits observed `value` fields from JSON results, including `post_state.value`. Other app text and screenshot artifacts aren't redacted.
 
-`type` inserts; it does not replace. After `set-value hello`, `type ' world'` into the same entry produced this, because the insertion point was at the start:
+`type` inserts; it does not replace. After `set-value hello`, this `--headed type ' world'` into the same editor produced this, because the insertion point was at the start:
 
 ```json
 {
@@ -190,19 +188,19 @@ Provide either `--stdin` or a command-line value. To enter the text `--stdin`, p
   "details": { "application_commit": "not_verified", "verification_scope": "element_value" },
   "disposition": { "delivery": "delivered_verified", "retry": "unsafe" },
   "post_state": { "enabled": true, "role": "textfield", "value": " worldhello" },
-  "steps": [{ "label": "EditableText.InsertText", "mechanism": "semantic_api", "outcome": "succeeded", "verified": true }]
+  "steps": [{ "label": "SendInput.type_text", "mechanism": "physical_synthetic", "outcome": "succeeded", "verified": false }]
 }
 ```
 
 `--interval-ms` types at a steady pace inside one command. A keystroke is one character together with the combining marks, emoji modifiers, and joined characters drawn with it, and CR LF counts as one. The first keystroke runs as a full ref action, and a headed one also focuses the target's window. The rest go to the same element, each taking the interaction lease only while it is delivered, so other agents can act between keystrokes. A headed keystroke is posted only while the target's process and focused element are unchanged, so a burst that loses focus stops with an error. The result adds `keystrokes` and `interval_ms`, and its `post_state` reads the field after the last keystroke. It stays `delivered_verified` only when that read shows the whole text; otherwise it is `delivered_unverified` with `verification_reason` set to `postcondition_mismatch`, `insufficient_evidence` (the text went in part way through the field), or `final_read_failed` (with no `post_state`). A `--wait-for` condition is waited on once, after the last keystroke. A failure after the first keystroke carries `details.typed_keystrokes` and `details.keystrokes` with a `delivered_unverified` disposition, because part of the text landed.
 
 ```bash
-agent-desktop type @s8f3k2p9:e2 "hello world" --interval-ms 60
+agent-desktop --headed type @s8f3k2p9:e2 "hello world" --interval-ms 60
 ```
 
 To set a field's whole content, use [`set-value`](#set-value). Keystroke delivery that settles on other text returns `delivered_unverified` with `verification_reason: "postcondition_mismatch"`; read the field with `get` before you write again.
 
-Platform limits: Windows needs `--headed` and returns `POLICY_DENIED` headless; use `set-value` there. See [Windows](/desktop/platforms/windows).
+`type` needs `--headed` on Windows and returns `POLICY_DENIED` headless; use `set-value` to write text headless. See [Windows](/desktop/platforms/windows).
 
 ## set-value
 
@@ -221,11 +219,11 @@ For piped text, use `--stdin` with the [input rules above](#type).
   "details": { "application_commit": "not_verified", "verification_scope": "element_value" },
   "disposition": { "delivery": "delivered_verified", "retry": "unsafe" },
   "post_state": { "enabled": true, "role": "textfield", "value": "hello" },
-  "steps": [{ "label": "EditableText.SetTextContents", "mechanism": "semantic_api", "outcome": "succeeded", "verified": true }]
+  "steps": [{ "label": "ValuePattern.SetValue", "mechanism": "semantic_api", "outcome": "succeeded", "verified": true }]
 }
 ```
 
-On a slider, the step is `Value.CurrentValue` and `post_state.value` is the new position. A value the app reformats reads as a contradiction and returns `ACTION_FAILED`. An element that exposes no value write returns `ACTION_NOT_SUPPORTED`; for a table cell, activate it and target the editor that appears. A write to a secure field ends `delivered_unverified` with `verification_reason: "secure_field"`.
+On a slider, the step is `RangeValuePattern.SetValue` and `post_state.value` is the new position. A value the app reformats reads as a contradiction and returns `ACTION_FAILED`. An element that exposes no value write returns `ACTION_NOT_SUPPORTED`; for a table cell, activate it and target the editor that appears. A write to a secure field ends `delivered_unverified` with `verification_reason: "secure_field"`.
 
 ## clear
 
@@ -243,7 +241,7 @@ Sets keyboard focus on an element without clicking it.
 agent-desktop --headed focus <REF> [--timeout-ms MS]
 ```
 
-Moving focus can change the foreground, so headless it returns `POLICY_DENIED` on Windows and Linux:
+Moving focus can change the foreground, so headless it returns `POLICY_DENIED`:
 
 ```json
 {
@@ -253,8 +251,6 @@ Moving focus can change the foreground, so headless it returns `POLICY_DENIED` o
   "disposition": { "delivery": "not_delivered", "retry": "safe" }
 }
 ```
-
-On Linux, a GTK4 app rejects the call with cause `grab_focus_rejected`; use [`focus-window`](/desktop/commands/app-window#focus-window) for its window.
 
 ## select
 
@@ -273,14 +269,12 @@ agent-desktop select @s30sxlstqzdq8x:e21 Middle
   "action": "select",
   "details": {},
   "disposition": { "delivery": "delivered_verified", "retry": "unsafe" },
-  "steps": [{ "label": "Action.DoAction", "mechanism": "semantic_api", "outcome": "succeeded", "verified": true }],
-  "surfaces": [{ "id": "w-1.9-org-a11y-atspi-accessible-229", "type": "window" }]
+  "steps": [{ "label": "SelectionItemPattern.Select", "mechanism": "semantic_api", "outcome": "succeeded", "verified": true }],
+  "surfaces": [{ "id": "w-4521", "type": "window" }]
 }
 ```
 
 If the control already shows the value, nothing is delivered. A combo box whose accessible name is its current value gets a new identity when the value changes, so the old ref returns `STALE_REF` afterward: find the control again before the next action.
-
-Platform limits: on macOS, dismiss any open menu first. On Linux, a Qt combo refuses headless with `details.kind: pointer_required`, and a GTK4 list refuses with `selection_index_unproven`. See the platform pages.
 
 ## toggle
 
@@ -306,7 +300,7 @@ agent-desktop check <REF> [--timeout-ms MS]
   "details": { "verification_scope": "element_state" },
   "disposition": { "delivery": "delivered_verified", "retry": "unsafe" },
   "post_state": { "enabled": true, "role": "checkbox", "states": ["checked"] },
-  "steps": [{ "label": "Action.DoAction", "mechanism": "semantic_api", "outcome": "succeeded", "verified": true }]
+  "steps": [{ "label": "TogglePattern.Toggle", "mechanism": "semantic_api", "outcome": "succeeded", "verified": true }]
 }
 ```
 
@@ -318,11 +312,11 @@ Run it again on the same checkbox and the step is skipped:
   "details": { "verification_scope": "element_state" },
   "disposition": { "delivery": "not_delivered", "retry": "safe" },
   "post_state": { "enabled": true, "role": "checkbox", "states": ["checked"] },
-  "steps": [{ "label": "Action.DoAction", "mechanism": "semantic_api", "outcome": "skipped", "verified": true }]
+  "steps": [{ "label": "TogglePattern.Toggle", "mechanism": "semantic_api", "outcome": "skipped", "verified": true }]
 }
 ```
 
-Errors are the same as [`toggle`](#toggle). On Linux, two clicks less than about 250 ms apart on one GTK4 button can act once.
+Errors are the same as [`toggle`](#toggle).
 
 ## uncheck
 

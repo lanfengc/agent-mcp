@@ -7,7 +7,7 @@
       },
       {
         "from": "# Trust a CA for locally launched Chromium on Linux",
-        "to": "# Trust a CA for CLI requests, and for local Chromium on Linux"
+        "to": "# Trust a CA for CLI HTTPS requests"
       },
       {
         "from": "# Clear CA trust retained by the running session",
@@ -64,12 +64,28 @@
       {
         "from": "Each tool has typed fields such as url, selector, text, key, session, and allowedDomains, so MCP clients show meaningful approval prompts instead of raw command arrays. The common allowedDomains array maps to --allowed-domains and activates the same WebRTC containment and launch-mode restrictions. The common idleTimeout string maps to --idle-timeout, accepts values such as 30s, 5m, 1h, or raw milliseconds, and accepts 0 to disable idle shutdown. Each tool also accepts extraArgs for per-command options and display or emulation flags such as --engine; extraArgs cannot set --config or global flags that change network, file, policy, or host access. Set host-wide options in the MCP server's environment or selected config. Structured allowedDomains is rejected when the server already sets allowed domains. Tool discovery is paginated and includes read-only/open-world annotations so modern MCP clients can load the large typed surface incrementally.",
         "to": "Each tool has typed fields such as url, selector, text, and key, so MCP clients show meaningful approval prompts instead of raw command arrays. Tool discovery is paginated and includes read-only/open-world annotations so modern MCP clients can load the large typed surface incrementally.\n\nEvery tool also accepts the shared arguments session, restore, allowedDomains, extraArgs, timeoutMs, namespace, restoreSave, restoreCheckUrl, restoreCheckText, restoreCheckFn, caCert, useSystemCa, clearCaCert, idleTimeout, and relaunch. A tool's schema lists only the ones that usually matter for it: session on every tool, restore and relaunch on open and tab_new, allowedDomains and extraArgs on open, tab_new, and read, and timeoutMs on tools that navigate, wait, or run scripts. The server's initialize instructions describe all of them. allowedDomains maps to --allowed-domains, activates the same WebRTC containment and launch-mode restrictions, and is rejected when the server already sets allowed domains. idleTimeout maps to --idle-timeout, accepts values such as 30s, 5m, 1h, or raw milliseconds, and accepts 0 to disable idle shutdown. relaunch: true maps to --relaunch. extraArgs carries per-command options and display or emulation flags such as --engine; it cannot set --config or global flags that change network, file, policy, or host access. Set host-wide options in the MCP server's environment or selected config."
+      },
+      {
+        "from": "Run an embedded axe-core audit against the current page or navigate to a URL first. The vendored engine works without a CDN request and runs under strict page CSP. It runs private partial audits across the page's frame tree and merges serialized results without page messaging, so page-provided `window.axe` values remain intact and iframe violations retain their frame selector paths. Accessibility audits require a CDP browser and are not available with Safari or iOS WebDriver sessions.",
+        "to": "Run an embedded axe-core audit against the current page or navigate to a URL first. The vendored engine works without a CDN request and runs under strict page CSP. It runs private partial audits across the page's frame tree and merges serialized results without page messaging, so page-provided `window.axe` values remain intact and iframe violations retain their frame selector paths. Accessibility audits require a CDP browser."
+      },
+      {
+        "from": "--device <name>          # iOS device name (e.g., \"iPhone 15 Pro\")",
+        "to": ""
+      },
+      {
+        "from": "--webgpu                 # Enable WebGPU (software Vulkan on Linux, no GPU needed)",
+        "to": "--webgpu                 # Enable WebGPU (software rendering when no GPU is available)"
+      },
+      {
+        "from": "state, iOS, diff",
+        "to": "state, diff"
       }
     ],
     "/configuration": [
       {
-        "from": "This initial implementation does not support",
-        "to": "Browser trust does not support"
+        "from": "`caCert` imports the supplied CA certificate or PEM bundle into an isolated NSS database for locally launched Chromium on Linux. Hostname, validity period, and unrelated CA verification remain enabled. The CA remains active when later commands omit it. Setting different certificate content or `clearCaCert: true` relaunches Chromium without restarting the daemon. `agent-browser install --with-deps` installs the required `certutil`; otherwise install `libnss3-tools` on Debian/Ubuntu or `nss-tools` on RPM Linux. This initial implementation does not support Chrome profiles, CDP attach, providers, Lightpanda, macOS, or Windows.",
+        "to": "`caCert` and `useSystemCa` apply to the CLI's own HTTPS requests. `read`, `install`, `upgrade`, and `doctor` make their own HTTPS requests and trust the built-in Mozilla roots by default. `--ca-cert` adds the CA to those requests, and `--use-system-ca` switches them to the operating system trust store, which already holds a CA deployed by MDM or an enterprise image. CA trust for a locally launched Chromium is not supported on Windows, so browser launch commands reject `--ca-cert`. `SSL_CERT_FILE` is used as a fallback CA file and is ignored with a warning when unusable. Neither option disables certificate or hostname verification. For `read`, a selection given on the command line stays in effect for the session until `close`, including across daemon restarts; `--no-ca-cert` or `--use-system-ca false` turns it off. `read` never launches or relaunches a browser because of these options. They do not yet change how agent-browser connects to a remote browser over `--cdp`, `--auto-connect`, or a provider."
       },
       {
         "from": "Project-level plugin entries are appended after user-level entries. If two entries use the same name, agent-browser resolves the later entry, so a project can override a user default. `AGENT_BROWSER_PLUGINS` can replace config discovery with a JSON array using the same shape.",
@@ -172,8 +188,44 @@
         "to": "<tr><td><code>AGENT_BROWSER_AUTO_CONNECT</code></td><td>Auto-discover and connect to a running Chrome instance. <code>0</code>, <code>false</code>, <code>no</code> or an empty value leave it off.</td><td>(disabled)</td></tr>"
       },
       {
+        "from": "<tr><td><code>AGENT_BROWSER_PROFILE</code></td><td>Chrome profile name or persistent profile directory.</td><td>(none)</td></tr>",
+        "to": "<tr><td><code>AGENT_BROWSER_PROFILE</code></td><td>Chrome profile name or persistent profile directory. Local Chrome launches without a profile use a persistent per-session directory instead.</td><td>(none)</td></tr>"
+      },
+      {
         "from": "anthropic/claude-sonnet-4.6",
         "to": "openai/gpt-6-luna-fast"
+      },
+      {
+        "from": "    <tr><td><code>device</code></td><td><code>--device</code></td><td>string</td></tr>",
+        "to": ""
+      },
+      {
+        "from": "  \"caCert\": \"/etc/ssl/certs/proxy-ca.crt\"",
+        "to": "  \"caCert\": \"C:\\\\certs\\\\proxy-ca.crt\""
+      },
+      {
+        "from": "### iOS Testing\n\n```json\n{\n  \"provider\": \"ios\",\n  \"device\": \"iPhone 16 Pro\"\n}\n```",
+        "to": ""
+      },
+      {
+        "from": "    <tr><td><code>AGENT_BROWSER_PROVIDER</code></td><td>Browser provider such as <code>ios</code>, <code>browserbase</code>, <code>kernel</code>, <code>browseruse</code>, <code>browserless</code>, <code>agentcore</code>, or a configured <code>browser.provider</code> plugin name.</td><td>(local browser)</td></tr>",
+        "to": "    <tr><td><code>AGENT_BROWSER_PROVIDER</code></td><td>Browser provider such as <code>browserbase</code>, <code>kernel</code>, <code>browseruse</code>, <code>browserless</code>, <code>agentcore</code>, or a configured <code>browser.provider</code> plugin name.</td><td>(local browser)</td></tr>"
+      },
+      {
+        "from": "    <tr><td><code>AGENT_BROWSER_WEBGPU</code></td><td>Enable WebGPU; SwiftShader software Vulkan on Linux, no GPU required (<code>1</code> to enable).</td><td>(disabled)</td></tr>",
+        "to": "    <tr><td><code>AGENT_BROWSER_WEBGPU</code></td><td>Enable WebGPU; software rendering when no GPU is available (<code>1</code> to enable).</td><td>(disabled)</td></tr>"
+      },
+      {
+        "from": "    <tr><td><code>AGENT_BROWSER_NO_XVFB</code></td><td>Disable automatic Xvfb virtual display for headed mode on displayless Linux hosts (<code>1</code> to disable).</td><td>(auto-Xvfb enabled)</td></tr>",
+        "to": ""
+      },
+      {
+        "from": "    <tr><td><code>AGENT_BROWSER_IDLE_TIMEOUT_MS</code></td><td>Auto-shutdown the daemon after N ms without commands or dashboard input. Set <code>0</code> to disable. Headed browsers, Safari and iOS WebDriver sessions, and user-attached browsers are exempt from the default. Provider-owned cloud browsers are eligible for cleanup, and an explicit value applies to every browser.</td><td><code>3600000</code> (1 hour)</td></tr>",
+        "to": "    <tr><td><code>AGENT_BROWSER_IDLE_TIMEOUT_MS</code></td><td>Auto-shutdown the daemon after N ms without commands or dashboard input. Set <code>0</code> to disable. Headed and user-attached browsers are exempt from the default. Provider-owned cloud browsers are eligible for cleanup, and an explicit value applies to every browser.</td><td><code>3600000</code> (1 hour)</td></tr>"
+      },
+      {
+        "from": "    <tr><td><code>AGENT_BROWSER_IOS_DEVICE</code></td><td>Default iOS device name for the <code>ios</code> provider.</td><td>(none)</td></tr>\n    <tr><td><code>AGENT_BROWSER_IOS_UDID</code></td><td>Default iOS device UDID for the <code>ios</code> provider.</td><td>(none)</td></tr>",
+        "to": ""
       }
     ],
     "/plugins": [
@@ -198,6 +250,18 @@
       {
         "from": "All security features are opt-in. By default, agent-browser imposes no restrictions on navigation, actions, or output. Enable these features as needed for your deployment -- existing workflows are unaffected until you explicitly activate a feature.",
         "to": "Navigation, action, and output controls are opt-in. By default, agent-browser imposes no restrictions on navigation, actions, or output. Auto-discovered project config filtering applies by default; see Project config trust."
+      },
+      {
+        "from": "- **iOS, Safari, and direct-page provider plugins do not support the domain allowlist.** agent-browser rejects `--allowed-domains` with these providers because their automation backends cannot install the Chromium network controls or enforce equivalent WebRTC containment.",
+        "to": "- **Direct-page provider plugins do not support the domain allowlist.** agent-browser rejects `--allowed-domains` with these providers because their automation backends cannot install the Chromium network controls or enforce equivalent WebRTC containment."
+      },
+      {
+        "from": "File permissions are enforced on both Unix (`chmod 600`/`700`) and Windows (`icacls` restricted to the current user) to prevent other users from reading encryption keys or auth profiles.",
+        "to": "Encryption keys and auth profiles are stored under the user profile and inherit its per-user access rules; agent-browser does not set an explicit ACL."
+      },
+      {
+        "from": "open startup pages, iOS, and Safari reject this option",
+        "to": "open startup pages reject this option"
       }
     ],
     "/init-scripts": [
@@ -235,29 +299,37 @@
     "/proxy": [
       {
         "from": "--ca-cert /etc/ssl/certs/proxy-ca.pem open https://example.com",
-        "to": "--ca-cert /etc/ssl/certs/proxy-ca.pem open https://example.com\nagent-browser --use-system-ca read https://example.com"
+        "to": "--ca-cert C:/certs/proxy-ca.pem open https://example.com\nagent-browser --use-system-ca read https://example.com"
       },
       {
         "from": "Trust a CA certificate or PEM bundle in a locally launched Chromium browser on Linux",
-        "to": "Trust a CA certificate or PEM bundle for the CLI's own HTTPS requests, and in a locally launched Chromium browser on Linux"
+        "to": "Trust a CA certificate or PEM bundle for the CLI's own HTTPS requests"
       },
       {
         "from": "Path to a CA certificate or PEM bundle for locally launched Chromium on Linux",
-        "to": "Path to a CA certificate or PEM bundle for CLI requests and locally launched Chromium on Linux"
+        "to": "Path to a CA certificate or PEM bundle for CLI requests"
       },
       {
-        "from": "The option cannot be combined with",
-        "to": "For browser commands, the option cannot be combined with"
+        "from": "On Linux, `--ca-cert` imports each certificate into a private NSS database used only by the Chromium process launched for that session. Normal hostname and validity checks remain enabled. Later commands retain that trust when they omit the flag. A different certificate or `--no-ca-cert` relaunches Chromium without restarting the daemon. The same certificate content reuses the current browser even when supplied from a different path. `agent-browser install --with-deps` installs the required `certutil`; otherwise install `libnss3-tools` on Debian/Ubuntu or `nss-tools` on RPM Linux.\n\nThe option cannot be combined with `--profile`, `--cdp`, `--auto-connect`, providers, Lightpanda, or `--ignore-https-errors`. It is not supported on macOS or Windows.",
+        "to": "Browser CA trust is not supported on Windows. Chromium uses the Windows certificate store for browser HTTPS, so install the enterprise CA there if Chrome must trust it. Browser launch commands reject `--ca-cert`, `AGENT_BROWSER_CA_CERT`, and `caCert`; use them for the CLI's own requests, or set the CA in the Windows certificate store before launching Chrome."
       },
       {
-        "from": "It is not supported on macOS or Windows.",
-        "to": "Browser trust is not supported on macOS or Windows, where Chromium already uses the operating system trust store."
+        "from": "On Linux, --ca-cert imports each certificate into a private NSS database used only by the Chromium process launched for that session. Normal hostname and validity checks remain enabled. Later commands retain that trust when they omit the flag. A different certificate or --no-ca-cert relaunches Chromium without restarting the daemon. The same certificate content reuses the current browser even when supplied from a different path. agent-browser install --with-deps installs the required certutil; otherwise install libnss3-tools on Debian/Ubuntu or nss-tools on RPM Linux.",
+        "to": ""
+      },
+      {
+        "from": "The option cannot be combined with --profile, --cdp, --auto-connect, providers, Lightpanda, or --ignore-https-errors. It is not supported on macOS or Windows.",
+        "to": "Browser CA trust is not supported on Windows. Chromium uses the Windows certificate store for browser HTTPS, so install the enterprise CA there if Chrome must trust it. Browser launch commands reject --ca-cert, AGENT_BROWSER_CA_CERT, and caCert; use them for the CLI's own requests, or set the CA in the Windows certificate store before launching Chrome."
       }
     ],
     "/cdp-mode": [
       {
         "from": "pass it once and later commands and daemon restarts keep the strict semantics.",
         "to": "pass it once and later commands keep the strict semantics. Daemon restarts keep the pin; an explicit close releases it so other sessions can take the tab, and the next pinned command pins again."
+      },
+      {
+        "from": "<tr><td><code>--profile &lt;path&gt;</code></td><td>Persistent browser profile directory</td></tr>",
+        "to": "<tr><td><code>--profile &lt;path&gt;</code></td><td>Persistent browser profile directory. Local Chrome launches without it use a per-session profile under the agent-browser state directory.</td></tr>"
       }
     ],
     "/engines/chrome": [
@@ -296,29 +368,31 @@
         "to": "Or in ~/.agent-browser/config.json or a file loaded with --config:"
       }
     ],
-    "/eve": [
-      {
-        "from": "The agent gets namespaced tools such as `browser__navigate`, `browser__snapshot`, `browser__click`, `browser__fill`, `browser__find`, `browser__screenshot`, `browser__console`, and `browser__network_requests`.",
-        "to": "The agent gets namespaced tools such as `browser__open`, `browser__snapshot`, `browser__click`, `browser__fill`, `browser__find`, `browser__screenshot`, `browser__console`, and `browser__network_requests`."
-      },
-      {
-        "from": "The agent gets namespaced tools such as browser__navigate, browser__snapshot, browser__click, browser__fill, browser__find, browser__screenshot, browser__console, and browser__network_requests.",
-        "to": "The agent gets namespaced tools such as browser__open, browser__snapshot, browser__click, browser__fill, browser__find, browser__screenshot, browser__console, and browser__network_requests."
-      }
-    ],
     "/sessions": [
       {
         "from": "Session and restore names must contain only alphanumeric characters, hyphens, and underscores. Use `agent-browser session id` to generate a valid key:",
-        "to": "Session and restore names accept Unicode letters and numbers, hyphens, and underscores only. For example, `café-東京_7` is valid, while `my session` is rejected because it contains a space.\n\nUse `agent-browser session id` to generate a valid key:"
+        "to": "Session and restore names accept Unicode letters and numbers, hyphens, and underscores only. For example, `caf\u00e9-\u6771\u4eac_7` is valid, while `my session` is rejected because it contains a space.\n\nUse `agent-browser session id` to generate a valid key:"
       },
       {
         "from": "Session and restore names must contain only alphanumeric characters, hyphens, and underscores. Use agent-browser session id to generate a valid key:",
-        "to": "Session and restore names accept Unicode letters and numbers, hyphens, and underscores only. For example, café-東京_7 is valid, while my session is rejected because it contains a space.\n\nUse agent-browser session id to generate a valid key:"
+        "to": "Session and restore names accept Unicode letters and numbers, hyphens, and underscores only. For example, caf\u00e9-\u6771\u4eac_7 is valid, while my session is rejected because it contains a space.\n\nUse agent-browser session id to generate a valid key:"
+      },
+      {
+        "from": "A session ID by itself only isolates the daemon and does not enable persistence; without a restore key, shutdown discards transient browser state and open tabs.",
+        "to": "A session ID by itself does not enable state saving; without a restore key, shutdown discards open tabs and any browser state that a persistent profile does not hold."
+      },
+      {
+        "from": "```bash\n# macOS\n\"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\" --remote-debugging-port=9222\n\n# Linux\ngoogle-chrome --remote-debugging-port=9222",
+        "to": "```powershell\n& \"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" --remote-debugging-port=9222"
+      },
+      {
+        "from": "Headed, Safari/iOS WebDriver, and user-attached browsers are exempt",
+        "to": "Headed and user-attached browsers are exempt"
       }
     ],
     "/skills": [
       {
-        "from": " — ",
+        "from": " \u2014 ",
         "to": ": "
       },
       {
@@ -328,6 +402,14 @@
       {
         "from": "agent-browser skills get core --full is the recommended starting point for most browser tasks.",
         "to": "Start with agent-browser skills get core. It routes to its references when a task needs more detail, and --full prints all of them at once."
+      },
+      {
+        "from": "- **vercel-sandbox**: Run agent-browser + headless Chrome inside ephemeral Vercel Sandbox microVMs.",
+        "to": ""
+      },
+      {
+        "from": "## eve agents\n\nFor eve agents, mount the [`@agent-browser/eve`](/eve) extension instead of writing browser tools by hand. It gives the agent namespaced browser tools backed by agent-browser inside the eve sandbox.\n\n",
+        "to": ""
       }
     ],
     "/webgpu": [
@@ -354,12 +436,66 @@
       {
         "from": "pnpm install\npnpm build\npnpm build:native\n./bin/agent-browser install\npnpm link --global",
         "to": "pnpm install\npnpm build:source\npnpm link --global\nagent-browser install"
+      },
+      {
+        "from": "Detects your installation method (npm, Homebrew, or Cargo) and runs the appropriate update command automatically. Displays the version change on success, or informs you if you are already on the latest version.",
+        "to": "Detects your installation method (npm, pnpm, Yarn, Bun, or Cargo) and runs the appropriate update command automatically. Displays the version change on success, or informs you if you are already on the latest version."
+      },
+      {
+        "from": "## Homebrew (macOS)\n\n```bash\nbrew install agent-browser\nagent-browser install  # Download Chrome (first time)\n```",
+        "to": ""
+      },
+      {
+        "from": "## Linux dependencies\n\nOn Linux, install system dependencies:\n\n```bash\nagent-browser install --with-deps\n```\n\nThis exits nonzero if the package manager cannot install every required browser library.",
+        "to": ""
+      },
+      {
+        "from": "stale <code>.sock</code> / <code>.pid</code>",
+        "to": "stale <code>.pid</code>"
+      },
+      {
+        "from": "<code>~/.agent-browser/.encryption-key</code> (with 0600 permissions on unix)",
+        "to": "<code>~/.agent-browser/.encryption-key</code>"
+      },
+      {
+        "from": "AgentCore (AWS creds), Appium (for <code>--provider ios</code>), and",
+        "to": "AgentCore (AWS creds), and"
+      },
+      {
+        "from": "validate the headed/Xvfb capture path",
+        "to": "validate the headed capture path"
+      },
+      {
+        "from": "<code>~/.agent-browser/.encryption-key</code> (0600, unix); never",
+        "to": "<code>~/.agent-browser/.encryption-key</code>; never"
       }
     ],
     "/dashboard": [
       {
         "from": "anthropic/claude-sonnet-4.6",
         "to": "openai/gpt-6-luna-fast"
+      }
+    ],
+    "/": [
+      {
+        "from": "shutdown discards transient browser state and open tabs.",
+        "to": "shutdown discards open tabs and any browser state that a persistent profile does not hold."
+      },
+      {
+        "from": "- **Modern apps**: [Network control](/network), [React & Web Vitals](/react), [init scripts](/init-scripts), [Next.js + Vercel](/next), and [eve Extension](/eve) workflows have first-class docs",
+        "to": "- **Modern apps**: [Network control](/network), [React & Web Vitals](/react), and [init scripts](/init-scripts) workflows have first-class docs"
+      }
+    ],
+    "/snapshots": [
+      {
+        "from": "In native mode, annotated screenshots currently work on the CDP-backed browser path (Chromium/Lightpanda). The Safari/WebDriver backend does not yet support `--annotate`.",
+        "to": "In native mode, annotated screenshots currently work on the CDP-backed browser path (Chromium/Lightpanda)."
+      }
+    ],
+    "/webmcp": [
+      {
+        "from": "Lightpanda, Safari, iOS, and older Chrome builds",
+        "to": "Lightpanda, and older Chrome builds"
       }
     ]
   },

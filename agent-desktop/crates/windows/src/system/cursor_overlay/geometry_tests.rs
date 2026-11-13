@@ -8,10 +8,10 @@ fn tip() -> Point {
     Point { x: 400.0, y: 300.0 }
 }
 
-/// The dimensions are the macOS renderer's, carried across rather than
-/// invented. Without them R16's parity claim has nothing to fail against.
+/// The dimensions are the renderer's own, fixed here rather than derived.
+/// Without them the layout has nothing to fail against.
 #[test]
-fn the_ported_dimensions_match_the_reference() {
+fn the_fixed_dimensions_are_stable() {
     assert_eq!((GLYPH_WIDTH, GLYPH_HEIGHT), (32.0, 40.0));
     assert_eq!(RIPPLE_SIZE, 108.0);
 }
@@ -136,17 +136,17 @@ fn the_follower_surface_stays_far_smaller_than_a_screen() {
     );
 }
 
-/// The path as Core Graphics authors it, in the y-up space macOS draws into.
-/// Kept here rather than imported so the two spaces stay visibly distinct.
-const MACOS_DART: [(f64, f64); 4] = [(1.0, 35.0), (29.6, 17.5), (12.7, 16.3), (4.2, 1.6)];
+/// The path in the y-up space it was authored in. Kept here rather than
+/// imported so the two spaces stay visibly distinct.
+const Y_UP_DART: [(f64, f64); 4] = [(1.0, 35.0), (29.6, 17.5), (12.7, 16.3), (4.2, 1.6)];
 
-/// The overlay claims Windows draws the same visual vocabulary as macOS, so the dart
-/// is that path and not a redrawing of it — but expressed in this surface's
-/// space. Copying the coordinates across unchanged is the mistake this pins:
-/// it satisfies "same numbers" while drawing the pointer upside down.
+/// The dart is that path and not a redrawing of it — but expressed in this
+/// surface's space. Copying the coordinates across unchanged is the mistake
+/// this pins: it satisfies "same numbers" while drawing the pointer upside
+/// down.
 #[test]
-fn the_dart_is_the_macos_path_flipped_into_a_top_down_surface() {
-    for (index, (x, y)) in MACOS_DART.iter().enumerate() {
+fn the_dart_is_the_y_up_path_flipped_into_a_top_down_surface() {
+    for (index, (x, y)) in Y_UP_DART.iter().enumerate() {
         assert_eq!(
             DART[index].0, *x,
             "the horizontal axis agrees in both spaces"
@@ -155,7 +155,7 @@ fn the_dart_is_the_macos_path_flipped_into_a_top_down_surface() {
             DART[index].1,
             GLYPH_HEIGHT - y,
             "point {index} must be flipped about the glyph box, because this surface \
-             counts rows downward and Core Graphics counts them upward"
+             counts rows downward and the source space counts them upward"
         );
     }
 }

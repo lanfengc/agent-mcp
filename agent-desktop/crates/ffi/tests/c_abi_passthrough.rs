@@ -261,9 +261,9 @@ fn stub_adapter_create_and_destroy_round_trip() {
     }
 }
 
-/// AppKit-backed platform implementations remain callable from worker threads;
-/// the macOS adapter supplies its own autorelease pools. The stub proves that
-/// the FFI boundary reaches the adapter rather than rejecting the thread.
+/// The Windows adapter owns its process-wide COM apartment, so calls from a
+/// worker thread are legal. The stub proves that the FFI boundary reaches the
+/// adapter rather than rejecting the thread.
 #[cfg(feature = "stub-adapter")]
 #[test]
 fn app_and_clipboard_families_reach_stub_from_worker_thread() {

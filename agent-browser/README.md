@@ -19,8 +19,6 @@ npm install -g agent-browser
 agent-browser install           # download Chrome for Testing (first time only)
 ```
 
-- **Homebrew:** `brew install agent-browser`, then `agent-browser install`.
-- **Linux:** `agent-browser install --with-deps` also installs the browser's system libraries.
 - **No install:** `npx agent-browser open example.com`.
 
 Project installs, building from source, `upgrade`, and `doctor` are covered in [Installation](https://agent-browser.dev/installation).
@@ -51,7 +49,7 @@ The full walkthrough is in the [quick start](https://agent-browser.dev/quick-sta
 
 The CLI sends each command to a background daemon that starts on the first command and controls the browser over the Chrome DevTools Protocol. Each `--session` gets its own daemon and browser. By default, the daemon closes a headless browser and exits after one hour without commands, saving state first when [session persistence](https://agent-browser.dev/sessions) is configured.
 
-Chrome for Testing is the default browser. You can also attach to a running Chrome with `--cdp` or `--auto-connect` ([CDP mode](https://agent-browser.dev/cdp-mode)), select the [Lightpanda](https://agent-browser.dev/engines/lightpanda) or [Obscura](https://agent-browser.dev/engines/obscura) engine with `--engine`, drive Mobile Safari in the [iOS Simulator](https://agent-browser.dev/ios), or use a cloud browser provider such as [Browserbase](https://agent-browser.dev/providers/browserbase), [Browserless](https://agent-browser.dev/providers/browserless), [Browser Use](https://agent-browser.dev/providers/browser-use), [Kernel](https://agent-browser.dev/providers/kernel), or [AgentCore](https://agent-browser.dev/providers/agentcore).
+Chrome for Testing is the default browser. You can also attach to a running Chrome with `--cdp` or `--auto-connect` ([CDP mode](https://agent-browser.dev/cdp-mode)), select the [Lightpanda](https://agent-browser.dev/engines/lightpanda) or [Obscura](https://agent-browser.dev/engines/obscura) engine with `--engine`, or use a cloud browser provider such as [Browserbase](https://agent-browser.dev/providers/browserbase), [Browserless](https://agent-browser.dev/providers/browserless), [Browser Use](https://agent-browser.dev/providers/browser-use), [Kernel](https://agent-browser.dev/providers/kernel), or [AgentCore](https://agent-browser.dev/providers/agentcore).
 
 ## For AI agents
 
@@ -101,7 +99,7 @@ Flags, environment variables, and `agent-browser.json` are documented in [Config
 
 ## Platforms
 
-Native binaries ship for macOS (ARM64, x64), Linux (ARM64, x64, glibc and musl), and Windows (x64). The npm package picks the right binary for the host.
+Native binaries ship for Windows (x64). The npm package picks the right binary for the host.
 
 ## Development
 
@@ -130,7 +128,6 @@ cargo test e2e -- --ignored --test-threads=1   # launches real headless Chrome
 - [agent-browser.dev](https://agent-browser.dev): introduction, guides, and reference
 - [Commands](https://agent-browser.dev/commands) and [Configuration](https://agent-browser.dev/configuration)
 - [Security](https://agent-browser.dev/security): the auth vault, domain allowlists, action policies, and content boundaries
-- [Next.js and Vercel](https://agent-browser.dev/next) and [eve](https://agent-browser.dev/eve): running agent-browser in Vercel Sandbox and eve agents
 - [Changelog](CHANGELOG.md)
 
 ## License

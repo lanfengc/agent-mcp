@@ -29,13 +29,13 @@ agent-desktop session gc --ended                  # delete ended sessions nothin
   "data": {
     "activation": {
       "environment": "AGENT_DESKTOP_SESSION",
-      "value": "run-1793352720537-17009-0"
+      "value": "run-1794496594341-11548-0"
     },
     "artifacts": "events",
-    "created_at": 1793352720537,
+    "created_at": 1794496594343,
     "name": "docs-example",
-    "next": "export AGENT_DESKTOP_SESSION=run-1793352720537-17009-0",
-    "session_id": "run-1793352720537-17009-0",
+    "next": "$env:AGENT_DESKTOP_SESSION = 'run-1794496594341-11548-0'",
+    "session_id": "run-1794496594341-11548-0",
     "trace": "on"
   }
 }
@@ -79,15 +79,15 @@ A command picks its session in this order:
 
 An id that is not 1 to 64 letters, digits, `-` or `_` fails with `INVALID_ARGS`. A `--session <id>` with no manifest still works as a snapshot namespace, but it writes no trace.
 
-`session start` does not activate the session for later commands. Each command is its own process, so pass the id to every one, or export it once in your shell:
+`session start` does not activate the session for later commands. Each command is its own process, so pass the id to every one, or set it once in your shell:
 
-```bash
-export AGENT_DESKTOP_SESSION=$(agent-desktop session start --name docs-example | jq -r '.data.session_id')
-agent-desktop snapshot --app gnome-calculator -i   # runs inside the session
-agent-desktop session end "$AGENT_DESKTOP_SESSION"
+```powershell
+$env:AGENT_DESKTOP_SESSION = (agent-desktop session start --name docs-example | ConvertFrom-Json).data.session_id
+agent-desktop snapshot --app notepad.exe -i   # runs inside the session
+agent-desktop session end $env:AGENT_DESKTOP_SESSION
 ```
 
-`session end` with no id ends the session selected by `--session` or `AGENT_DESKTOP_SESSION`. On Windows, `data.next` prints the PowerShell form (`$env:AGENT_DESKTOP_SESSION = '...'`); see [Windows](/desktop/platforms/windows) for quoting rules.
+`session end` with no id ends the session selected by `--session` or `AGENT_DESKTOP_SESSION`. `data.next` prints the PowerShell form (`$env:AGENT_DESKTOP_SESSION = '...'`); see [Windows](/desktop/platforms/windows) for quoting rules.
 
 ## Snapshot namespaces
 

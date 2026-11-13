@@ -4,7 +4,7 @@ tags: computer-use, desktop-automation, accessibility, ai-agent, gui-automation,
 requirements:
   - agent-desktop
 description: >
-  Operate desktop applications on macOS, Windows and Linux through native accessibility trees,
+  Operate Windows desktop applications through native accessibility trees,
   using the agent-desktop CLI. Use when an AI agent must see or act on a desktop GUI:
   click buttons, fill forms, read UI state, navigate menus, toggle checkboxes, scroll,
   drag, type text, press shortcuts, take screenshots, manage windows, use the clipboard,
@@ -12,21 +12,21 @@ description: >
   Triggers on: "click button", "fill form", "open app", "read UI", "computer use",
   "operate desktop", "accessibility tree", "snapshot app", "type into field", "navigate menu",
   "toggle checkbox", "take screenshot", "desktop automation", "agent-desktop",
-  or any desktop GUI task on macOS, Windows or Linux.
+  or any Windows desktop GUI task.
 ---
 
 # agent-desktop
 
-agent-desktop is a CLI that reads and operates desktop apps through the OS accessibility tree. Every command prints one JSON envelope (`ok`, `data` or `error`). It is a tool, not an agent: the observe, act and verify loop runs in you.
+agent-desktop is a CLI that reads and operates Windows apps through UI Automation. Every command prints one JSON envelope (`ok`, `data` or `error`). It is a tool, not an agent: the observe, act and verify loop runs in you.
 
 ## Shell syntax
 
-Examples use a POSIX shell. In PowerShell, quote every ref (`'@s8f3k2p9:e1'`), because a bare `@token` is the splatting operator. Use `$env:NAME = 'value'` instead of `export`, and `| ConvertFrom-Json` instead of `$(...)` and `jq`. The Windows skill has the PowerShell forms.
+Examples use a POSIX shell such as Git Bash. In PowerShell, quote every ref (`'@s8f3k2p9:e1'`), because a bare `@token` is the splatting operator. Use `$env:NAME = 'value'` instead of `export`, and `| ConvertFrom-Json` instead of `$(...)` and `jq`. The Windows skill has the PowerShell forms.
 
 ## First run
 
 1. Run `agent-desktop status`. It reports the platform, permissions and `supported_surfaces`.
-2. Run `agent-desktop skills get platform`. It loads the skill for the OS the binary runs on (macOS, Windows or Linux).
+2. Run `agent-desktop skills get platform`. It loads the Windows skill.
 3. For flags and syntax, run `agent-desktop <command> --help`. This skill does not repeat flag lists.
 
 ## The loop
@@ -34,14 +34,14 @@ Examples use a POSIX shell. In PowerShell, quote every ref (`'@s8f3k2p9:e1'`), b
 Use `find` when you know the role or exact name. Otherwise map the app first and drill into one region.
 
 ```
-agent-desktop snapshot --skeleton --app "Notes" -i --compact   # shallow map, children_count on cut branches
+agent-desktop snapshot --skeleton --app notepad.exe -i --compact   # shallow map, children_count on cut branches
 agent-desktop snapshot --root @s8f3k2p9:e3 -i --compact        # drill into one region
 agent-desktop click @s8f3k2p9:e12                              # act on a qualified ref
 agent-desktop snapshot --root @s8f3k2p9:e3 -i --compact        # verify: re-read the same region
 ```
 
 - A small app needs no skeleton. Take a full `snapshot -i`.
-- `-i` keeps interactive nodes only, so a row's static-text label is dropped. To tell which row a repeated button belongs to, drill that row's container with `--root` and leave out `-i`. On Windows and Linux that reads the row but does not make its button actionable: a button repeated in other rows is a twin in the window and its ref is refused (see Refs).
+- `-i` keeps interactive nodes only, so a row's static-text label is dropped. To tell which row a repeated button belongs to, drill that row's container with `--root` and leave out `-i`. That reads the row but does not make its button actionable: a button repeated in other rows is a twin in the window and its ref is refused (see Refs).
 - A `--root` drill adds its refs to the same snapshot id. Refs outside the drilled subtree, and the drilled root itself, stay valid; refs that were already inside it are replaced, so an old ref there returns `STALE_REF`.
 - Never skeleton a surface (`--surface menu`, `sheet`, `alert`). A surface is already focused.
 - An action that opens a menu, sheet or alert lists it in `data.surfaces`. Target that overlay next.
@@ -52,8 +52,8 @@ agent-desktop snapshot --root @s8f3k2p9:e3 -i --compact        # verify: re-read
 - Output refs are qualified: `@<snapshot_id>:e<N>`, for example `@s8f3k2p9:e1`. Pass them to later commands as they are.
 - Refs are valid for one snapshot. After any UI change, re-drill the affected region or take a new snapshot.
 - Only addressable elements get refs. Static text and inert containers do not.
-- A command re-identifies the element before it acts. On macOS the ref carries the element's own address, so identical twins each keep their ref. On Windows and Linux a ref resolves only when it was the only element in the window its snapshot captured with its role, native id, name and description, counted even below a skeleton or depth cut, and exactly one live element still matches. Identical twins there have no ref path: only `--headed mouse-click --xy X,Y` can choose one, it takes the foreground, and a Linux Wayland session refuses it.
-- `STALE_REF`: the element is gone or no longer matches. `details.kind` is `saved_ref_absent`, or `retained_object_stale` on macOS. Take a fresh snapshot and use the new ref.
+- A command re-identifies the element before it acts. A ref resolves only when it was the only element in the window its snapshot captured with its role, native id, name and description, counted even below a skeleton or depth cut, and exactly one live element still matches. Identical twins have no ref path: only `--headed mouse-click --xy X,Y` can choose one, and it takes the foreground.
+- `STALE_REF`: the element is gone or no longer matches. `details.kind` is `saved_ref_absent`. Take a fresh snapshot and use the new ref.
 - `AMBIGUOUS_TARGET`: an identical element appeared (`saved_ref_ambiguous`), or the ref was not proven unique at capture (`identity_not_unique`). Repeating the ref or re-snapshotting identical twins gives the same refusal; act on a control that is unique in the window. `identity_not_unique` also follows a snapshot that could not read the whole window in time: retake it with a larger `--timeout-ms`.
 - `TIMEOUT` with `details.kind: resolution_identity_unknown`: a live read did not answer, so identity is unproven. Nothing was sent; retry.
 - `SNAPSHOT_NOT_FOUND`: the snapshot id expired. Snapshot again.
@@ -70,7 +70,7 @@ Action results carry `data.disposition` and errors carry `error.disposition`, ea
 
 ## Execution policy
 
-A restrictive environment policy is checked before any command reaches an application. `AGENT_DESKTOP_READ_ONLY=1` refuses mutating commands with `POLICY_DENIED`; `AGENT_DESKTOP_ALLOWED_COMMANDS=a,b,c` admits only those names and disables `batch`; `AGENT_DESKTOP_AUDIT_LOG` appends one JSON line per command with time, name, `ok`, error code and duration, without arguments or output. An invalid policy value is `INVALID_ARGS` and nothing runs. The policy is per process, so start and use the same environment deliberately; do not unset it to recover from a refusal.
+A restrictive environment policy is checked before any command reaches an application. `AGENT_DESKTOP_READ_ONLY=1` refuses every command that changes an application, the desktop, the clipboard, a session or a sandbox with `POLICY_DENIED`, including `batch` and every `session` action except `session list`. Observation commands still run (`snapshot`, `find`, `get`, `is`, `wait`, the `list-*` commands, `status`, and `permissions` without `--request`), as do the three that only write a file you name: `screenshot PATH`, `clipboard-get --out` and `trace export`. `AGENT_DESKTOP_ALLOWED_COMMANDS=a,b,c` admits only those names and disables `batch`; `AGENT_DESKTOP_AUDIT_LOG` takes an absolute path and appends one JSON line per command with time, name, `ok`, error code and duration, without arguments or output. An invalid policy value is `INVALID_ARGS` and nothing runs. The policy is per process, so start and use the same environment deliberately; do not unset it to recover from a refusal.
 
 ## Headless and headed
 
@@ -78,39 +78,8 @@ Ref actions are headless by default. They use semantic accessibility calls and d
 
 ## Sandboxes
 
-A sandbox is a desktop a provider manages on your machine. The provider is `macos`: a macOS VM on an Apple Silicon Mac running macOS 13 or later. Linux and Windows have no provider; to run agent-desktop in a container you manage yourself there, follow `agent-browser.dev/desktop/guides/docker-container`.
-
-```sh
-agent-desktop sandbox install                          # report the provider's state
-agent-desktop sandbox install macos                    # compile and sign the VM host, then report ready
-```
-
-```sh
-agent-desktop sandbox create demo --provider macos --set from=base   # clone a set-up sandbox; or --set ipsw=latest to install
-agent-desktop sandbox start demo                       # start it headless; add --window to show its desktop
-agent-desktop sandbox status demo                      # state, message and next command
-agent-desktop sandbox list                             # every sandbox and its state
-agent-desktop sandbox exec demo -- status              # run a command in the guest
-agent-desktop sandbox stop demo                        # stop the sandbox
-agent-desktop sandbox rm demo                          # remove it
-```
-
-Names are 1–32 lowercase letters, digits or hyphens, starting with a letter or digit. `exec` returns the guest's envelope and exit status; a provider failure returns a host error. `rm` refuses a sandbox reported as `running`; stop it first. `create` needs exactly one source: `--set from=<sandbox>`, `--set ipsw=latest` or `--set ipsw=<path>`. `start` answers `working` until the guest answers; wait for `status` to report `running` before `exec`.
-
-Read `state`, `message` and optional `next`; `ok: true` alone does not mean the sandbox is ready.
-
-- `unavailable`: satisfy the host requirements in `message` and `next`.
-- `missing`: install the provider.
-- `ready`: create a sandbox.
-- `working`: repeat the command in `next` until the work finishes.
-- `needs_setup`: have a person complete guest setup, then check status.
-- `running`: run guest commands, or stop before removal.
-- `stopped`: start the sandbox to use it, or remove it.
-- `broken`: follow `next`; a broken sandbox may need removal.
-
-A sandbox separates the desktop, not the network or the host. Sandboxes on one host share a virtual network, and a guest can reach the host's network services; keep one trust level per host. Each sandbox has its own pinned SSH host key, so a guest cannot answer for another sandbox. The SSH key under `<state root>/sandboxes/<name>/` is the guest credential, and in the guest Accessibility belongs to `sshd-keygen-wrapper` for the whole user session.
-
-Cloning a configured macOS VM has been tested end to end. Installing the first VM from a macOS image is experimental and has not been verified end to end. Provider setup steps and limits are in the docs: `agent-browser.dev/desktop/sandboxes/macos`.
+This build registers no sandbox provider. `sandbox list` returns an empty list, and the provider commands report that
+no provider is available. To isolate a desktop, use a container, virtual machine or CI runner outside agent-desktop.
 
 ## References
 

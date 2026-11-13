@@ -13,9 +13,7 @@ use crate::connection::get_socket_dir;
 /// A file stored in the socket directory as `<session>.<extension>`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SessionFile {
-    /// Unix domain socket the daemon listens on (Unix only).
-    Socket,
-    /// TCP port the daemon listens on (Windows only).
+    /// TCP port the daemon listens on.
     Port,
     /// Daemon pid. Also tells which daemon owns the other files.
     Pid,
@@ -43,7 +41,6 @@ pub enum SessionFile {
 impl SessionFile {
     /// Every session file. Keep in sync when adding a variant.
     pub const ALL: &'static [SessionFile] = &[
-        SessionFile::Socket,
         SessionFile::Port,
         SessionFile::Pid,
         SessionFile::Version,
@@ -59,7 +56,6 @@ impl SessionFile {
 
     pub fn extension(self) -> &'static str {
         match self {
-            SessionFile::Socket => "sock",
             SessionFile::Port => "port",
             SessionFile::Pid => "pid",
             SessionFile::Version => "version",
@@ -77,8 +73,7 @@ impl SessionFile {
     /// Whether the file only describes a running daemon and is removed with it.
     pub fn is_daemon_file(self) -> bool {
         match self {
-            SessionFile::Socket
-            | SessionFile::Port
+            SessionFile::Port
             | SessionFile::Pid
             | SessionFile::Version
             | SessionFile::Config

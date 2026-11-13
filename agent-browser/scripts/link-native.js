@@ -9,20 +9,15 @@
  */
 
 import {
-  chmodSync,
   copyFileSync,
-  existsSync,
   linkSync,
-  lstatSync,
   readFileSync,
-  realpathSync,
   renameSync,
   rmSync,
-  symlinkSync,
+  realpathSync,
   writeFileSync,
 } from 'fs';
 import { basename, dirname, join, relative, resolve } from 'path';
-import { platform } from 'os';
 
 /**
  * Ensures the binary lives in this package's own bin/ directory and returns
@@ -42,7 +37,6 @@ export function materializeBinary(packageRoot, binary, target) {
     } catch {
       copyFileSync(binary, staged);
     }
-    if (platform() !== 'win32') chmodSync(staged, 0o755);
     renameSync(staged, destination);
   } finally {
     rmSync(staged, { force: true });
@@ -69,57 +63,6 @@ function sameFile(a, b) {
   } catch {
     return false;
   }
-}
-
-function isLauncherSymlink(entry, launcher) {
-  try {
-    return lstatSync(entry).isSymbolicLink() && sameFile(entry, launcher);
-  } catch {
-    return false;
-  }
-}
-
-// npm, yarn and bun link bin entries as symlinks on macOS and Linux.
-function relinkSymlink(entry, binary) {
-  const staged = join(dirname(entry), `.${basename(entry)}-${process.pid}`);
-  try {
-    symlinkSync(binary, staged);
-    renameSync(staged, entry);
-    return true;
-  } catch {
-    rmSync(staged, { force: true });
-    return false;
-  }
-}
-
-function shellQuote(value) {
-  return `'${value.replace(/'/g, `'\\''`)}'`;
-}
-
-/**
- * pnpm writes a shell shim that runs `node <launcher>`, named in a
- * `# cmd-shim-target=` comment. The comment is kept so pnpm still recognizes
- * the shim as its own when it updates or removes the package.
- */
-export function pnpmShimPaths(invokedPath) {
-  const match = invokedPath.match(
-    /^(.*)[\\/]global[\\/][^\\/]+[\\/](?:[^\\/]+[\\/])?node_modules[\\/]agent-browser[\\/]bin[\\/]agent-browser\.js$/,
-  );
-  if (!match) return [];
-  return [join(match[1], 'bin', 'agent-browser'), join(match[1], 'agent-browser')];
-}
-
-function relinkPnpmShim(shim, launcher, binary) {
-  let content;
-  try {
-    content = readFileSync(shim, 'utf8');
-  } catch {
-    return false;
-  }
-  const declared = content.match(/^# cmd-shim-target=(.+)$/m)?.[1];
-  if (!declared || !sameFile(declared, launcher)) return false;
-  const marker = `# cmd-shim-target=${declared}`;
-  return replaceFile(shim, `#!/bin/sh\n${marker}\nexec ${shellQuote(binary)} "$@"\n`, { mode: 0o755 });
 }
 
 /** Returns the launcher path an npm Windows shim runs, or null. */
@@ -183,43 +126,11 @@ function relinkWindowsShims(packageRoot, linked) {
  * - packageRoot: this package's directory (real path)
  * - binary: the native binary found by findNativeBinary
  * - target: the nativeTarget for this host
- * - entries: paths that may be symlinks to the launcher, pnpm shims, or the
- *   launcher .js a pnpm shim runs (e.g. process.argv[1])
+ * - entries: paths that may be the launcher .js a package-manager shim runs
  *
  * Returns true when at least one entry now runs the native binary.
  */
-export function linkNative({ packageRoot, binary, target, entries = [] }) {
-  const launcher = join(packageRoot, 'bin', 'agent-browser.js');
+export function linkNative({ packageRoot, binary, target }) {
   const linked = () => materializeBinary(packageRoot, binary, target);
-
-  if (platform() === 'win32') {
-    return relinkWindowsShims(packageRoot, linked);
-  }
-
-  let changed = false;
-  for (const entry of entries) {
-    if (isLauncherSymlink(entry, launcher)) {
-      try {
-        changed = relinkSymlink(entry, linked()) || changed;
-      } catch {
-        // Read-only or root-owned install: keep using the launcher.
-      }
-    }
-    for (const shim of [entry, ...pnpmShimPaths(entry)]) {
-      try {
-        changed = relinkPnpmShim(shim, launcher, realpathSafe(linked())) || changed;
-      } catch {
-        // Read-only or root-owned install: keep using the launcher.
-      }
-    }
-  }
-  return changed;
-}
-
-function realpathSafe(path) {
-  try {
-    return realpathSync(path);
-  } catch {
-    return path;
-  }
+  return relinkWindowsShims(packageRoot, linked);
 }

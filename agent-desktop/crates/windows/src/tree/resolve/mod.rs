@@ -62,8 +62,8 @@ pub(crate) fn retry_incomplete_until(
 /// retryable, incomplete read. A provider's own `UIA_E_TIMEOUT` classifies
 /// `Timeout` and is one of those - it is a per-call transport timeout inside
 /// the operation's budget, not the budget running out. Deadline exhaustion
-/// carries no retryable stamp, so it still falls through to the caller. Mirrors macOS
-/// (`is_retryable_resolution_error` in `crates/macos/src/tree/resolve/mod.rs`); the granularity split between adapter-loop-settled
+/// carries no retryable stamp, so it still falls through to the caller. The
+/// granularity split between adapter-loop-settled
 /// and incomplete lives in the `complete`/`retryable` details every resolver
 /// error carries.
 #[cfg(target_os = "windows")]
@@ -87,8 +87,7 @@ pub(crate) use agent_desktop_core::refs::resolve_errors::mark_deadline_elapsed;
 /// reconstructed and put through the same stored-evidence rule
 /// (`WindowIdentityEvidence::verify_stored`) the listing path uses, so the
 /// live owner of the handle, not merely the liveness of the stored pid,
-/// decides whether the window is still the ref's window. The macOS resolver
-/// verifies its window record before searching in the same position. A
+/// decides whether the window is still the ref's window. A
 /// token-less ref (elevated process whose token could not be read) yields no
 /// evidence and fails closed here rather than searching an unverified window.
 ///

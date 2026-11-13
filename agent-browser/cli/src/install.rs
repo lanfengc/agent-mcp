@@ -2,7 +2,7 @@ use crate::color;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
-use std::process::{exit, Command, ExitStatus, Stdio};
+use std::process::exit;
 
 const LAST_KNOWN_GOOD_URL: &str =
     "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json";
@@ -99,161 +99,22 @@ pub fn find_installed_chrome() -> Option<PathBuf> {
 }
 
 fn chrome_binary_in_dir(dir: &Path) -> Option<PathBuf> {
-    #[cfg(target_os = "macos")]
-    {
-        let app =
-            dir.join("Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing");
-        if app.exists() {
-            return Some(app);
-        }
-        let inner = dir.join("chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing");
-        if inner.exists() {
-            return Some(inner);
-        }
-        let inner_x64 = dir.join(
-            "chrome-mac-x64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
-        );
-        if inner_x64.exists() {
-            return Some(inner_x64);
-        }
-        None
+    let bin = dir.join("chrome.exe");
+    if bin.exists() {
+        return Some(bin);
     }
-
-    #[cfg(target_os = "linux")]
-    {
-        let bin = dir.join("chrome");
-        if bin.exists() {
-            return Some(bin);
-        }
-        let inner = dir.join("chrome-linux64/chrome");
-        if inner.exists() {
-            return Some(inner);
-        }
-        None
+    let inner = dir.join("chrome-win64/chrome.exe");
+    if inner.exists() {
+        return Some(inner);
     }
-
-    #[cfg(target_os = "windows")]
-    {
-        let bin = dir.join("chrome.exe");
-        if bin.exists() {
-            return Some(bin);
-        }
-        let inner = dir.join("chrome-win64/chrome.exe");
-        if inner.exists() {
-            return Some(inner);
-        }
-        None
-    }
-
-    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
-    {
-        None
-    }
+    None
 }
 
 fn platform_key() -> &'static str {
-    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-    {
-        "mac-arm64"
-    }
-    #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-    {
-        "mac-x64"
-    }
-    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-    {
-        "linux64"
-    }
-    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
-    {
-        "win64"
-    }
-    #[cfg(not(any(
-        all(target_os = "macos", target_arch = "aarch64"),
-        all(target_os = "macos", target_arch = "x86_64"),
-        all(target_os = "linux", target_arch = "x86_64"),
-        all(target_os = "windows", target_arch = "x86_64"),
-    )))]
-    {
-        // Compiles on unsupported platforms (e.g. linux aarch64) so the binary
-        // can still be used for other commands like `connect`. The install path
-        // guards against this at runtime before calling platform_key().
-        panic!("Unsupported platform for Chrome for Testing download")
-    }
-}
-
-#[cfg(any(target_os = "macos", test))]
-fn validate_macos_version(version: &str) -> Result<(), String> {
-    let parts = version.split('.').collect::<Vec<_>>();
-    let parts = parts
-        .iter()
-        .map(|part| {
-            if part.is_empty() || !part.bytes().all(|byte| byte.is_ascii_digit()) {
-                return Err(());
-            }
-            part.parse::<u32>().map_err(|_| ())
-        })
-        .collect::<Result<Vec<_>, _>>()
-        .ok()
-        .filter(|parts| matches!(parts.len(), 2 | 3))
-        .ok_or_else(|| {
-            format!(
-                "Could not parse macOS version `{}`. Expected a numeric version such as 13.0.0.",
-                version
-            )
-        })?;
-
-    if parts[0] < 13 {
-        return Err(format!(
-            "Chrome installation requires macOS 13 or newer; detected macOS {}. Update macOS or install Chrome manually from https://www.google.com/chrome/.",
-            version
-        ));
-    }
-
-    Ok(())
-}
-
-#[cfg(target_os = "macos")]
-fn check_macos_version() -> Result<(), String> {
-    let output = Command::new("sw_vers")
-        .arg("-productVersion")
-        .output()
-        .map_err(|e| {
-            format!(
-                "Could not run `sw_vers -productVersion`: {}. Ensure macOS system utilities are available.",
-                e
-            )
-        })?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let detail = if stderr.trim().is_empty() {
-            String::new()
-        } else {
-            format!(": {}", stderr.trim())
-        };
-        return Err(format!(
-            "`sw_vers -productVersion` failed with {}{}. Ensure it succeeds to detect the macOS version.",
-            output.status, detail
-        ));
-    }
-
-    let version = String::from_utf8_lossy(&output.stdout);
-    let version = version.trim();
-    if version.is_empty() {
-        return Err(
-            "`sw_vers -productVersion` returned no version. Ensure it prints a version such as 13.0.0."
-                .to_string(),
-        );
-    }
-
-    validate_macos_version(version)
+    "win64"
 }
 
 async fn fetch_download_url() -> Result<(String, String), String> {
-    #[cfg(target_os = "macos")]
-    check_macos_version()?;
-
     let client = http_client()?;
     let resp = client
         .get(LAST_KNOWN_GOOD_URL)
@@ -454,48 +315,13 @@ fn extract_zip(bytes: Vec<u8>, dest: &Path) -> Result<(), String> {
                 .map_err(|e| format!("Failed to create file {}: {}", out_path.display(), e))?;
             io::copy(&mut file, &mut out_file)
                 .map_err(|e| format!("Failed to write {}: {}", out_path.display(), e))?;
-
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                if let Some(mode) = file.unix_mode() {
-                    let _ = fs::set_permissions(&out_path, fs::Permissions::from_mode(mode));
-                }
-            }
         }
     }
 
     Ok(())
 }
 
-pub fn run_install(with_deps: bool) {
-    if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
-        eprintln!(
-            "{} Chrome for Testing does not provide Linux ARM64 builds.",
-            color::error_indicator()
-        );
-        eprintln!("  Install Chromium from your system package manager instead:");
-        eprintln!("    sudo apt install chromium-browser   # Debian/Ubuntu");
-        eprintln!("    sudo dnf install chromium            # Fedora");
-        eprintln!("  Then use: agent-browser --executable-path /usr/bin/chromium");
-        exit(1);
-    }
-
-    let is_linux = cfg!(target_os = "linux");
-
-    if is_linux {
-        if with_deps {
-            install_linux_deps();
-        } else {
-            println!(
-                "{} Linux detected. If browser fails to launch, run:",
-                color::warning_indicator()
-            );
-            println!("  agent-browser install --with-deps");
-            println!();
-        }
-    }
-
+pub fn run_install() {
     println!("{}", color::cyan("Installing Chrome..."));
 
     let rt = tokio::runtime::Builder::new_current_thread()
@@ -550,15 +376,6 @@ pub fn run_install(with_deps: bool) {
                 version
             );
             println!("  Location: {}", dest.display());
-
-            if is_linux && !with_deps {
-                println!();
-                println!(
-                    "{} If you see \"shared library\" errors when running, use:",
-                    color::yellow("Note:")
-                );
-                println!("  agent-browser install --with-deps");
-            }
         }
         Err(e) => {
             let _ = fs::remove_dir_all(&dest);
@@ -568,406 +385,11 @@ pub fn run_install(with_deps: bool) {
     }
 }
 
-fn install_status_result(status: io::Result<ExitStatus>) -> Result<(), String> {
-    match status {
-        Ok(s) if s.success() => Ok(()),
-        Ok(s) => Err(format!(
-            "dependency install command failed with exit code {}",
-            s.code()
-                .map(|c| c.to_string())
-                .unwrap_or_else(|| "unknown".to_string())
-        )),
-        Err(e) => Err(format!("could not run install command: {}", e)),
-    }
-}
-
-fn report_install_status(status: io::Result<ExitStatus>) {
-    match install_status_result(status) {
-        Ok(()) => {
-            println!(
-                "{} System dependencies installed",
-                color::success_indicator()
-            )
-        }
-        Err(e) => {
-            eprintln!(
-                "{} Failed to install system dependencies: {}",
-                color::error_indicator(),
-                e
-            );
-            eprintln!("  Install the missing packages manually or retry with a supported package manager.");
-            exit(1);
-        }
-    }
-}
-
-fn apt_dependency_specs() -> Vec<(&'static str, Option<&'static str>)> {
-    vec![
-        ("libxcb-shm0", None),
-        ("libx11-xcb1", None),
-        ("libx11-6", None),
-        ("libxcb1", None),
-        ("libxext6", None),
-        ("libxrandr2", None),
-        ("libxcomposite1", None),
-        ("libxcursor1", None),
-        ("libxdamage1", None),
-        ("libxfixes3", None),
-        ("libxi6", None),
-        ("libgtk-3-0", Some("libgtk-3-0t64")),
-        ("libpangocairo-1.0-0", Some("libpangocairo-1.0-0t64")),
-        ("libpango-1.0-0", Some("libpango-1.0-0t64")),
-        ("libatk1.0-0", Some("libatk1.0-0t64")),
-        ("libcairo-gobject2", Some("libcairo-gobject2t64")),
-        ("libcairo2", Some("libcairo2t64")),
-        ("libgdk-pixbuf-2.0-0", Some("libgdk-pixbuf-2.0-0t64")),
-        ("libxrender1", None),
-        ("libasound2", Some("libasound2t64")),
-        ("libfreetype6", None),
-        ("libfontconfig1", None),
-        ("libdbus-1-3", Some("libdbus-1-3t64")),
-        ("libnss3", None),
-        ("libnss3-tools", None),
-        ("libnspr4", None),
-        ("libatk-bridge2.0-0", Some("libatk-bridge2.0-0t64")),
-        ("libdrm2", None),
-        ("libxkbcommon0", None),
-        ("libatspi2.0-0", Some("libatspi2.0-0t64")),
-        ("libcups2", Some("libcups2t64")),
-        ("libxshmfence1", None),
-        ("libgbm1", None),
-        // Fonts: without actual font files, pages render with missing glyphs
-        // (tofu). This is especially visible for CJK and emoji characters.
-        ("fonts-noto-color-emoji", None),
-        ("fonts-noto-cjk", None),
-        ("fonts-freefont-ttf", None),
-    ]
-}
-
-fn resolve_apt_deps_with<F>(mut package_exists: F) -> Vec<&'static str>
-where
-    F: FnMut(&str) -> bool,
-{
-    apt_dependency_specs()
-        .into_iter()
-        .map(|(base, t64_variant)| {
-            if let Some(t64) = t64_variant {
-                if package_exists(t64) {
-                    return t64;
-                }
-            }
-            base
-        })
-        .collect()
-}
-
-fn resolve_apt_deps() -> Vec<&'static str> {
-    resolve_apt_deps_with(package_exists_apt)
-}
-
-fn dnf_dependencies() -> Vec<&'static str> {
-    vec![
-        "nss",
-        "nss-tools",
-        "nspr",
-        "atk",
-        "at-spi2-atk",
-        "cups-libs",
-        "libdrm",
-        "libXcomposite",
-        "libXdamage",
-        "libXrandr",
-        "mesa-libgbm",
-        "pango",
-        "alsa-lib",
-        "libxkbcommon",
-        "libxcb",
-        "libX11-xcb",
-        "libX11",
-        "libXext",
-        "libXcursor",
-        "libXfixes",
-        "libXi",
-        "gtk3",
-        "cairo-gobject",
-        "google-noto-cjk-fonts",
-        "google-noto-emoji-color-fonts",
-        "liberation-fonts",
-    ]
-}
-
-fn yum_dependencies() -> Vec<&'static str> {
-    vec![
-        "nss",
-        "nss-tools",
-        "nspr",
-        "atk",
-        "at-spi2-atk",
-        "cups-libs",
-        "libdrm",
-        "libXcomposite",
-        "libXdamage",
-        "libXrandr",
-        "mesa-libgbm",
-        "pango",
-        "alsa-lib",
-        "libxkbcommon",
-        "google-noto-cjk-fonts",
-        "liberation-fonts",
-    ]
-}
-
-fn install_linux_deps() {
-    println!("{}", color::cyan("Installing system dependencies..."));
-
-    let (pkg_mgr, deps) = if which_exists("apt-get") {
-        // Run apt-get update before resolving t64 package variants. Fresh
-        // sandbox images may have no local package index yet, which would
-        // make apt-cache miss packages that are actually available.
-        println!("Running: {}apt-get update", privilege_prefix());
-        let update_status =
-            privileged_command("apt-get").and_then(|mut command| command.arg("update").status());
-
-        match update_status {
-            Ok(s) if !s.success() => {
-                eprintln!(
-                    "{} apt-get update failed. Continuing with existing package lists.",
-                    color::warning_indicator()
-                );
-            }
-            Err(e) => {
-                eprintln!(
-                    "{} Could not run apt-get update: {}",
-                    color::warning_indicator(),
-                    e
-                );
-            }
-            _ => {}
-        }
-
-        // On Ubuntu 24.04+, many libraries were renamed with a t64 suffix as
-        // part of the 64-bit time_t transition. Using the old names can cause
-        // apt to propose removing packages or fail on images where only the
-        // t64 package exists.
-        ("apt-get", resolve_apt_deps())
-    } else if which_exists("dnf") {
-        ("dnf", dnf_dependencies())
-    } else if which_exists("yum") {
-        ("yum", yum_dependencies())
-    } else {
-        eprintln!(
-            "{} No supported package manager found (apt-get, dnf, or yum)",
-            color::error_indicator()
-        );
-        exit(1);
-    };
-
-    if pkg_mgr == "apt-get" {
-        // Simulate the install first to detect if apt would remove any
-        // packages. This prevents the catastrophic scenario where installing
-        // these libraries triggers removal of hundreds of system packages
-        // due to dependency conflicts (e.g. on Ubuntu 24.04 with the
-        // t64 transition).
-        println!("Checking for conflicts...");
-        let sim_output = privileged_command("apt-get")
-            .and_then(|mut command| command.args(["install", "--simulate"]).args(&deps).output());
-
-        match sim_output {
-            Ok(output) => {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                let combined = format!("{}\n{}", stdout, stderr);
-
-                if !output.status.success() {
-                    eprintln!(
-                        "{} Aborting: apt could not install the required browser dependencies.",
-                        color::error_indicator()
-                    );
-                    if !stdout.trim().is_empty() {
-                        eprintln!("{}", stdout.trim());
-                    }
-                    if !stderr.trim().is_empty() {
-                        eprintln!("{}", stderr.trim());
-                    }
-                    eprintln!();
-                    eprintln!("  To install dependencies manually, run:");
-                    eprintln!(
-                        "    {}apt-get install {}",
-                        privilege_prefix(),
-                        deps.join(" ")
-                    );
-                    exit(1);
-                }
-
-                // Count packages that would be removed
-                let removals: Vec<&str> = combined
-                    .lines()
-                    .filter(|line| line.starts_with("Remv "))
-                    .collect();
-
-                if !removals.is_empty() {
-                    eprintln!(
-                        "{} Aborting: apt would remove {} package(s) to install these dependencies.",
-                        color::error_indicator(),
-                        removals.len()
-                    );
-                    eprintln!(
-                        "  This usually means some package names have changed on your system"
-                    );
-                    eprintln!("  (e.g. Ubuntu 24.04 renamed libraries with a t64 suffix).");
-                    eprintln!();
-                    eprintln!("  Packages that would be removed:");
-                    for line in removals.iter().take(20) {
-                        eprintln!("    {}", line);
-                    }
-                    if removals.len() > 20 {
-                        eprintln!("    ... and {} more", removals.len() - 20);
-                    }
-                    eprintln!();
-                    eprintln!("  To install dependencies manually, run:");
-                    eprintln!(
-                        "    {}apt-get install {}",
-                        privilege_prefix(),
-                        deps.join(" ")
-                    );
-                    eprintln!();
-                    eprintln!("  Review the apt output carefully before confirming.");
-                    exit(1);
-                }
-            }
-            Err(e) => {
-                eprintln!(
-                    "{} Could not simulate install ({}). Proceeding with caution.",
-                    color::warning_indicator(),
-                    e
-                );
-            }
-        }
-
-        // Safe to proceed: no removals detected
-        let install_cmd = format!(
-            "{}apt-get install -y {}",
-            privilege_prefix(),
-            deps.join(" ")
-        );
-        println!("Running: {}", install_cmd);
-        let status = privileged_command("apt-get")
-            .and_then(|mut command| command.args(["install", "-y"]).args(&deps).status());
-
-        report_install_status(status);
-    } else {
-        // dnf / yum path — these package managers do not remove packages
-        // during install, so the simulate-first guard is not needed.
-        let install_cmd = format!(
-            "{}{} install -y {}",
-            privilege_prefix(),
-            pkg_mgr,
-            deps.join(" ")
-        );
-        println!("Running: {}", install_cmd);
-        let status = privileged_command(pkg_mgr)
-            .and_then(|mut command| command.args(["install", "-y"]).args(&deps).status());
-
-        report_install_status(status);
-    }
-}
-
-fn privilege_prefix() -> &'static str {
-    if is_root() {
-        ""
-    } else {
-        "sudo "
-    }
-}
-
-fn is_root() -> bool {
-    #[cfg(unix)]
-    {
-        unsafe { libc::geteuid() == 0 }
-    }
-    #[cfg(not(unix))]
-    {
-        false
-    }
-}
-
-fn privileged_command(pkg_mgr: &str) -> io::Result<Command> {
-    let running_as_root = is_root();
-    privileged_command_with(
-        running_as_root,
-        running_as_root || which_exists("sudo"),
-        pkg_mgr,
-    )
-}
-
-fn privileged_command_with(is_root: bool, has_sudo: bool, pkg_mgr: &str) -> io::Result<Command> {
-    if is_root {
-        return Ok(Command::new(pkg_mgr));
-    }
-    if has_sudo {
-        let mut command = Command::new("sudo");
-        command.arg(pkg_mgr);
-        return Ok(command);
-    }
-    Err(io::Error::new(
-        io::ErrorKind::PermissionDenied,
-        "installing system dependencies requires root privileges or sudo",
-    ))
-}
-
-fn which_exists(cmd: &str) -> bool {
-    #[cfg(unix)]
-    {
-        Command::new("which")
-            .arg(cmd)
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .map(|s| s.success())
-            .unwrap_or(false)
-    }
-    #[cfg(windows)]
-    {
-        Command::new("where")
-            .arg(cmd)
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .map(|s| s.success())
-            .unwrap_or(false)
-    }
-}
-
-fn package_exists_apt(pkg: &str) -> bool {
-    Command::new("apt-cache")
-        .arg("show")
-        .arg(pkg)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
-
-    fn failed_exit_status() -> ExitStatus {
-        #[cfg(unix)]
-        {
-            use std::os::unix::process::ExitStatusExt;
-            ExitStatus::from_raw(1 << 8)
-        }
-
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::ExitStatusExt;
-            ExitStatus::from_raw(1)
-        }
-    }
 
     fn http_response(status: u16, reason: &str, body: &[u8]) -> Vec<u8> {
         let header = format!(
@@ -995,104 +417,6 @@ mod tests {
         let request = String::from_utf8_lossy(&buf[..n]).to_string();
         s.write_all(response).await.unwrap();
         request
-    }
-
-    #[test]
-    fn validate_macos_version_checks_minimum_and_rejects_malformed_versions() {
-        assert!(validate_macos_version("12.7.6")
-            .unwrap_err()
-            .contains("13 or newer"));
-        assert!(validate_macos_version("13.0.0").is_ok());
-        assert!(validate_macos_version("15.4").is_ok());
-        assert!(validate_macos_version("26.1").is_ok());
-        for malformed in ["", "15.", ".4", "15.4.1.2", "not.a.version"] {
-            assert!(validate_macos_version(malformed)
-                .unwrap_err()
-                .contains("Could not parse macOS version"));
-        }
-    }
-
-    #[test]
-    fn resolve_apt_deps_prefers_available_t64_variants() {
-        let deps = resolve_apt_deps_with(|pkg| matches!(pkg, "libasound2t64" | "libgtk-3-0t64"));
-
-        assert!(deps.contains(&"libasound2t64"));
-        assert!(!deps.contains(&"libasound2"));
-        assert!(deps.contains(&"libgtk-3-0t64"));
-        assert!(!deps.contains(&"libgtk-3-0"));
-        assert!(deps.contains(&"libnss3"));
-        assert!(deps.contains(&"libnss3-tools"));
-    }
-
-    #[test]
-    fn resolve_apt_deps_falls_back_to_base_names_when_t64_missing() {
-        let deps = resolve_apt_deps_with(|_| false);
-
-        assert!(deps.contains(&"libasound2"));
-        assert!(!deps.contains(&"libasound2t64"));
-        assert!(deps.contains(&"libgtk-3-0"));
-        assert!(!deps.contains(&"libgtk-3-0t64"));
-        assert!(deps.contains(&"libnss3-tools"));
-    }
-
-    #[test]
-    fn rpm_dependencies_include_certutil() {
-        assert!(dnf_dependencies().contains(&"nss-tools"));
-        assert!(yum_dependencies().contains(&"nss-tools"));
-    }
-
-    #[test]
-    fn privileged_command_runs_package_manager_directly_as_root() {
-        let command = privileged_command_with(true, false, "apt-get").unwrap();
-        assert_eq!(command.get_program(), "apt-get");
-        assert_eq!(command.get_args().count(), 0);
-    }
-
-    #[test]
-    fn privileged_command_uses_sudo_for_non_root() {
-        let command = privileged_command_with(false, true, "dnf").unwrap();
-        assert_eq!(command.get_program(), "sudo");
-        assert_eq!(command.get_args().collect::<Vec<_>>(), ["dnf"]);
-    }
-
-    #[test]
-    fn privileged_command_errors_when_sudo_is_unavailable() {
-        let error = privileged_command_with(false, false, "apt-get").unwrap_err();
-        assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
-        assert!(error.to_string().contains("root privileges or sudo"));
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn privileged_command_uses_current_process_privileges() {
-        match privileged_command("apt-get") {
-            Ok(command) if is_root() => assert_eq!(command.get_program(), "apt-get"),
-            Ok(command) => {
-                assert_eq!(command.get_program(), "sudo");
-                assert_eq!(
-                    command.get_args().next(),
-                    Some(std::ffi::OsStr::new("apt-get"))
-                );
-            }
-            Err(error) => {
-                assert!(!is_root());
-                assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
-            }
-        }
-    }
-
-    #[test]
-    fn install_status_result_rejects_failed_dependency_command() {
-        let err = install_status_result(Ok(failed_exit_status())).unwrap_err();
-        assert!(err.contains("dependency install command failed"));
-    }
-
-    #[test]
-    fn install_status_result_rejects_command_spawn_failure() {
-        let err =
-            install_status_result(Err(io::Error::new(io::ErrorKind::NotFound, "missing sudo")))
-                .unwrap_err();
-        assert!(err.contains("could not run install command"));
     }
 
     #[tokio::test]
@@ -1243,7 +567,8 @@ mod tests {
         assert!(
             err.contains("Connection refused")
                 || err.contains("connection refused")
-                || err.contains("actively refused it"),
+                || err.contains("actively refused it")
+                || err.contains("10061"),
             "expected 'connection refused' in error, got: {}",
             err
         );

@@ -29,24 +29,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: rustup component add rustfmt
       - run: cargo fmt --all -- --check
-      - name: Check E2E scripts without running native automation
-        run: |
-          shellcheck -x -e SC2034,SC2154 tests/e2e/run.sh tests/e2e/electron-live.sh tests/e2e/permission-contract.sh tests/e2e/guard-command.sh tests/e2e-linux/run.sh scripts/*.sh .githooks/pre-commit
-          PYTHONPYCACHEPREFIX=/tmp/agent-desktop-pycache python3 -m py_compile tests/e2e/*.py tests/e2e-linux/runner/*.py tests/e2e-linux/test_*.py tests/e2e-linux/scenarios/*.py
-          PYTHONPYCACHEPREFIX=/tmp/agent-desktop-pycache python3 -m unittest discover -s tests/e2e -p 'test_*.py'
-          AGENT_DESKTOP_E2E_SKIP_LIVE=1 PYTHONPYCACHEPREFIX=/tmp/agent-desktop-pycache python3 -I -m unittest discover -s tests/e2e-linux -p 'test_*.py'
-          python3 scripts/check-linux-findings.py
-          shellcheck -x -e SC2034,SC2154 tests/real-apps/numbers-sheets.sh
-          PYTHONPYCACHEPREFIX=/tmp/agent-desktop-pycache python3 -m unittest discover -s tests/real-apps -p '*_test.py'
-          PYTHONPYCACHEPREFIX=/tmp/agent-desktop-pycache python3 scripts/perf_ab_probe_test.py
-          python3 -I -B scripts/test-linux-live-gate.py
       - name: Validate GitHub Actions workflows
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.11
 
 
   docs:
     name: Docs build
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     timeout-minutes: 15
     permissions:
       contents: read
@@ -67,316 +56,14 @@ jobs:
 
   msrv:
     name: Rust 1.89 MSRV
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     timeout-minutes: 20
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: rustup toolchain install 1.89.0 --profile minimal
-      - run: cargo +1.89.0 check --locked -p agent-desktop-core -p agent-desktop-linux -p agent-desktop --all-targets
-
-  test:
-    name: Test
-    runs-on: macos-latest
-    timeout-minutes: 30
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Install Rust toolchain
-        run: |
-          rustup show
-          rustup component add clippy
-
-      - name: Verify macOS Bash 3.2 compatibility
-        run: /bin/bash scripts/check-bash3-compat.sh
-
-      - name: Cache cargo registry
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'crates/**/Cargo.toml', 'src/Cargo.toml') }}
-          restore-keys: ${{ runner.os }}-cargo-
-
-      - name: Cache build artifacts
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: target/
-          key: ${{ runner.os }}-build-ci-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'crates/**/Cargo.toml', 'src/Cargo.toml') }}-${{ hashFiles('crates/**/*.rs', 'src/**/*.rs', 'tests/**/*.rs') }}
-          restore-keys: |
-            ${{ runner.os }}-build-ci-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'crates/**/Cargo.toml', 'src/Cargo.toml') }}-
-            ${{ runner.os }}-build-ci-
-
-      - name: Check dependency isolation
-        run: |
-          TREE=$(cargo tree --locked -p agent-desktop-core --edges normal,build)
-          if printf '%s\n' "$TREE" | grep -E 'agent-desktop-(macos|windows|linux)'; then
-            echo "FAIL: core crate depends on platform crates"
-            exit 1
-          fi
-          echo "OK: core crate has no platform dependencies"
-
-      - name: Enforce Rust source rules
-        run: scripts/check-rust-file-size.sh
-
-      - name: Enforce architecture boundaries
-        run: scripts/check-architecture.sh
-
-      - name: Enforce no delivery-plan references in source
-        run: scripts/check-no-phase-references.sh
-
-      - name: Enforce the stale_ref constructors take only ref ids
-        run: scripts/check-stale-ref-constructor-misuse.sh
-
-      - name: Clippy
-        run: cargo clippy --locked -p agent-desktop-core -p agent-desktop-macos -p agent-desktop -p agent-desktop-ffi --all-targets -- -D warnings
-
-      - name: Core and macOS unit tests
-        run: scripts/cargo-test-isolated-home.sh test --locked -p agent-desktop-core -p agent-desktop-macos --lib
-
-      - name: Native cursor trail lifecycle
-        run: |
-          clang -fobjc-arc -Werror -framework AppKit -framework QuartzCore -framework CoreGraphics tests/native/cursor_overlay_trail_test.m -o "$RUNNER_TEMP/cursor-trail-test"
-          "$RUNNER_TEMP/cursor-trail-test"
-
-      - name: Native cursor image rendering
-        run: |
-          clang -fobjc-arc -Werror -framework AppKit -framework QuartzCore -framework CoreGraphics tests/native/cursor_overlay_image_test.m -o "$RUNNER_TEMP/cursor-image-test"
-          "$RUNNER_TEMP/cursor-image-test"
-
-      - name: Native AppKit inventory names
-        run: |
-          clang -fobjc-arc -fblocks -Wall -Wextra -Werror -framework AppKit tests/native/appkit_workspace_name_test.m -o "$RUNNER_TEMP/appkit-workspace-name-test"
-          "$RUNNER_TEMP/appkit-workspace-name-test"
-
-      - name: macOS VM host compiles, signs, and refuses a missing command
-        run: |
-          VM_HOST_DIR="$RUNNER_TEMP/macos"
-          mkdir -p "$VM_HOST_DIR"
-          xcrun swiftc -O providers/macos/vmhost.swift -o "$VM_HOST_DIR/vmhost"
-          codesign -f -s - --entitlements providers/macos/vm.entitlements "$VM_HOST_DIR/vmhost"
-          codesign -d --entitlements - "$VM_HOST_DIR/vmhost" 2>&1 | grep -q com.apple.security.virtualization
-          set +e
-          "$VM_HOST_DIR/vmhost" > "$VM_HOST_DIR/usage.json" 2>&1
-          USAGE_STATUS=$?
-          set -e
-          test "$USAGE_STATUS" -eq 1
-          python3 - "$VM_HOST_DIR/usage.json" <<'PY'
-          import json, sys
-          reply = json.load(open(sys.argv[1]))
-          assert reply["ok"] is False, "vmhost accepted a missing command"
-          assert "install" in reply["message"] and "clone" in reply["message"], reply["message"]
-          PY
-
-      - name: Locator benchmark adapter contract
-        run: scripts/cargo-test-isolated-home.sh test --locked -p agent-desktop-core --example locator_benchmark
-
-      - name: Deterministic permission acceptance contract
-        run: bash tests/e2e/permission-contract.sh
-
-      - name: Binary command tests
-        run: scripts/cargo-test-isolated-home.sh test --locked -p agent-desktop
-
-      # The FFI crate ships integration harnesses under crates/ffi/tests/ that
-      # exercise the C-ABI from outside the crate (raw extern "C" decls, enum
-      # fuzzing, out-param zeroing, last-error lifetimes). The workspace --lib
-      # run skips them, so wire them in explicitly so regressions fail PR CI.
-      - name: FFI integration tests
-        run: scripts/cargo-test-isolated-home.sh test --locked -p agent-desktop-ffi --tests
-
-      - name: Build stripped release binary
-        run: |
-          cargo build --locked --release -p agent-desktop
-          cargo build --locked --release -p agent-desktop-macos --bin agent-desktop-macos-helper
-
-      - name: Verify shipped binary version flag
-        run: |
-          PACKAGE_ID=$(cargo pkgid -p agent-desktop)
-          EXPECTED_VERSION=${PACKAGE_ID##*@}
-          EXPECTED_OUTPUT="agent-desktop $EXPECTED_VERSION"
-          ACTUAL_OUTPUT=$(target/release/agent-desktop --version)
-          if [ "$ACTUAL_OUTPUT" != "$EXPECTED_OUTPUT" ]; then
-            echo "FAIL: expected '$EXPECTED_OUTPUT', got '$ACTUAL_OUTPUT'"
-            exit 1
-          fi
-
-      - name: Check shipped binary size
-        run: |
-          SIZE=$(stat -f%z target/release/agent-desktop)
-          HELPER_SIZE=$(stat -f%z target/release/agent-desktop-macos-helper)
-          LIMIT=$((15 * 1024 * 1024))
-          echo "Binary size: $(du -sh target/release/agent-desktop | cut -f1)"
-          echo "Helper size: $(du -sh target/release/agent-desktop-macos-helper | cut -f1)"
-          if [ "$SIZE" -gt "$LIMIT" ] || [ "$HELPER_SIZE" -gt "$LIMIT" ]; then
-            echo "FAIL: shipped executable exceeds 15MB limit (binary=${SIZE}, helper=${HELPER_SIZE} bytes)"
-            exit 1
-          fi
-          echo "OK: shipped executables are within the 15MB per-file limit"
-
-      - name: FFI cdylib build (release-ffi profile)
-        run: cargo build --locked --profile release-ffi -p agent-desktop-ffi
-
-      - name: FFI dylib-adjacent helper discovery smoke
-        run: |
-          scripts/ci-ffi-helper-discovery-smoke.sh
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: '24'
-
-      - name: jev-desktop tests
-        run: |
-          node scripts/jev/run.test.mjs
-          node scripts/jev/act.test.mjs
-          node scripts/jev/run.integration.test.mjs
-          node scripts/jev/evidence.test.mjs
-
-      - name: NPM package contents
-        run: |
-          node --test tests/npm/*.test.js tests/release/*.test.js
-          node scripts/check-npm-package.js
-
-      - name: NPM wrapper smoke
-        run: scripts/ci-npm-wrapper-smoke.sh
-
-  test-linux:
-    name: Test (Linux)
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Install Rust toolchain
-        run: |
-          rustup show
-          rustup component add clippy
-
-      - name: Install AT-SPI bus and virtual display
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends at-spi2-core dbus-x11 xvfb
-
-      - name: Cache cargo registry
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'crates/**/Cargo.toml', 'src/Cargo.toml') }}
-          restore-keys: ${{ runner.os }}-cargo-
-
-      - name: Cache build artifacts
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: target/
-          key: ${{ runner.os }}-build-ci-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'crates/**/Cargo.toml', 'src/Cargo.toml') }}-${{ hashFiles('crates/**/*.rs', 'src/**/*.rs', 'tests/**/*.rs') }}
-          restore-keys: |
-            ${{ runner.os }}-build-ci-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'crates/**/Cargo.toml', 'src/Cargo.toml') }}-
-            ${{ runner.os }}-build-ci-
-
-      - name: Check dependency isolation
-        run: |
-          PATTERN='agent-desktop-(macos|windows|linux)|\bzbus\b|\bzvariant\b|\basync-io\b|\btokio\b'
-          TREE=$(cargo tree --locked -p agent-desktop-core --edges normal,build,dev)
-          if printf '%s\n' "$TREE" | grep -E "$PATTERN"; then
-            echo "FAIL: core crate pulls platform or async-bus crates"
-            exit 1
-          fi
-          echo "OK: core crate has no platform or async-bus dependencies on normal, build, or dev edges"
-
-      - name: Clippy
-        run: cargo clippy --locked -p agent-desktop-core -p agent-desktop-linux -p agent-desktop -p agent-desktop-ffi --all-targets -- -D warnings
-
-      - name: Core, Linux, binary and FFI tests on a real session bus
-        run: dbus-run-session -- xvfb-run -a scripts/cargo-test-isolated-home.sh test --locked -p agent-desktop-core -p agent-desktop-linux -p agent-desktop -p agent-desktop-ffi
-
-      - name: Build stripped release binary
-        run: cargo build --locked --release -p agent-desktop
-
-      - name: Check shipped binary size
-        run: |
-          SIZE=$(stat -c%s target/release/agent-desktop)
-          LIMIT=$((15 * 1024 * 1024))
-          echo "Binary size: $(du -sh target/release/agent-desktop | cut -f1)"
-          if [ "$SIZE" -gt "$LIMIT" ]; then
-            echo "FAIL: shipped executable exceeds 15MB limit (binary=${SIZE} bytes)"
-            exit 1
-          fi
-          echo "OK: shipped executable is within the 15MB per-file limit"
-
-      - name: Build Linux clipboard owner helper
-        run: cargo build --locked --release -p agent-desktop-linux --bins
-
-      - name: glibc floor gate self-test
-        run: scripts/check-elf-glibc-floor-selftest.sh
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: '24'
-
-      - name: NPM package contents
-        run: |
-          node --test tests/npm/*.test.js
-          scripts/check-linux-archive-contents.sh npm linux-x64
-
-      - name: Embedded visual viewer tests
-        run: node --test src/visual_debug/viewer_filter.test.js
-
-      - name: NPM wrapper smoke
-        run: scripts/ci-npm-wrapper-smoke.sh
-
-      - name: Status reports accessibility granted on a live bus
-        run: |
-          cat > "$RUNNER_TEMP/status-granted.sh" <<'SCRIPT'
-          set -eu
-          JSON=$(target/release/agent-desktop status)
-          printf '%s\n' "$JSON"
-          printf '%s' "$JSON" | python3 -c '
-          import json, sys
-          doc = json.load(sys.stdin)
-          assert doc.get("ok") is True, "status did not succeed"
-          state = doc["data"]["permissions"]["accessibility"]["state"]
-          assert state == "granted", "accessibility state is " + state
-          '
-          SCRIPT
-          dbus-run-session -- xvfb-run -a bash "$RUNNER_TEMP/status-granted.sh"
-
-      - name: Status and permissions report the missing bus as denied accessibility
-        run: |
-          XDG_RUNTIME_DIR=$(mktemp -d)
-          export DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent XDG_RUNTIME_DIR
-          for command in status permissions; do
-            JSON=$(target/release/agent-desktop "$command")
-            printf '%s\n' "$JSON"
-            printf '%s' "$JSON" | python3 -c '
-          import json, sys
-          doc = json.load(sys.stdin)
-          assert doc.get("ok") is True, "the diagnostic failed instead of reporting the bus"
-          data = doc["data"]
-          access = (data.get("permissions") or data)["accessibility"]
-          assert access["state"] == "denied", "accessibility state is " + access["state"]
-          assert "session bus" in access["suggestion"], "suggestion does not name the session bus"
-          '
-          done
-          RC=0
-          JSON=$(target/release/agent-desktop click @s8f3k2p9:e1) || RC=$?
-          test "$RC" -eq 1
-          printf '%s\n' "$JSON"
-          printf '%s' "$JSON" | python3 -c '
-          import json, sys
-          doc = json.load(sys.stdin)
-          assert doc.get("ok") is False, "click unexpectedly succeeded without a bus"
-          assert doc["error"]["code"] == "PERM_DENIED", "unexpected code " + doc["error"]["code"]
-          assert "session bus" in doc["error"]["suggestion"], "error does not carry the recovery step"
-          '
+      - run: cargo +1.89.0 check --locked -p agent-desktop-core -p agent-desktop-windows -p agent-desktop -p agent-desktop-ffi --all-targets
 
   test-windows:
     name: Test (Windows)
@@ -429,7 +116,7 @@ jobs:
       - name: Check dependency isolation
         shell: pwsh
         run: |
-          $pattern = 'agent-desktop-(macos|windows|linux)|\bwindows-sys\b|\bwindows\b|\bwinapi\b'
+          $pattern = 'agent-desktop-windows|\bwindows-sys\b|\bwindows\b|\bwinapi\b'
           foreach ($target in @('', 'x86_64-pc-windows-msvc')) {
             $arguments = @('tree', '--locked', '-p', 'agent-desktop-core', '--edges', 'normal,build,dev')
             if ($target) { $arguments += @('--target', $target) }
@@ -514,6 +201,19 @@ jobs:
       - name: Build stripped release binary
         run: cargo build --locked --release -p agent-desktop
 
+      - name: Verify binary version matches the workspace
+        shell: bash
+        run: |
+          PACKAGE_ID=$(cargo pkgid -p agent-desktop)
+          EXPECTED_VERSION=${PACKAGE_ID##*@}
+          EXPECTED_OUTPUT="agent-desktop $EXPECTED_VERSION"
+          ACTUAL_OUTPUT=$(./target/release/agent-desktop.exe --version)
+          if [ "$ACTUAL_OUTPUT" != "$EXPECTED_OUTPUT" ]; then
+            echo "FAIL: binary reports '$ACTUAL_OUTPUT', workspace says '$EXPECTED_OUTPUT'"
+            exit 1
+          fi
+          echo "OK: binary version matches the workspace version"
+
       - name: Windows E2E contract gate (scan and self-test halves)
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-e2e-windows-contract.ps1 -SelfTest
@@ -563,6 +263,16 @@ jobs:
             exit 1
           }
           Write-Host 'OK: shipped executable is within the 15MB per-file limit'
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
+      - name: NPM package contents
+        shell: bash
+        run: |
+          node --test tests/npm/*.test.js tests/release/*.test.js
+          node scripts/check-npm-package.js
 
       - name: Guard profile isolation
         shell: pwsh
@@ -687,13 +397,14 @@ jobs:
 
   windows-lib-test-parity:
     name: Windows lib-test parity (x64 vs ARM64)
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     needs: [test-windows, test-windows-arm]
     timeout-minutes: 5
     permissions:
       contents: read
     steps:
       - name: Compare exported lib test counts
+        shell: bash
         run: |
           X64="${{ needs.test-windows.outputs.lib_tests }}"
           ARM="${{ needs.test-windows-arm.outputs.lib_tests }}"
@@ -718,35 +429,23 @@ jobs:
           fi
           echo "OK: both Windows lanes executed ${X64} lib tests across ${X64_SUITES} whole-suite runs"
 
-  # FFI gates, one matrix leg per release target:
+  # FFI gates, one matrix leg per Windows release target:
   #   - every leg asserts that [profile.release-ffi] keeps panic="unwind" (a
   #     flip to "abort" defeats every trap_panic boundary in the dylib) and
   #     loads the feature-gated cdylib panic entrypoint to prove a panic at an
   #     exported boundary returns ErrInternal instead of aborting the host
-  #   - aarch64-apple-darwin also verifies the committed C header against what
-  #     the pinned cbindgen 0.29.4 generates, and runs the Python smoke harness
-  #     against a stub-adapter cdylib
-  #   - x86_64-unknown-linux-gnu also runs the stub-adapter passthrough tests:
-  #     each covered entrypoint must return PLATFORM_NOT_SUPPORTED, or the
-  #     documented ErrPermDenied for ad_check_permissions
+  #   - x86_64-pc-windows-msvc also verifies the committed C header against
+  #     what the pinned cbindgen 0.29.4 generates
   ffi-panic-guard:
     name: FFI Panic Guard (${{ matrix.target }})
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: ${{ matrix.target == 'aarch64-apple-darwin' && 30 || 20 }}
+    timeout-minutes: 20
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
         include:
-          - target: aarch64-apple-darwin
-            runner: macos-latest
-          - target: x86_64-apple-darwin
-            runner: macos-latest
-          - target: x86_64-unknown-linux-gnu
-            runner: ubuntu-22.04
-          - target: aarch64-unknown-linux-gnu
-            runner: ubuntu-22.04-arm
           - target: x86_64-pc-windows-msvc
             runner: windows-latest
           - target: aarch64-pc-windows-msvc
@@ -770,54 +469,16 @@ jobs:
           restore-keys: ${{ runner.os }}-cargo-
 
       - name: Install pinned cbindgen 0.29.4
-        if: matrix.target == 'aarch64-apple-darwin'
+        if: matrix.target == 'x86_64-pc-windows-msvc'
         run: cargo install cbindgen --version 0.29.4 --locked
 
       - name: Verify header matches source (cbindgen --verify)
-        if: matrix.target == 'aarch64-apple-darwin'
+        if: matrix.target == 'x86_64-pc-windows-msvc'
         run: >
           cbindgen crates/ffi
           --config crates/ffi/cbindgen.toml
           --output crates/ffi/include/agent_desktop.h
           --verify
-
-      - name: Build FFI dylib (stub adapter)
-        if: matrix.target == 'aarch64-apple-darwin'
-        run: >
-          cargo build --locked --profile release-ffi
-          -p agent-desktop-ffi --features stub-adapter
-
-      - name: Locate dylib
-        id: dylib
-        if: matrix.target == 'aarch64-apple-darwin'
-        run: |
-          DYLIB=$(find target/release-ffi -name 'libagent_desktop_ffi.*' \
-                    \( -name '*.dylib' -o -name '*.so' -o -name '*.dll' \) | head -1)
-          if [ -z "$DYLIB" ]; then
-            echo "FAIL: dylib not found under target/release-ffi"
-            exit 1
-          fi
-          echo "path=$DYLIB" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        if: matrix.target == 'aarch64-apple-darwin'
-        with:
-          python-version: '3.12'
-
-      - name: Run FFI smoke harness
-        if: matrix.target == 'aarch64-apple-darwin'
-        env:
-          AD_EXPECT_STUB: "1"
-        run: >
-          python3 tests/ffi-python/smoke.py
-          "${{ steps.dylib.outputs.path }}"
-          crates/ffi/include/agent_desktop.h
-
-      - name: Run stub-adapter passthrough tests
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
-        run: >
-          scripts/cargo-test-isolated-home.sh test --locked -p agent-desktop-ffi
-          --features stub-adapter --test c_abi_passthrough
 
       - name: Assert release-ffi profile keeps panic=unwind
         shell: bash

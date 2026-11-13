@@ -4,7 +4,7 @@ navTitle: Mouse
 description: Reference for hover, drag, mouse-move, mouse-click (including Windows background clicks), mouse-down, mouse-up, and mouse-wheel. Cursor movement needs --headed, and the held-button commands fail closed.
 ---
 
-Every mouse command moves the real cursor, so each one needs the global `--headed` flag. Without it the command returns `POLICY_DENIED` with `not_delivered` and sends nothing:
+Mouse commands move the real cursor, so they need the global `--headed` flag. The one exception is [`mouse-click --background`](#mouse-click) on Windows, which posts the click to a window as messages. Without `--headed`, a cursor-moving command returns `POLICY_DENIED` with `not_delivered` and sends nothing:
 
 ```json
 {
@@ -15,7 +15,7 @@ Every mouse command moves the real cursor, so each one needs the global `--heade
 }
 ```
 
-Read [Headed mode](/desktop/guides/headed-mode) before you add the flag. Coordinates are absolute screen points written `x,y`; write a negative value with `=` so the shell does not read it as a flag (`--xy=-100,50`). Raw coordinates carry no window identity and never focus an app; a ref target focuses its exact window first. The pointer commands return an [OperationReport](/desktop/json-output#operationreport) with a `pointer` target. The examples are real output from Linux X11.
+Read [Headed mode](/desktop/guides/headed-mode) before you add the flag. Coordinates are absolute screen points written `x,y`; write a negative value with `=` so the shell does not read it as a flag (`--xy=-100,50`). Raw coordinates carry no window identity and never focus an app; a ref target focuses its exact window first. The pointer commands return an [OperationReport](/desktop/json-output#operationreport) with a `pointer` target. The examples below are trimmed.
 
 ## hover
 
@@ -55,7 +55,7 @@ agent-desktop --headed hover --xy 640,400
 }
 ```
 
-For a ref, the cursor goes to the center of the live bounds after visibility, stability, and hit-test checks. On macOS the position is read back and the result is `delivered_verified`. Errors: `INVALID_ARGS` for a missing target or bad coordinates; `ACTION_NOT_SUPPORTED` with cause `wayland_session` on Linux Wayland; `ACTION_FAILED` when another element covers the target; the ref errors `STALE_REF`, `AMBIGUOUS_TARGET`, and `SNAPSHOT_NOT_FOUND`.
+For a ref, the cursor goes to the center of the live bounds after visibility, stability, and hit-test checks. Errors: `INVALID_ARGS` for a missing target or bad coordinates; `ACTION_FAILED` when another element covers the target; the ref errors `STALE_REF`, `AMBIGUOUS_TARGET`, and `SNAPSHOT_NOT_FOUND`.
 
 ## drag
 
@@ -74,7 +74,7 @@ agent-desktop --headed drag --from-xy 100,200 --to-xy 400,500 --drop-delay 800
     <tr><td><code>--from REF</code>, <code>--from-xy X,Y</code></td><td>required, one of</td><td>Source element or point.</td></tr>
     <tr><td><code>--to REF</code>, <code>--to-xy X,Y</code></td><td>required, one of</td><td>Destination element or point. The two kinds can be mixed.</td></tr>
     <tr><td><code>--duration MS</code></td><td>platform default</td><td>Length of the movement, at most 60000.</td></tr>
-    <tr><td><code>--drop-delay MS</code></td><td><code>500</code> (<code>150</code> on Linux)</td><td>Hold over the destination before releasing, so the drop target activates. At most 10000.</td></tr>
+    <tr><td><code>--drop-delay MS</code></td><td><code>500</code></td><td>Hold over the destination before releasing, so the drop target activates. At most 10000.</td></tr>
     <tr><td><code>--timeout-ms MS</code></td><td><code>5000</code></td><td>Budget for the whole gesture. <code>--duration</code> plus <code>--drop-delay</code> must be below it.</td></tr>
     <tr><td><code>--wait-for-scope to|from</code></td><td><code>to</code></td><td>Which endpoint's window a post-action <code>--wait-for</code> polls.</td></tr>
   </tbody>
@@ -90,16 +90,16 @@ Moves the cursor to absolute coordinates.
 agent-desktop --headed mouse-move --xy 700,450
 ```
 
-The report matches the [`hover`](#hover) example. On macOS the position is read back (`details.verification_scope: "pointer_position"`).
+The report matches the [`hover`](#hover) example.
 
 ## mouse-click
 
-Clicks at absolute coordinates. On Windows, `--background` posts the click to a window as window messages, without `--headed`, cursor movement, or focus.
+Clicks at absolute coordinates. On Windows, `--background` posts the click to one window as window messages. It needs no `--headed`, and the cursor and focus stay where they are unless you add `--cursor-fallback` or `--restore-minimized`.
 
 ```bash
 agent-desktop --headed mouse-click --xy 500,300 [--button left|right|middle] [--count N] [--modifiers NAME]...
-agent-desktop mouse-click --background --window-id ID --xy X,Y [--button left|right|middle] [--count N]
-agent-desktop mouse-click --background --window-id ID --capture-id CAPTURE_ID --xy PX,PY [--button left|right|middle] [--count N]
+agent-desktop mouse-click --background --window-id ID --xy X,Y [--button left|right|middle] [--count N] [--restore-minimized] [--cursor-fallback] [--semantic]
+agent-desktop mouse-click --background --window-id ID --capture-id CAPTURE_ID --xy PX,PY [--button left|right|middle] [--count N] [--restore-minimized] [--cursor-fallback] [--semantic]
 ```
 
 <table>
@@ -109,14 +109,14 @@ agent-desktop mouse-click --background --window-id ID --capture-id CAPTURE_ID --
   <tbody>
     <tr><td><code>--xy X,Y</code></td><td>required</td><td>Absolute screen coordinates, or image pixels when <code>--capture-id</code> is present.</td></tr>
     <tr><td><code>--button</code></td><td><code>left</code></td><td><code>left</code>, <code>right</code>, or <code>middle</code>.</td></tr>
-    <tr><td><code>--count N</code></td><td><code>1</code></td><td>Clicks, 1 to 100. Use 2 for a double click and 3 for a triple click.</td></tr>
+    <tr><td><code>--count N</code></td><td><code>1</code></td><td>Clicks, 1 to 100. Use 2 for a double click and 3 for a triple click. With <code>--background</code>, each click is posted on its own, 100 ms apart, and no double-click message is sent.</td></tr>
     <tr><td><code>--modifiers NAME</code></td><td>none</td><td>A modifier held during the click: <code>shift</code>, <code>meta</code>, <code>ctrl</code>, <code>alt</code>. Repeat the flag for several. Rejected with <code>--background</code>.</td></tr>
-    <tr><td><code>--background</code></td><td>off</td><td>Post the click to <code>--window-id</code> as window messages. Windows only. No cursor movement or focus.</td></tr>
+    <tr><td><code>--background</code></td><td>off</td><td>Post the click to <code>--window-id</code> as window messages. Windows only. Needs no <code>--headed</code>. The cursor and focus stay put unless <code>--cursor-fallback</code> or <code>--restore-minimized</code> is added.</td></tr>
     <tr><td><code>--window-id ID</code></td><td>none</td><td>Target window for <code>--background</code>; required with it and from <code>list-windows</code>.</td></tr>
     <tr><td><code>--capture-id ID</code></td><td>none</td><td>A <code>capture_id</code> from <code>screenshot --window-id</code>; makes <code>--xy</code> image pixels. Requires <code>--background</code>.</td></tr>
-    <tr><td><code>--restore-minimized</code></td><td>off</td><td>With <code>--background</code>, restore a minimized target for the click, then minimize it again.</td></tr>
+    <tr><td><code>--restore-minimized</code></td><td>off</td><td>With <code>--background</code>, restore a minimized target for the click, then minimize it again. The window is shown, and can take focus, while it is restored.</td></tr>
     <tr><td><code>--cursor-fallback</code></td><td>off</td><td>With <code>--background</code>, aim the cursor at the point while messages are posted, then restore it, for frameworks that read the physical cursor.</td></tr>
-    <tr><td><code>--semantic</code></td><td>off</td><td>With <code>--background</code>, invoke the UI Automation element at the point instead of posting mouse messages. Works while the window is covered and for frameworks that ignore posted input.</td></tr>
+    <tr><td><code>--semantic</code></td><td>off</td><td>With <code>--background</code>, invoke the UI Automation element at the point instead of posting mouse messages. Works while the window is covered and for frameworks that ignore posted input. Left button only. Falls back to posted messages when nothing at the point can be invoked.</td></tr>
   </tbody>
 </table>
 
@@ -140,7 +140,32 @@ agent-desktop mouse-click --background --window-id ID --capture-id CAPTURE_ID --
 
 `target.point` is where the click was dispatched; it does not prove which app received it. Before you click at bounds read from a snapshot, check `get --property bounds` and its `live` flag.
 
-With `--background`, the report's `details` names the delivery method, the target HWND and the client coordinates. The disposition is `delivered_unverified`: the posted messages were accepted, not proven to have changed the app, so verify from fresh state. The command refuses the click when the window moved or resized since the capture, its process instance changed, the capture is older than the capture-age limit (10 seconds by default), the window is minimized without `--restore-minimized`, or the point is outside the client area. `--restore-minimized` restores the window for the click and minimizes it again. `--cursor-fallback` aims the cursor at the point while the messages are posted and restores it afterwards. `--semantic` invokes the UI Automation element under the point from the target window's own subtree, so it also works while another window covers the target; `details.method` reports `UIA.Invoke`. Set `AGENT_DESKTOP_MAX_CAPTURE_AGE_MS` to a larger millisecond value when a vision round-trip is slower than 10 seconds. `--background` is Windows only; other platforms return `ACTION_NOT_SUPPORTED`.
+With `--background`, the click goes to the window, or to the child control under the point, as `WM_MOUSEMOVE`, a button-down message, and a button-up message. `--count N` repeats that sequence 100 ms apart. No double-click message is posted, so a control that acts only on that message may not react. The disposition is `delivered_unverified`: the messages were accepted, not proven to have changed the app, so verify from fresh state.
+
+`data` echoes the request as `window_id`, `space` (`screen`, or `image` with `--capture-id`), `screen_x`, `screen_y`, `restore_minimized`, `cursor_fallback`, and `semantic`. With `--capture-id` it also carries `capture_id`, `image_x`, and `image_y`. `data.details` describes the delivery:
+
+<table>
+  <thead>
+    <tr><th>Field</th><th>Meaning</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>method</code></td><td><code>PostMessage</code>, <code>PostMessage+cursor</code> with <code>--cursor-fallback</code>, or <code>UIA.Invoke</code> when <code>--semantic</code> invoked an element.</td></tr>
+    <tr><td><code>background</code></td><td>Always <code>true</code>.</td></tr>
+    <tr><td><code>target_hwnd</code></td><td>The window that received the messages, as a window id: the child control under the point when there is one, otherwise the target window.</td></tr>
+    <tr><td><code>client_x</code>, <code>client_y</code></td><td>The point in the client coordinates of <code>target_hwnd</code>.</td></tr>
+    <tr><td><code>window_was_minimized</code>, <code>restored_for_click</code></td><td>Whether the target was minimized, and whether it was restored for the click.</td></tr>
+    <tr><td><code>cursor_fallback</code>, <code>semantic_requested</code></td><td>Whether those flags were passed.</td></tr>
+  </tbody>
+</table>
+
+`--semantic` finds the UI Automation element under the point inside the target window's own subtree, so it also works while another window covers the target. It invokes that element, or the nearest ancestor that can be invoked, once per `--count`, and accepts only the left button. The report then carries `method: "UIA.Invoke"`, `count`, and `semantic: true` in place of the window and client fields, and the cursor does not move even with `--cursor-fallback`. When nothing at the point can be invoked, the click falls back to posted messages: `details.method` is a `PostMessage` value and `details.semantic_requested` is `true`.
+
+A background click is refused before anything is sent in these cases:
+
+- `STALE_REF` with `details.kind: "stale_capture"` and a `details.reason`: the capture belongs to another window, the window moved or resized since the capture, its process instance changed, or the capture is older than the capture-age limit. The limit is 10 seconds; set `AGENT_DESKTOP_MAX_CAPTURE_AGE_MS` to a larger millisecond value when a vision round-trip is slower.
+- `INVALID_ARGS`: the window is minimized and `--restore-minimized` is absent, the point is outside the client area or outside the captured image, the `capture_id` cannot be decoded, `--semantic` is combined with a right or middle button, or `--modifiers` is present.
+- `WINDOW_NOT_FOUND`: no window has that id.
+- `PERM_DENIED` with `details.win32_error`: the target refused the message, as a window at a higher integrity level does.
 
 Some frameworks ignore posted messages. A classic Win32 button was verified to click while its window was unfocused and the cursor was elsewhere. A WinForms control checks the physical cursor position and async key state, so a posted click and `--cursor-fallback` do nothing; `--semantic` invokes it. Use a ref action when the control has one, and verify every background click.
 
@@ -152,7 +177,7 @@ Reserved name for pressing and holding a button. It never sends input.
 agent-desktop --headed mouse-down --xy 500,300 [--button NAME] [--modifiers NAME]...
 ```
 
-The first failing check decides the error: a bad argument is `INVALID_ARGS`; headless is `POLICY_DENIED` (`not_delivered`); Linux Wayland is `ACTION_NOT_SUPPORTED` with cause `wayland_session`; everywhere else, `--headed` ends in `ACTION_NOT_SUPPORTED`, `mouse-down is unavailable in stateless mode`, with a disposition of `unknown` and no event sent. Use [`mouse-click`](#mouse-click) or [`drag`](#drag).
+The first failing check decides the error: a bad argument is `INVALID_ARGS`; headless is `POLICY_DENIED` (`not_delivered`); with `--headed`, the command ends in `ACTION_NOT_SUPPORTED`, `mouse-down is unavailable in stateless mode`, with a disposition of `unknown` and no event sent. Use [`mouse-click`](#mouse-click) or [`drag`](#drag).
 
 ## mouse-up
 
@@ -199,4 +224,4 @@ agent-desktop --headed mouse-wheel --x 700 --y 400 --dy -2
 }
 ```
 
-Platform limits for all mouse commands: Linux needs X11. See [macOS](/desktop/platforms/macos), [Windows](/desktop/platforms/windows), and [Linux](/desktop/platforms/linux).
+Mouse commands need `--headed`; `mouse-click --background` is the exception. See [Windows](/desktop/platforms/windows#what-works-headless).

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT=$(git rev-parse --show-toplevel)
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)
 cd "$ROOT"
 
 TARGET_ROOT=${CARGO_TARGET_DIR:-target}
@@ -10,8 +10,6 @@ PROBE_DIR="$TARGET_ROOT/$TARGET/panic-probe"
 mkdir -p "$PROBE_DIR"
 
 case "$TARGET" in
-  *-apple-darwin) LIB_NAME=libagent_desktop_ffi.dylib; PROBE_NAME=probe ;;
-  *-unknown-linux-gnu) LIB_NAME=libagent_desktop_ffi.so; PROBE_NAME=probe ;;
   *-pc-windows-msvc) LIB_NAME=agent_desktop_ffi.dll; PROBE_NAME=probe.exe ;;
   *) echo "FAIL: unsupported probe target: $TARGET" >&2; exit 1 ;;
 esac

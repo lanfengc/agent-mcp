@@ -96,14 +96,9 @@ The output is a JSON file in Chrome Trace Event format:
   "traceEvents": [
     { "cat": "devtools.timeline", "name": "RunTask", "ph": "X", "ts": 12345, "dur": 100, ... },
     ...
-  ],
-  "metadata": {
-    "clock-domain": "LINUX_CLOCK_MONOTONIC"
-  }
+  ]
 }
 ```
-
-The `metadata.clock-domain` field is set based on the host platform (Linux or macOS). On Windows it is omitted.
 
 ## Viewing Profiles
 

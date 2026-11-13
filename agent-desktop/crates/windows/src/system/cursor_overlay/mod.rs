@@ -1,9 +1,9 @@
 //! The Windows cursor overlay: a detached renderer this process can reach.
 //!
 //! The CLI is stateless per invocation, so the thing that draws has to outlive
-//! the process that asked for it. The shape is the one macOS already uses — a
-//! detached child of the same binary, reached over a local transport, holding
-//! a click-through window it repaints as controls arrive.
+//! the process that asked for it. The shape: a detached child of the same
+//! binary, reached over a local transport, holding a click-through window it
+//! repaints as controls arrive.
 //!
 //! Split by responsibility rather than by size: the pipe's name, the control
 //! framing and the frame schedule are pure and answer on any host, while the

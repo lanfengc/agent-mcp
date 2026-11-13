@@ -6,8 +6,8 @@
 //! per-session file until `close`.
 //!
 //! A file that exists but cannot be trusted (unreadable, corrupt, readable by
-//! others on Unix) is an error, never an empty session: the daemon refuses to
-//! start and says how to clear it.
+//! others) is an error, never an empty session: the daemon refuses to start
+//! and says how to clear it.
 
 use std::fmt;
 use std::fs;
@@ -85,21 +85,6 @@ impl From<Document> for SecurityView {
     }
 }
 
-/// Why a file with this owner and mode cannot be trusted, if it cannot: it
-/// must belong to the daemon's user and be closed to everyone else.
-#[cfg(unix)]
-fn untrusted_reason(uid: u32, euid: u32, mode: u32) -> Option<String> {
-    if uid != euid {
-        return Some("it belongs to another user".to_string());
-    }
-    (mode & 0o077 != 0).then(|| {
-        format!(
-            "it is accessible by other users (mode {:04o})",
-            mode & 0o7777
-        )
-    })
-}
-
 /// `{socket_dir}/{session}.settings`. Windows has no mode check: the file
 /// inherits the access rules of the socket directory.
 pub struct FsStore {
@@ -113,8 +98,7 @@ impl FsStore {
         }
     }
 
-    /// Reads the file without following a symlink. On Unix the opened file
-    /// must also belong to this user and be owner-only.
+    /// Reads the file without following a symlink.
     fn read_trusted(&self) -> Result<Option<String>, StoreError> {
         let meta = match fs::symlink_metadata(&self.path) {
             Ok(meta) => meta,
@@ -129,28 +113,11 @@ impl FsStore {
         }
         let mut options = fs::OpenOptions::new();
         options.read(true);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::OpenOptionsExt;
-            options.custom_flags(libc::O_NOFOLLOW);
-        }
         let mut file = match options.open(&self.path) {
             Ok(file) => file,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
             Err(e) => return Err(self.unreadable(&e.to_string())),
         };
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::MetadataExt;
-            let opened = file
-                .metadata()
-                .map_err(|e| self.unreadable(&e.to_string()))?;
-            // SAFETY: geteuid has no preconditions and cannot fail.
-            let euid = unsafe { libc::geteuid() };
-            if let Some(why) = untrusted_reason(opened.uid(), euid, opened.mode()) {
-                return Err(self.unreadable(&why));
-            }
-        }
         let mut raw = String::new();
         std::io::Read::read_to_string(&mut file, &mut raw)
             .map_err(|e| self.unreadable(&e.to_string()))?;
@@ -197,11 +164,6 @@ impl Store for FsStore {
             let open = || {
                 let mut options = fs::OpenOptions::new();
                 options.write(true).create_new(true);
-                #[cfg(unix)]
-                {
-                    use std::os::unix::fs::OpenOptionsExt;
-                    options.mode(0o600).custom_flags(libc::O_NOFOLLOW);
-                }
                 options.open(&tmp)
             };
             let mut file = match open() {
@@ -219,13 +181,6 @@ impl Store for FsStore {
             drop(file);
             fs::rename(&tmp, &self.path)
                 .map_err(|e| self.persist_failed("replace", &self.path, &e))?;
-            // The rename is durable only once the directory entry is synced.
-            #[cfg(unix)]
-            if let Some(dir) = self.path.parent() {
-                fs::File::open(dir)
-                    .and_then(|d| d.sync_all())
-                    .map_err(|e| self.persist_failed("sync", dir, &e))?;
-            }
             Ok(())
         })();
         if written.is_err() {
@@ -449,14 +404,9 @@ mod tests {
         })
     }
 
-    /// A file as the store would have left it, owner-only, with `contents`.
+    /// A file as the store would have left it, with `contents`.
     fn write_private(path: &Path, contents: &str) {
         fs::write(path, contents).unwrap();
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            fs::set_permissions(path, fs::Permissions::from_mode(0o600)).unwrap();
-        }
     }
 
     fn entries(dir: &Path) -> Vec<String> {
@@ -506,23 +456,6 @@ mod tests {
         store.save(&next).unwrap();
 
         assert_eq!(store.load(), Ok(Some(next)));
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn test_fs_store_file_is_owner_only() {
-        use std::os::unix::fs::PermissionsExt;
-        let dir = tempfile::tempdir().unwrap();
-        let store = FsStore::new(dir.path(), "s");
-
-        store.save(&full_view()).unwrap();
-        store.save(&full_view()).unwrap();
-
-        let mode = fs::metadata(dir.path().join("s.settings"))
-            .unwrap()
-            .permissions()
-            .mode();
-        assert_eq!(mode & 0o777, 0o600);
     }
 
     #[test]
@@ -615,25 +548,6 @@ mod tests {
         assert!(Running::boot_from(Running::defaults(), &store, "s", None, None).is_err());
     }
 
-    #[cfg(unix)]
-    #[test]
-    fn test_boot_refuses_a_file_other_users_can_read() {
-        use std::os::unix::fs::PermissionsExt;
-        let dir = tempfile::tempdir().unwrap();
-        let store = FsStore::new(dir.path(), "s");
-        store.save(&full_view()).unwrap();
-        let path = dir.path().join("s.settings");
-        fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
-
-        let err = Running::boot_from(Running::defaults(), &store, "s", None, None).unwrap_err();
-
-        let StoreError::SecuredUnreadable(message) = err else {
-            panic!("expected SecuredUnreadable, got {err:?}");
-        };
-        assert!(message.contains("0644"), "{message}");
-        assert!(message.contains("s.settings"), "{message}");
-    }
-
     #[test]
     fn test_boot_refusal_puts_the_way_out_first_and_fits_the_stderr_cap() {
         let root = tempfile::tempdir().unwrap();
@@ -692,50 +606,6 @@ mod tests {
             ),
             "{err}"
         );
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn test_load_refuses_a_symlink_even_to_a_good_file() {
-        let dir = tempfile::tempdir().unwrap();
-        let real = dir.path().join("real");
-        write_private(&real, r#"{"allowedDomains":["a.com"]}"#);
-        std::os::unix::fs::symlink(&real, dir.path().join("s.settings")).unwrap();
-
-        let err = FsStore::new(dir.path(), "s").load().unwrap_err();
-
-        assert!(err.to_string().contains("symbolic link"), "{err}");
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn test_untrusted_reason_checks_owner_and_mode() {
-        assert_eq!(untrusted_reason(501, 501, 0o100600), None);
-        assert!(untrusted_reason(0, 501, 0o100600)
-            .unwrap()
-            .contains("another user"));
-        assert!(untrusted_reason(501, 501, 0o100640)
-            .unwrap()
-            .contains("0640"));
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn test_save_never_writes_through_a_planted_temp_symlink() {
-        let dir = tempfile::tempdir().unwrap();
-        let victim = dir.path().join("victim");
-        fs::write(&victim, "precious").unwrap();
-        let tmp = dir
-            .path()
-            .join(format!("s.settings.tmp.{}", std::process::id()));
-        std::os::unix::fs::symlink(&victim, &tmp).unwrap();
-        let store = FsStore::new(dir.path(), "s");
-
-        store.save(&full_view()).unwrap();
-
-        assert_eq!(fs::read_to_string(&victim).unwrap(), "precious");
-        assert_eq!(store.load(), Ok(Some(full_view())));
-        assert!(!tmp.exists() && tmp.symlink_metadata().is_err());
     }
 
     #[test]
@@ -869,11 +739,7 @@ mod tests {
 
     #[test]
     fn test_clear_file_removes_the_session_file_in_the_socket_dir() {
-        let guard = EnvGuard::new(&[
-            "AGENT_BROWSER_SOCKET_DIR",
-            "AGENT_BROWSER_NAMESPACE",
-            "XDG_RUNTIME_DIR",
-        ]);
+        let guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR", "AGENT_BROWSER_NAMESPACE"]);
         let dir = tempfile::tempdir().unwrap();
         guard.set("AGENT_BROWSER_SOCKET_DIR", dir.path().to_str().unwrap());
         guard.remove("AGENT_BROWSER_NAMESPACE");

@@ -126,9 +126,9 @@ pub trait SystemOps: Send + Sync {
     ) -> Result<ProviderScriptOutput, AdapterError> {
         Err(AdapterError::new(
             ErrorCode::PlatformNotSupported,
-            "Sandboxes are not available on this platform yet.",
+            "This build registers no sandbox provider.",
         )
-        .with_suggestion("Run the command on macOS to use a sandbox provider.")
+        .with_suggestion("To isolate a desktop, use a container, virtual machine or CI runner outside agent-desktop.")
         .with_disposition(DeliverySemantics::not_delivered()))
     }
 

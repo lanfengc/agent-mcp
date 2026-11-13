@@ -17,10 +17,10 @@ A result shows which mechanism ran: in `data.steps`, `semantic_api` is an access
 `--headed` authorizes the focus and cursor side effects an action declares:
 
 - For a ref, core focuses the exact source window before headed pointer input and verifies the target point before delivery. A process-owned ref has no window to focus, but physical input still requires a verified point.
-- On macOS, clicking a native menu-bar item uses `AXPress`; it works headless and does not move the pointer under `--headed`. A headless `right-click` can use `AXShowMenu` when the target provides it.- Raw coordinates (`--xy`) carry no window identity, so they never focus anything.
+- Raw coordinates (`--xy`) carry no window identity, so they never focus anything.
 - It applies to every entry of a [batch](/desktop/guides/batch).
-- It permits physical input; it does not force it. Each platform decides per action whether to use a physical or a semantic path, and `check`, `set-value`, and `expand` stay semantic under `--headed` everywhere.
-- It does not lift other guards. A blocked key combo still needs `--force`, and a platform that cannot deliver physical input, such as pointer input on Wayland, still refuses.
+- It permits physical input; it does not force it. Each action decides whether to use a physical or a semantic path, and `check`, `set-value`, and `expand` stay semantic under `--headed`.
+- It does not lift other guards. A blocked key combo still needs `--force`, and a command that cannot deliver physical input still fails closed.
 
 ```bash
 agent-desktop --headed double-click @s8f3k2p9:e3    # a physical gesture
@@ -30,26 +30,24 @@ Physical input gets no confirmation from the OS, so a physical result is usually
 
 ## Which commands need `--headed`
 
-On every platform: `triple-click`, `hover`, `drag`, `mouse-move`, `mouse-click`, and `mouse-wheel`. `mouse-click --background` is the Windows exception: it posts to a window and needs no `--headed`. `double-click` needs it too, except on macOS when the element offers `AXOpen`. `key-down`, `key-up`, `mouse-down`, and `mouse-up` never deliver input in either mode; see the [keyboard](/desktop/commands/keyboard#key-down) and [mouse](/desktop/commands/mouse#mouse-down) references.
-
-Depending on the OS:
+`triple-click`, `hover`, `drag`, `mouse-move`, `mouse-click`, `mouse-wheel`, and `double-click` need `--headed`. `mouse-click --background` is the exception: it posts to a window and needs no `--headed`. `key-down`, `key-up`, `mouse-down`, and `mouse-up` never deliver input in either mode; see the [keyboard](/desktop/commands/keyboard#key-down) and [mouse](/desktop/commands/mouse#mouse-down) references.
 
 <table>
   <thead>
-    <tr><th>Command</th><th>macOS</th><th>Windows</th><th>Linux</th></tr>
+    <tr><th>Command</th><th>On Windows</th></tr>
   </thead>
   <tbody>
-    <tr><td><code>right-click</code></td><td>Headless</td><td><code>--headed</code></td><td>Headless, if the element has a context-menu action</td></tr>
-    <tr><td><code>type</code></td><td>Headless</td><td><code>--headed</code></td><td>Headless, except into a terminal text node</td></tr>
-    <tr><td><code>focus</code></td><td>Headless</td><td><code>--headed</code></td><td><code>--headed</code></td></tr>
-    <tr><td><code>scroll</code></td><td>Headless</td><td>Headless</td><td><code>--headed</code>, X11 only</td></tr>
-    <tr><td>Listing notifications</td><td>Headless while the surface is open</td><td>Headless while the surface is open</td><td>Headless</td></tr>
-    <tr><td>Notification mutations</td><td><code>--headed</code></td><td><code>--headed</code></td><td><code>--headed</code>, X11 only</td></tr>
-    <tr><td><code>open-system-surface</code></td><td>Headless</td><td><code>--headed</code></td><td><code>--headed</code></td></tr>
+    <tr><td><code>right-click</code></td><td><code>--headed</code></td></tr>
+    <tr><td><code>type</code></td><td><code>--headed</code></td></tr>
+    <tr><td><code>focus</code></td><td><code>--headed</code></td></tr>
+    <tr><td><code>scroll</code></td><td>Headless</td></tr>
+    <tr><td><code>list-notifications</code></td><td>Headless while the Action Center is open</td></tr>
+    <tr><td><code>dismiss-notification</code>, <code>dismiss-all-notifications</code>, <code>notification-action</code></td><td><code>--headed</code></td></tr>
+    <tr><td><code>open-system-surface</code></td><td><code>--headed</code></td></tr>
   </tbody>
 </table>
 
-`press` is keyboard input and does not need `--headed` for an unscoped press; scoped presses have platform rules. Each platform page has the full capability table: [macOS](/desktop/platforms/macos), [Windows](/desktop/platforms/windows), [Linux](/desktop/platforms/linux).
+`press` is keyboard input and does not need `--headed` for an unscoped press; a scoped `press --app` to an app that is not frontmost needs it. The [Windows page](/desktop/platforms/windows#what-works-headless) has the full capability table.
 
 ## Handle `POLICY_DENIED`
 

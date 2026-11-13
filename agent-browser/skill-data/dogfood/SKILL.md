@@ -16,7 +16,7 @@ Only the **Target URL** is required. Everything else has sensible defaults -- us
 |-----------|---------|-----------------|
 | **Target URL** | _(required)_ | `vercel.com`, `http://localhost:3000` |
 | **Session name** | Slugified domain (e.g., `vercel.com` -> `vercel-com`) | `--session my-session` |
-| **Output directory** | `./dogfood-output/` | `Output directory: /tmp/qa` |
+| **Output directory** | `./dogfood-output/` | `Output directory: C:\qa` |
 | **Scope** | Full app | `Focus on the billing page` |
 | **Authentication** | None | `Sign in to user@example.com` |
 

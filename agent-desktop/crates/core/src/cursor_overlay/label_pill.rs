@@ -1,8 +1,8 @@
 //! The cursor label's pill: a black, fully rounded tag that fits its text.
 //!
-//! Each renderer measures the label in its own system font and takes every
-//! other dimension from here, so the macOS and Windows overlays draw the same
-//! pill, with the text centred in it both ways.
+//! The Windows renderer measures the label in its system font and takes every
+//! other dimension from here, so the pill stays consistent, with the text
+//! centred in it both ways.
 
 use crate::Rect;
 

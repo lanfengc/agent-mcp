@@ -12,29 +12,24 @@ agent-browser screenshot app.png
 
 `--webgpu` (or `AGENT_BROWSER_WEBGPU=1`, or `"webgpu": true` in `~/.agent-browser/config.json` or a file loaded with `--config`) applies a launch preset:
 
-- everywhere: `--enable-unsafe-webgpu` (WebGPU is hidden in headless/blocklisted environments by default)
-- Linux only: `--enable-features=Vulkan --use-angle=vulkan --use-vulkan=swiftshader --use-webgpu-adapter=swiftshader --disable-vulkan-surface` — routes WebGPU through SwiftShader's software Vulkan, so it works with no GPU (containers, CI)
+- `--enable-unsafe-webgpu` (WebGPU is hidden in headless/blocklisted environments by default)
 
-macOS uses the hardware Metal backend; Windows uses D3D. Nothing extra to install on either.
+Windows uses the hardware D3D backend. Nothing extra to install.
 
 ## Platform matrix (verified)
 
 | Platform | WebGPU rendering (headless) | Screenshots of WebGPU canvases |
 |---|---|---|
-| macOS | works | works headless |
 | Windows | works (hardware D3D) | **headless captures black** — use `--headed` on a logged-in desktop |
-| Linux | works (SwiftShader Vulkan) | headless capture not supported upstream — add `--headed` (virtual display starts automatically) |
 
-The Windows/Linux screenshot gap is an upstream headless-Chrome limitation: WebGPU canvas *presentation* never reaches the headless compositor, even though rendering itself works (verified by pixel readback). It is not an agent-browser or flag problem — no known flag combination fixes it. Rendering, `eval`-based pixel readbacks, and compute all work headless everywhere.
-
-On Linux, `--headed` is all you need even on displayless servers and containers: when no `DISPLAY` is set and Xvfb is installed (`apt-get install -y xvfb`), agent-browser starts a private virtual display for the browser and tears it down with it. Set `AGENT_BROWSER_NO_XVFB=1` to opt out. Do not wrap the CLI in `xvfb-run`: it removes the display when the CLI exits while the browser keeps running.
+The screenshot gap is an upstream headless-Chrome limitation: WebGPU canvas *presentation* never reaches the headless compositor, even though rendering itself works (verified by pixel readback). It is not an agent-browser or flag problem — no known flag combination fixes it. Rendering, `eval`-based pixel readbacks, and compute all work headless.
 
 ```bash
 agent-browser --webgpu --headed open https://my-webgpu-app.example.com
-agent-browser screenshot app.png   # real WebGPU pixels, no display hardware
+agent-browser screenshot app.png   # real WebGPU pixels
 ```
 
-On Windows, the session must run headed in a logged-in desktop session (an ssh/Session-0 context is not enough — schedule the launch on the interactive desktop, e.g. `schtasks /IT`, then drive it from anywhere).
+The session must run headed in a logged-in desktop session (an ssh/Session-0 context is not enough — schedule the launch on the interactive desktop, e.g. `schtasks /IT`, then drive it from anywhere).
 
 ## Verify the pipeline
 
@@ -45,34 +40,9 @@ agent-browser doctor --webgpu
 This launches a scratch session with the preset and pixel-checks two stages separately:
 
 1. **render** — requests an adapter (with retries; a cold Chrome returns null while the GPU process starts), clears an offscreen texture to red through a real render pass, and reads the buffer back. Proves WebGPU works at all, and reports the adapter (e.g. `nvidia ampere`, `apple metal-3`, `google swiftshader`).
-2. **screenshot** — decodes an actual screenshot of a presenting canvas. Proves the capture path. Expected to fail headless on Windows/Linux (see matrix); the failure message says so and points at `--headed`.
+2. **screenshot** — decodes an actual screenshot of a presenting canvas. Proves the capture path. Expected to fail headless (see matrix); the failure message says so and points at `--headed`.
 
-Add `--headed` (`agent-browser doctor --webgpu --headed`) to validate the capture path itself — on displayless Linux the probe starts its own Xvfb, so both checks should pass.
-
-## Linux / containers / CI
-
-The SwiftShader Vulkan path needs the system Vulkan loader and Mesa ICD. Without them `requestAdapter()` returns null (or fails with "A valid external Instance reference no longer exists"):
-
-```bash
-apt-get install -y libvulkan1 mesa-vulkan-drivers
-```
-
-Container recipe (Debian/Ubuntu base; xvfb needed only for the screenshot path). Verified with both Chrome for Testing and Debian's `chromium` package (set `AGENT_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium` for the latter — useful on ARM64, where Chrome for Testing has no Linux builds):
-
-```dockerfile
-FROM node:22-bookworm-slim
-RUN apt-get update && apt-get install -y \
-    ca-certificates libvulkan1 mesa-vulkan-drivers xvfb xauth \
-    && rm -rf /var/lib/apt/lists/*
-RUN npm install -g agent-browser \
-    && agent-browser install   # downloads Chrome for Testing
-```
-
-No real GPU or `/dev/dri` is required. To prefer a real GPU on a Linux machine that has working hardware Vulkan, override both the Vulkan driver and the adapter — the preset pins `--use-vulkan=swiftshader`, so overriding only the adapter still enumerates SwiftShader (user `--args` win over the preset):
-
-```bash
-agent-browser --webgpu --args "--use-vulkan=native,--use-webgpu-adapter=default" open ...
-```
+Add `--headed` (`agent-browser doctor --webgpu --headed`) to validate the capture path itself.
 
 ## Secure contexts
 
@@ -111,8 +81,8 @@ device.queue.submit([encoder.finish()]);
 await buffer.mapAsync(GPUMapMode.READ);
 ```
 
-This works headless on every platform (it's how `doctor --webgpu` proves rendering).
+This works headless (it's how `doctor --webgpu` proves rendering).
 
 ## Performance expectations
 
-SwiftShader is a CPU rasterizer. Simple scenes render fine; heavy three.js scenes are single-digit FPS. For screenshots that's usually irrelevant; for smooth video capture of complex scenes, use hardware (macOS/Windows, or Linux with `--use-vulkan=native,--use-webgpu-adapter=default` and real Vulkan drivers).
+Hardware D3D renders full scenes at interactive rates. Slow rendering usually means Chrome fell back to a software adapter rather than a WebGPU problem.

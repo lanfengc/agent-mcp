@@ -29,15 +29,11 @@
     "accessibility",
     "cli",
     "agent",
-    "macos",
     "windows",
-    "linux",
     "a11y"
   ],
   "os": [
-    "darwin",
-    "win32",
-    "linux"
+    "win32"
   ],
   "cpu": [
     "arm64",

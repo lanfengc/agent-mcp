@@ -87,9 +87,9 @@ fn a_payload_that_is_not_a_control_is_refused() {
     assert!(decode(b"not json at all").is_err());
 }
 
-/// The enable is acknowledged and macOS's send path does not acknowledge it.
-/// `data.rendered` is answered from that byte, and the stdin bootstrap that
-/// starts the child cannot answer anything, so the divergence is the point.
+/// The enable is acknowledged. `data.rendered` is answered from that byte,
+/// and the stdin bootstrap that starts the child cannot answer anything, so
+/// the acknowledgement is what makes the control's outcome observable.
 #[test]
 fn the_controls_a_caller_waits_on_are_the_ones_that_answer_something() {
     assert!(is_acknowledged(&CursorOverlayControl::enable(

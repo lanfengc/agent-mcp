@@ -36,12 +36,9 @@ function git(root, args) {
 }
 
 const benign = scan({
-  "paths.txt": ["/home/example-user/docs\n/Users/runner/work/project\n/home/linuxbrew/.linuxbrew/bin\n"].join(""),
+  "paths.txt": ["C:\\Users\\example-user\\docs\n", "C:\\Users\\runner\\work\\project\n"].join(""),
   "addresses.txt": [
     "person@example.com",
-    "org.gnome.Shell@wayland.service",
-    "user@1000.service",
-    "ubuntu-appindicators@ubuntu.com",
     "noreply@github.com",
     "12345+agent@users.noreply.github.com",
     "secret@router.example",
@@ -50,8 +47,8 @@ const benign = scan({
 });
 assert.equal(benign.length, 0, `benign privacy examples triggered: ${benign.map((f) => f.RuleID).join(", ")}`);
 
-for (const prefix of ["/home/example-user", "/home/linuxbrew"]) {
-  const boundary = scan({ "paths.txt": `${prefix}2/docs\n` });
+for (const prefix of ["C:\\Users\\runner2", "C:\\Users\\example-user2"]) {
+  const boundary = scan({ "paths.txt": `${prefix}\\docs\n` });
   assert.ok(boundary.some((finding) => finding.RuleID === "ad-home-directory-path"),
     "a username extending a documented placeholder was allowlisted");
 }

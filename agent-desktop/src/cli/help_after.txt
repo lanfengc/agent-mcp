@@ -1,5 +1,5 @@
 THE LOOP
-  agent-desktop snapshot --app Finder --skeleton -i --compact
+  agent-desktop snapshot --app notepad.exe --skeleton -i --compact
   agent-desktop snapshot --root @s8f3k2p9:e3 -i --compact
   agent-desktop click @s8f3k2p9:e5
   agent-desktop wait --element @s8f3k2p9:e9 --predicate actionable --timeout 5000
@@ -15,7 +15,6 @@ REF IDs
   processes: pass it with --session or AGENT_DESKTOP_SESSION.
   On Windows, quote every ref in PowerShell ('@s8f3k2p9:e1'): a bare @token
   is its splatting operator and the argument disappears.
-
 RESULTS AND RETRIES
   Every response is one JSON envelope with ok and data, or ok and error. An
   action reports data.disposition, or error.disposition when it fails; read
@@ -25,8 +24,8 @@ RESULTS AND RETRIES
 
 KEY COMBOS
   Keys: return, escape, tab, space, delete, up, down, left, right, f1-f12
-  Modifiers: cmd, ctrl, alt, shift. Use cmd+c on macOS and ctrl+c on Windows,
-  where cmd and meta map to the Windows key.
+  Modifiers: cmd, ctrl, alt, shift. Use ctrl+c to copy; cmd and meta map to
+  the Windows key.
 
 ENVIRONMENT
   AGENT_DESKTOP_SESSION      Session ID fallback when --session is not passed

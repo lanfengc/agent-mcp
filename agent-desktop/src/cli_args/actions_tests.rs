@@ -103,11 +103,10 @@ fn drag_cli_args_batch_json_omitted_timeout_defaults_to_5000() {
 
 /// F10 regression: `MouseClickArgs`/`MousePointArgs` (mouse-click, mouse-down,
 /// mouse-up) previously had no `--modifiers` flag at all — only mouse-wheel
-/// carried one — so a chorded click was unreachable from the CLI regardless
-/// of what the macOS layer supported. Each pair proves the repeatable flag
-/// parses on the CLI and that legacy batch JSON without the key still
-/// deserializes (serde default empty), matching `MouseWheelArgs`'s existing
-/// contract.
+/// carried one — so a chorded click was unreachable from the CLI. Each pair
+/// proves the repeatable flag parses on the CLI and that legacy batch JSON
+/// without the key still deserializes (serde default empty), matching
+/// `MouseWheelArgs`'s existing contract.
 #[test]
 fn mouse_click_args_cli_modifiers_repeatable_flag_parses() {
     let args = MouseClickArgs::try_parse_from([

@@ -43,9 +43,8 @@ fn a_motion_with_nowhere_to_go_arrives_immediately() {
     assert!(has_arrived(0, 0));
 }
 
-/// A static outline would hold full opacity throughout. The curve is what keeps
-/// Windows highlight from reading as a cruder cue than the macOS one it is
-/// measured against.
+/// A static outline would hold full opacity throughout. The curve is what
+/// keeps the highlight from reading as a cruder cue than it needs to be.
 #[test]
 fn the_highlight_rises_holds_and_falls_rather_than_blinking() {
     let hold = 900;

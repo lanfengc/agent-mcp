@@ -2,8 +2,8 @@
 //! leaves geometry unchanged (A19-7).
 //!
 //! Direction comes from the target's fresh bounds against the nearest
-//! ScrollPattern-available ancestor viewport (macOS `direction_for_visibility`
-//! parity). Visibility uses the shipped ScrollIntoView predicate — IsOffscreen
+//! ScrollPattern-available ancestor viewport. Visibility uses the shipped
+//! ScrollIntoView predicate — IsOffscreen
 //! false, positive-area bounds, and viewport containment when the target fits — because provider
 //! rects are unclipped (A18-2).
 

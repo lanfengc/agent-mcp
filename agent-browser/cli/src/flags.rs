@@ -149,7 +149,6 @@ pub struct Config {
     pub args: Option<String>,
     pub user_agent: Option<String>,
     pub provider: Option<String>,
-    pub device: Option<String>,
     pub hide_scrollbars: Option<bool>,
     pub webgpu: Option<bool>,
     pub no_webmcp: Option<bool>,
@@ -235,7 +234,6 @@ impl Config {
             args: other.args.or(self.args),
             user_agent: other.user_agent.or(self.user_agent),
             provider: other.provider.or(self.provider),
-            device: other.device.or(self.device),
             hide_scrollbars: other.hide_scrollbars.or(self.hide_scrollbars),
             webgpu: other.webgpu.or(self.webgpu),
             no_webmcp: other.no_webmcp.or(self.no_webmcp),
@@ -415,7 +413,6 @@ pub(crate) fn extract_config_path(args: &[String]) -> Option<Option<String>> {
         "--user-agent",
         "-p",
         "--provider",
-        "--device",
         "--session-name",
         "--color-scheme",
         "--download-path",
@@ -519,12 +516,6 @@ pub struct Flags {
     pub hide_scrollbars: bool,
     pub webgpu: bool,
     pub no_webmcp: bool,
-    /// Env-only (AGENT_BROWSER_NO_XVFB): disable automatic Xvfb for headed
-    /// launches on displayless Linux hosts.
-    pub no_xvfb: bool,
-    /// AGENT_BROWSER_NO_XVFB is set, to any value, so an off value can be sent.
-    pub no_xvfb_set: bool,
-    pub device: Option<String>,
     pub auto_connect: bool,
     pub pin_tab: bool,
     pub session_name: Option<String>,
@@ -752,9 +743,6 @@ pub fn try_parse_flags(args: &[String]) -> Result<Flags, String> {
         webgpu: env_var_is_truthy("AGENT_BROWSER_WEBGPU") || config.webgpu.unwrap_or(false),
         no_webmcp: env_var_is_truthy("AGENT_BROWSER_NO_WEBMCP")
             || config.no_webmcp.unwrap_or(false),
-        no_xvfb: env_var_is_truthy("AGENT_BROWSER_NO_XVFB"),
-        no_xvfb_set: env::var_os("AGENT_BROWSER_NO_XVFB").is_some(),
-        device: env::var("AGENT_BROWSER_IOS_DEVICE").ok().or(config.device),
         auto_connect: env_var_is_truthy("AGENT_BROWSER_AUTO_CONNECT")
             || config.auto_connect.unwrap_or(false),
         pin_tab: env_var_is_truthy("AGENT_BROWSER_PIN_TAB") || config.pin_tab.unwrap_or(false),
@@ -1132,12 +1120,6 @@ pub fn try_parse_flags(args: &[String]) -> Result<Flags, String> {
                     i += 1;
                 }
             }
-            "--device" => {
-                if let Some(d) = args.get(i + 1) {
-                    flags.device = Some(d.clone());
-                    i += 1;
-                }
-            }
             "--auto-connect" => {
                 let (val, consumed) = parse_bool_arg(args, i);
                 flags.auto_connect = val;
@@ -1438,7 +1420,6 @@ pub fn clean_args(args: &[String]) -> Vec<String> {
         "--user-agent",
         "-p",
         "--provider",
-        "--device",
         "--session-name",
         "--color-scheme",
         "--download-path",
@@ -1540,23 +1521,6 @@ mod tests {
         assert_eq!(abs(absolute.to_str().unwrap(), &a), absolute);
         assert_eq!(super::absolute_policy_path("", &a).unwrap(), "");
         assert_eq!(super::absolute_policy_path("  ", &a).unwrap(), "  ");
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn test_policy_path_in_a_non_utf8_directory_is_an_error() {
-        use std::os::unix::ffi::OsStrExt;
-        let cwd = std::path::Path::new(std::ffi::OsStr::from_bytes(b"/tmp/\xff\xfe"));
-
-        let err = super::absolute_policy_path("policy.json", cwd).unwrap_err();
-
-        assert!(err.contains("valid UTF-8"), "{err}");
-        assert!(err.contains("absolute path"), "{err}");
-        // An absolute path needs nothing from the directory.
-        assert_eq!(
-            super::absolute_policy_path("/ok/p.json", cwd).unwrap(),
-            "/ok/p.json"
-        );
     }
 
     #[test]
@@ -2031,8 +1995,7 @@ mod tests {
             "proxyBypass": "localhost",
             "args": "--no-sandbox",
             "userAgent": "test-agent",
-            "provider": "ios",
-            "device": "iPhone 15",
+            "provider": "browserbase",
             "hideScrollbars": false,
             "ignoreHttpsErrors": true,
             "allowFileAccess": true,
@@ -2065,8 +2028,7 @@ mod tests {
         assert_eq!(config.proxy_bypass.as_deref(), Some("localhost"));
         assert_eq!(config.args.as_deref(), Some("--no-sandbox"));
         assert_eq!(config.user_agent.as_deref(), Some("test-agent"));
-        assert_eq!(config.provider.as_deref(), Some("ios"));
-        assert_eq!(config.device.as_deref(), Some("iPhone 15"));
+        assert_eq!(config.provider.as_deref(), Some("browserbase"));
         assert_eq!(config.hide_scrollbars, Some(false));
         assert_eq!(config.ignore_https_errors, Some(true));
         assert_eq!(config.allow_file_access, Some(true));

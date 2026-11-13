@@ -56,7 +56,6 @@ dependencies = [
  "hex",
  "hmac",
  "image",
- "libc",
  "psl",
  "reqwest",
  "rust-embed",

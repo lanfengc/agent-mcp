@@ -5,18 +5,17 @@
  *
  * Finds the native binary from the platform package (an optional dependency),
  * downloading it from the GitHub release only when that package is missing.
- * Then points the package manager's bin entry at the native binary:
- * - Windows: Overwrites npm's .cmd/.ps1 shims
- * - Mac/Linux: Replaces the npm/yarn/bun symlink or the pnpm shim
+ * Then points the package manager's bin entry at the native binary by
+ * overwriting npm's .cmd/.ps1 shims.
  *
  * Install scripts are blocked by default in npm 12, pnpm and bun; the launcher
  * (bin/agent-browser.js) then performs the same linking on its first run.
  */
 
-import { existsSync, mkdirSync, chmodSync, createWriteStream, realpathSync, unlinkSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, createWriteStream, realpathSync, unlinkSync, writeFileSync } from 'fs';
 import { basename, dirname, isAbsolute, join, sep } from 'path';
 import { fileURLToPath } from 'url';
-import { platform, arch, tmpdir } from 'os';
+import { tmpdir } from 'os';
 import { get } from 'https';
 import { execSync } from 'child_process';
 import { findNativeBinary, nativeTarget } from './native.js';
@@ -27,9 +26,7 @@ const projectRoot = join(__dirname, '..');
 const binDir = join(projectRoot, 'bin');
 
 const target = nativeTarget();
-// Windows ARM64 falls back to x64 binary (no native ARM64 build available).
-// x64 binaries run via Windows' built-in emulation on ARM64.
-const binaryName = target?.binaryName ?? `agent-browser-${platform()}-${arch()}`;
+const binaryName = target.binaryName;
 const binaryPath = join(binDir, binaryName);
 
 // Package info
@@ -80,7 +77,7 @@ async function downloadFile(url, dest) {
  * without fragile path heuristics or slow subprocess probing.
  *
  * npm_config_user_agent is set by npm/pnpm/yarn/bun during lifecycle scripts,
- * e.g. "pnpm/8.10.0 node/v20.10.0 linux x64"
+ * e.g. "pnpm/8.10.0 node/v20.10.0 win32 x64"
  */
 function writeInstallMethod() {
   const method = detectManager();
@@ -95,22 +92,9 @@ function writeInstallMethod() {
 }
 
 async function main() {
-  if (!target) {
-    console.log(`No native binary available for ${platform()}-${arch()}`);
-    return;
-  }
-
   let binary = findNativeBinary(projectRoot, target);
 
   if (binary) {
-    // Ensure binary is executable (npm doesn't preserve execute bit)
-    if (platform() !== 'win32') {
-      try {
-        chmodSync(binary, 0o755);
-      } catch {
-        // Read-only package store; the launcher retries before running it
-      }
-    }
     console.log(`✓ Native binary ready: ${dirname(binary) === binDir ? binaryName : target.packageName}`);
   } else {
     // The platform package is missing, e.g. --omit=optional or a lockfile
@@ -119,19 +103,11 @@ async function main() {
       mkdirSync(binDir, { recursive: true });
     }
 
-    console.log(`Downloading native binary for ${platform()}-${arch()}...`);
-    if (platform() === 'win32' && arch() === 'arm64') {
-      console.log(`  Note: Using x64 binary on ARM64 Windows (runs via emulation)`);
-    }
+    console.log('Downloading native binary for Windows...');
     console.log(`URL: ${DOWNLOAD_URL}`);
 
     try {
       await downloadFile(DOWNLOAD_URL, binaryPath);
-
-      // Make executable on Unix
-      if (platform() !== 'win32') {
-        chmodSync(binaryPath, 0o755);
-      }
 
       console.log(`✓ Downloaded native binary: ${binaryName}`);
       binary = binaryPath;
@@ -156,34 +132,12 @@ async function main() {
 }
 
 function findSystemChrome() {
-  const os = platform();
-  if (os === 'darwin') {
-    const candidates = [
-      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-      '/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary',
-      '/Applications/Chromium.app/Contents/MacOS/Chromium',
-    ];
-    return candidates.find(p => existsSync(p)) || null;
-  }
-  if (os === 'linux') {
-    const names = ['google-chrome', 'google-chrome-stable', 'chromium-browser', 'chromium'];
-    for (const name of names) {
-      try {
-        const result = execSync(`which ${name} 2>/dev/null`, { encoding: 'utf8' }).trim();
-        if (result) return result;
-      } catch {}
-    }
-    return null;
-  }
-  if (os === 'win32') {
-    const candidates = [
-      `${process.env.LOCALAPPDATA}\\Google\\Chrome\\Application\\chrome.exe`,
-      'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-      'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-    ];
-    return candidates.find(p => p && existsSync(p)) || null;
-  }
-  return null;
+  const candidates = [
+    `${process.env.LOCALAPPDATA}\\Google\\Chrome\\Application\\chrome.exe`,
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+  ];
+  return candidates.find(p => p && existsSync(p)) || null;
 }
 
 function showInstallReminder() {
@@ -201,12 +155,6 @@ function showInstallReminder() {
   console.log('  If you plan to use a local browser, run:');
   console.log('');
   console.log('    agent-browser install');
-  if (platform() === 'linux') {
-    console.log('');
-    console.log('  On Linux, include system dependencies with:');
-    console.log('');
-    console.log('    agent-browser install --with-deps');
-  }
   console.log('');
   console.log('  You can skip this if you use --cdp, --provider, --engine, or --executable-path.');
   console.log('');
@@ -220,7 +168,7 @@ function detectManager() {
 
 /** A manager's global bin directory sits at the prefix itself on Windows. */
 function prefixToBin(prefix) {
-  return platform() === 'win32' ? prefix : join(prefix, 'bin');
+  return prefix;
 }
 
 /**

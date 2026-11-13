@@ -2,7 +2,7 @@
 //! ancestor walks are charged against.
 //!
 //! Self or descendant → `ReachesTarget`. Ancestor of the target → `Unknown`
-//! directly: unlike macOS, UIA's `ElementFromPoint` is desktop-global with no
+//! directly: UI Automation's `ElementFromPoint` is desktop-global with no
 //! application-scoped retry, so the arm that would only refine toward
 //! `Unknown` is the answer — Chromium render-host panes land here when web
 //! content is not hit-addressable. Incomplete ancestry walks → `Unknown`.

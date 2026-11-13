@@ -5,8 +5,8 @@ requirements:
   - agent-desktop-ffi
 description: >
   C-ABI bindings over agent-desktop's PlatformAdapter. Consumers
-  (Python ctypes, Swift, Node ffi-napi, Go cgo, C++, Ruby fiddle)
-  link libagent_desktop_ffi.{dylib,so,dll} and call `ad_*` functions
+  (Python ctypes, Node ffi-napi, Go cgo, C++, Ruby fiddle)
+  load `agent_desktop_ffi.dll` and call `ad_*` functions
   directly instead of spawning the CLI binary per call. The canonical
   observe-act workflow is: ad_init → ad_adapter_create[_with_session]
   → ad_snapshot → read qualified refs (@s8f3k2p9:e5) → ad_execute_by_ref → ad_free_string
@@ -22,10 +22,9 @@ Direct C-ABI access to the same operations as the CLI. Build the cdylib with the
 cargo build --profile release-ffi -p agent-desktop-ffi
 ```
 
-The output is `target/release-ffi/libagent_desktop_ffi.dylib` (`.so` on Linux,
-`agent_desktop_ffi.dll` on Windows) plus a committed C header at
+The output is `target/release-ffi/agent_desktop_ffi.dll` plus a committed C header at
 `crates/ffi/include/agent_desktop.h`. The default `release` profile uses
-`panic = "abort"`: a Rust panic inside an `extern "C"` function would `SIGABRT`
+`panic = "abort"`: a Rust panic inside an `extern "C"` function would abort
 the host. `release-ffi` keeps `panic = "unwind"`, which the panic traps need.
 
 Four reference topics, loaded as needed:
@@ -36,16 +35,16 @@ Four reference topics, loaded as needed:
   contract, error codes, enum validation, panic boundary.
 - [threading.md](references/threading.md): host-thread contract, mutation
   ordering across threads and processes, adapter-bound native handles,
-  AXIsProcessTrusted inheritance.
+  COM apartment setup.
 - [build-and-link.md](references/build-and-link.md): prebuilt archives, ABI
   handshake, struct size validation, C and Python examples.
 
 ## Observe-act workflow (canonical path)
 
 ```
-ad_init(AD_ABI_VERSION_MAJOR)                    // verify header ↔ dylib match
+ad_init(AD_ABI_VERSION_MAJOR)                    // verify header ↔ DLL match
 adapter = ad_adapter_create_with_session("s1")   // or ad_adapter_create()
-rc = ad_snapshot(adapter, "Finder", 0, 10, false, false, &json_out)
+rc = ad_snapshot(adapter, "notepad.exe", 0, 10, false, false, &json_out)
 // parse json_out: locate snapshot-qualified refs in data.tree
 ad_free_string(json_out)
 // build action:
@@ -59,8 +58,8 @@ ad_adapter_destroy(adapter)
 `data.tree` carries snapshot-qualified refs for interactive elements. Read
 `data.complete` before trusting a tree: `false` means the observation budget ran
 out and the tree is partial, not an error. `ad_snapshot` reads the owner selected
-by `surface`. On macOS, `menu` and `menubar` are application-owned, need no
-document window, and omit `data.window`; window-owned snapshots include it.
+by `surface`. Window-owned snapshots include `data.window`; a process-owned
+snapshot of an app with no window omits it.
 Window targeting, skeleton mode and `--root` drill-down are not exposed over the
 ABI. A bare `@eN` ref returns
 `AD_RESULT_ERR_INVALID_ARGS`.
@@ -71,7 +70,7 @@ ABI. A bare `@eN` ref returns
   library. A mismatch returns `AD_RESULT_ERR_INVALID_ARGS`: abort. `ad_abi_version()`
   returns the library's major for display. The major increments on a removed
   symbol or a layout change; new `ad_*` symbols and error codes are additive.
-  Pin the exact `libagent_desktop_ffi` version you link against.
+  Pin the exact `agent_desktop_ffi.dll` version you link against.
 
 - **Session adapters.** `ad_adapter_create_with_session("session-id")` scopes
   refmap persistence to a session namespace, like CLI `--session <id>`. IDs are 1
@@ -102,7 +101,7 @@ ABI. A bare `@eN` ref returns
   surface `id`. From `AD_EXACT_SURFACE_INFO_VERSION` 2, `AdExactSurfaceInfo.unclassified`
   names the surface kinds its probe could not read (for example `sheet,menu`), or
   is null. A missing `sheet` or `menu` next to a listed kind is unknown, not
-  absent. Only the Windows adapter fills it; macOS and Linux return null.
+  absent. The Windows adapter fills it.
 
 - **Native handles.** `ad_find_exact` returns an `AdNativeHandle`. It re-identifies the
   element before publishing it: it raises the landed handle against the selected entry's
@@ -113,7 +112,7 @@ ABI. A bare `@eN` ref returns
   `ad_execute_action` (headless, no preflight) and
   `ad_execute_action_with_policy` act on a handle directly, bypassing the ref-action
   pipeline. Release every handle with `ad_free_handle(adapter, &handle)` on the
-  same adapter and thread, before `ad_adapter_destroy`, on every platform. It
+  same adapter and thread, before `ad_adapter_destroy`. It
   zeroes `handle.ptr`, so a second call is a no-op.
 
 - **Action results.** `AdActionResult.steps` mirrors the CLI `steps` array for
@@ -149,8 +148,8 @@ ABI. A bare `@eN` ref returns
   `event`, `ts_ms`, `seq`, and redacted fields) is active only when the session has
   a manifest with `trace: on`, created by `session start` (or an equivalent manifest
   on disk) before the adapter is created. `ad_adapter_create_with_session` alone
-  writes nothing. Each OS process appends to one segment,
-  `~/.agent-desktop/sessions/<id>/trace/<pid>-<procTs>.jsonl`, and a long-lived host
+  writes nothing. Each process appends to one segment,
+  `<state root>\sessions\<id>\trace\<pid>-<procTs>.jsonl`, and a long-lived host
   reuses it. `ad_trace_show` (JSON envelope) and `ad_trace_export` (self-contained
   HTML file) read the adapter session's merged timeline; `limit` `-1` = CLI default.
 
@@ -177,8 +176,8 @@ ABI. A bare `@eN` ref returns
   `ad_free_string`. `ad_wait` blocks the calling thread up to `scope.timeout_ms` ms. A
   concurrent `ad_adapter_destroy` does not invalidate an in-flight wait.
 
-- **Text input privacy.** On macOS, focus-fallback or headed text insertion may
-  briefly use the clipboard for non-ASCII text. For sensitive text, prefer
+- **Text input privacy.** Headed text insertion may briefly use the clipboard for
+  non-ASCII text. For sensitive text, prefer
   `AD_ACTION_KIND_SET_VALUE` with `AD_POLICY_KIND_HEADLESS` when the target
   supports settable values.
 

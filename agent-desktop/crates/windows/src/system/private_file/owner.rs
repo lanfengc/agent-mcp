@@ -20,12 +20,11 @@
 //! let this token assign as an owner — no wider, no narrower.
 //!
 //! The purpose is narrow: detecting a path pre-created by a foreign
-//! principal, the Windows analogue of the unix uid post-condition in core's
-//! `private_file.rs`. It is explicitly not an isolation boundary between
+//! principal. It is explicitly not an isolation boundary between
 //! administrator processes — an administrator holds
 //! `SeTakeOwnershipPrivilege`, so no file-permission mechanism can exclude
-//! one. The unix `nlink` post-condition has no measured Windows analogue and
-//! is deliberately not carried here.
+//! one. A link-count post-condition has no measured Windows analogue and is
+//! deliberately not carried here.
 //!
 //! Only the owner is read — `GetSecurityInfo` with
 //! `OWNER_SECURITY_INFORMATION` and no DACL requested — so this module reads

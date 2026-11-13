@@ -37,8 +37,8 @@ pub struct DoctorOptions {
     /// "re-run with --debug" fix hints actually produce diagnostics.
     pub debug: bool,
     /// Run the WebGPU probe headed instead of headless, validating the
-    /// capture path the probe's own failure hint recommends (auto-Xvfb on
-    /// displayless Linux, logged-in desktop on Windows).
+    /// capture path the probe's own failure hint recommends (a logged-in
+    /// desktop).
     pub headed: bool,
 }
 

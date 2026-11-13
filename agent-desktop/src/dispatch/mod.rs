@@ -1,6 +1,8 @@
 mod app_window;
 mod clipboard;
 mod cursor_overlay;
+#[cfg(target_os = "windows")]
+pub(crate) mod desktop_session;
 mod disposition;
 mod interaction;
 mod keyboard_mouse;

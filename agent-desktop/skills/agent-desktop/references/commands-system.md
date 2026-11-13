@@ -5,24 +5,24 @@ App lifecycle, windows, notifications, clipboard, wait, batch, sessions, health.
 ## launch
 
 ```bash
-agent-desktop launch "System Settings"       # macOS display name
-agent-desktop launch "TextEdit" --activate
-agent-desktop launch "MyTool" --arg /tmp/notes.txt --env KEY=VALUE --no-attach
-agent-desktop launch "Obsidian" --cdp
+agent-desktop launch notepad.exe
+agent-desktop launch notepad.exe --activate
+agent-desktop launch "C:\Tools\MyTool.exe" --arg C:\notes.txt --env KEY=VALUE --no-attach
+agent-desktop launch "C:\Users\me\AppData\Local\Obsidian\Obsidian.exe" --cdp
 ```
 
-`launch` returns once the process runs. The identifier differs by OS: the examples use macOS display names, and the platform skill names the form for its OS. By default it attaches to a running instance. `--no-attach` starts a fresh instance instead of attaching: on Windows it returns `ACTION_FAILED` if a matching app is already running; on macOS it launches a second instance alongside the running one. For an `--arg` value that starts with `-`, use `--arg=<value>`.
+`launch` returns once the process runs. It takes an absolute path, or a bare name under System32 or the Windows directory, with or without `.exe`; it does not resolve a display name. By default it attaches to a running instance. `--no-attach` starts a fresh instance instead of attaching, and returns `ACTION_FAILED` if a matching app is already running. For an `--arg` value that starts with `-`, use `--arg=<value>`.
 
 The process running and the app showing a window are separate facts:
 
 ```json
-{ "app": "TextEdit", "pid": 611, "window": { "id": "w-110407", "title": "Open", "visible": true } }
+{ "app": "notepad.exe", "pid": 611, "window": { "id": "w-110407", "title": "Untitled - Notepad", "visible": true } }
 ```
 
 - `window` is present when the app already has one, and omitted when it has none. Its absence is not a failure. `launch` still returns `ok: true`.
 - A document-based app may open its first window only when brought forward. Use `--activate`: it asks the app to present a window and waits for it up to `--timeout` (default 30000). This brings the app forward, so it is not headless. Or trigger the window yourself and use `wait --event window-opened`.
 - A process that exits before it shows a window returns `APP_UNRESPONSIVE`.
-- Windowless and menu-bar-only apps report no `window`. Use `list-apps` and read `presentation`.
+- Windowless apps and tray-only apps report no `window`. Use `list-apps` and read `presentation`.
 - An app built on Chromium may return `renderer: "chromium"` and a `suggestion`. These are hints. The accessibility path still works. A missing `renderer` never proves the app is native.
 
 ### Web contents of a Chromium app (`--cdp`)
@@ -30,7 +30,7 @@ The process running and the app showing a window are separate facts:
 Use `--cdp` for Electron and Chromium apps whose web contents are dense or slow to walk (Slack, VS Code, Discord, Obsidian, Notion). It launches the app fresh with a loopback-only debugging port, polls until the endpoint answers, then returns. Pass a port, or omit it to let the OS pick a free one.
 
 ```json
-{ "app": "Obsidian", "pid": 4821, "cdp": { "port": 9229, "http_endpoint": "http://127.0.0.1:9229",
+{ "app": "Obsidian.exe", "pid": 4821, "cdp": { "port": 9229, "http_endpoint": "http://127.0.0.1:9229",
   "websocket_url": "ws://127.0.0.1:9229/devtools/browser/<id>", "product": "Chrome/142.0.7444.265" } }
 ```
 
@@ -55,60 +55,59 @@ and click its own Close button ref, then confirm the close with a `batch` of the
 click and `wait --event window-closed`. Answer any save prompt through its
 sheet. For the last window, use `close-app` if you intend to exit the app.
 Ctrl+W may close only a tab or document, leaving the window open.
-The Linux windows reference includes a Bash recipe that selects a fresh Close ref.
 
 ```bash
-agent-desktop close-app "TextEdit"
-agent-desktop close-app "TextEdit" --force
+agent-desktop close-app notepad.exe
+agent-desktop close-app notepad.exe --force
 ```
 
 Success is reported only after the process is seen gone: `{ "method": "graceful" | "force", "disposition": { "delivery": "delivered_unverified" | "delivered_verified" | "not_delivered" }, "target": { "kind": "app", ... } }`. `not_delivered` means the app had already exited. Read `disposition`, not `ok`, to learn what was proved. If a save dialog appears, snapshot it and answer it. `--force` ends the process. Protected system processes return `INVALID_ARGS` with `not_delivered`, not `PERM_DENIED`.
 
 ## list-apps
 
-Lists running GUI apps as `{ name, pid, bundle_id, presentation }`. `--app` filters by name substring. `presentation` is `foreground` (ordinary windows), `background` (no Dock entry, such as menu-bar items and hotkey overlays), or omitted (helper processes). Apps with no UI are excluded.
+Lists running GUI apps as `{ name, pid, presentation }`. `--app` filters by name substring. `presentation` is `foreground` (ordinary windows), `background` (tray or helper process with no visible UI), or omitted when the adapter did not classify it. Apps with no UI are excluded.
 
-## Windows (OS windows)
+## App windows
 
 ```bash
-agent-desktop list-windows --app "Finder"
+agent-desktop list-windows --app explorer.exe
 agent-desktop focus-window --window-id w-4521
-agent-desktop resize-window --app "TextEdit" --width 800 --height 600
-agent-desktop move-window --app "TextEdit" --x 0 --y 0
-agent-desktop minimize --app "TextEdit"   # maximize, restore likewise
+agent-desktop resize-window --app notepad.exe --width 800 --height 600
+agent-desktop move-window --app notepad.exe --x 0 --y 0
+agent-desktop minimize --app notepad.exe   # maximize, restore likewise
 ```
 
-- `list-windows` returns `{ id, title, app_name, pid, bounds, is_focused, accessible }`. Use a `w-<id>` with `--window-id` when an app has several windows.
+- `list-windows` returns `{ id, title, app_name, pid, bounds, is_focused, visible, minimized, accessible }`. Use a `w-<id>` with `--window-id` when an app has several windows.
 - `accessible: false` means semantic commands cannot reach that window. Targeting it returns `ACTION_NOT_SUPPORTED` with `kind: "window_without_accessibility_element"`. It still accepts screenshots and coordinate input. Choose another window. Wait polling treats this error as transient. In particular, `--wait-for-gone` does not count it as absence; it keeps polling until the window disappears from the inventory or the wait times out.
 - `focus-window` needs at least one identifier. It confirms the OS reports that window as focused. Otherwise it returns `ACTION_FAILED`.
 - `restore` undoes a minimize and returns the window to its earlier placement. It does not promise to un-maximize.
 
 ## Notifications
 
-Commands: `list-notifications`, `dismiss-notification`, `dismiss-all-notifications`, `notification-action`, `wait --notification`. They drive the OS notification surface: Notification Center on macOS, Action Center on Windows, the GNOME Shell message list on Linux. Command shapes and JSON fields are the same on each. The platform skill states its limits.
+Commands: `list-notifications`, `dismiss-notification`, `dismiss-all-notifications`, `notification-action`, `wait --notification`. They drive the Windows Action Center. The Windows skill states its limits.
 
 - Output is verbatim. Titles and bodies are not redacted. Treat anything you route onward as sensitive.
-- On macOS and Windows, headless listing works only when the surface is already open. When it is closed, a strict-headless call returns `POLICY_DENIED`. Use `--headed`, which may open the surface and restore the earlier foreground app. Linux lists headless even when the list is closed.
+- Headless listing works only when the Action Center is already open. When it is closed, a strict-headless call returns `POLICY_DENIED`. Use `--headed`, which may open the surface and restore the earlier foreground app.
 - Every mutation needs `--headed`. A single-notification mutation also needs a fingerprint from the same listing: `--expected-app` or `--expected-title`. Notifications reorder between listings. When the row at the index no longer matches, the call returns `NOTIFICATION_NOT_FOUND` and presses nothing. Without a fingerprint, `INVALID_ARGS`.
 - `list-notifications` returns `{ index, app_name, title, body, actions }`, with 1-based indexes. `--app`, `--text`, `--limit` filter.
 - `notification-action INDEX "Reply"` clicks a named button. An action the entry lacks returns `ACTION_NOT_SUPPORTED` and changes nothing.
 - `dismiss-all-notifications` returns `{ dismissed_count, failures, failed_count }`. A failure to close the surface afterward is not reported as an error.
-- `wait --notification` detects a new entry against a baseline taken at wait start. Transient errors retry within `--timeout`. On macOS and Windows, a headless wait sees only an already-open surface.
+- `wait --notification` detects a new entry against a baseline taken at wait start. Transient errors retry within `--timeout`. A headless wait sees only an already-open Action Center.
 
 ## Clipboard
 
 ```bash
 agent-desktop clipboard-get --format auto
-agent-desktop clipboard-get --format image --out /tmp/clip.png
+agent-desktop clipboard-get --format image --out C:\Users\you\clip.png
 agent-desktop clipboard-set "Hello"
 printf '%s' 'Hello' | agent-desktop clipboard-set --stdin
-agent-desktop clipboard-set --image /tmp/a.png
-agent-desktop clipboard-set --file-url /tmp/a.txt --file-url /tmp/b.txt
+agent-desktop clipboard-set --image C:\Users\you\a.png
+agent-desktop clipboard-set --file-url C:\Users\you\a.txt --file-url C:\Users\you\b.txt
 agent-desktop clipboard-clear
 ```
 
 - Formats: `text` (default), `auto` (file references, then image, then text), `image`, `file-urls`. Output is `{ "type": "text", "text": ... }`, `{ "type": "file_urls", ... }`, or `{ "type": "image", "path", "width", "height" }`. When the clipboard has nothing in that form: `{ "type": "<format>", "found": false }`.
-- Image bytes go to `--out`, or to a private file under the active session directory (or `~/.agent-desktop/tmp`).
+- Image bytes go to `--out`, or to a private file under the active session directory (or `<state root>\tmp`).
 - `clipboard-set` writes one representation per call. `--file-url` and `--image` win over the positional text. Every `--file-url` path must exist, or `INVALID_ARGS`.
 - Use `clipboard-set --stdin` to read up to 128 KiB from a pipe or redirected file without putting it in process arguments. Terminal input is rejected. It cannot be combined with a command-line value, `--image`, or `--file-url`.
 - The command waits until the input ends. Empty input and all line breaks are kept, including a final newline. Use `printf '%s'` to avoid adding one. Input must be valid UTF-8 without NUL bytes (`\0`).
@@ -121,10 +120,10 @@ agent-desktop clipboard-clear
 agent-desktop wait 1000
 agent-desktop wait --element @s8f3k2p9:e5 --predicate actionable --action type --timeout 5000
 agent-desktop wait --element @s8f3k2p9:e5 --predicate value --value "Done"
-agent-desktop wait --window "Save As" --app "TextEdit"
-agent-desktop wait --text "Loading complete" --app "Safari"
-agent-desktop wait --menu --app "Finder"
-agent-desktop wait --event window-opened --app "Finder"
+agent-desktop wait --window "Save As" --app notepad.exe
+agent-desktop wait --text "Loading complete" --app msedge.exe
+agent-desktop wait --menu --app explorer.exe
+agent-desktop wait --event window-opened --app explorer.exe
 ```
 
 Use `wait`, not a fixed sleep. `--timeout` defaults to 30000 ms. Modes:
@@ -142,9 +141,9 @@ For `wait --event` only, `--app` resolves once, at wait start, to one process in
 - `app-terminated`, `window-closed`, `surface-dismissed`: return `"found": true` with `"target_unresolved": true` at once. A misspelled `--app` gives the same answer, so check the name.
 - `focus-changed`: returns `APP_NOT_FOUND`.
 
-On macOS and Windows, an existing window can still satisfy `--window` while its app is unresponsive. A wait can return top-level `APP_UNRESPONSIVE` before its timeout; handle that error directly. `wait --event` keeps polling after retryable read failures and includes the latest failure in `details.last_error` if it times out. A non-retryable error ends the event wait immediately.
+An existing window can still satisfy `--window` while its app is unresponsive. A wait can return top-level `APP_UNRESPONSIVE` before its timeout; handle that error directly. `wait --event` keeps polling after retryable read failures and includes the latest failure in `details.last_error` if it times out. A non-retryable error ends the event wait immediately.
 
-The platform skills state the event and menu wait rules that differ by OS.
+The Windows skill states the event and menu wait rules.
 
 A `TIMEOUT` from `wait` carries `details.kind: "wait_timeout"`, `last_observed` or `last_error`, and `baseline_counts` for events.
 
@@ -159,23 +158,24 @@ agent-desktop batch '[
 
 agent-desktop batch '[
   {"command":"click","args":{"ref_id":"@s8f3k2p9:e1"}},
-  {"command":"wait","args":{"event":"window-opened","app":"TextEdit","timeout":5000}}
+  {"command":"wait","args":{"event":"window-opened","app":"notepad.exe","timeout":5000}}
 ]' --stop-on-error
 ```
 
 Batch runs entries in order in one process. It is not a transaction. Entries use the same typed commands, policy checks and dispatch as the CLI. Use `args`, not `params`. Unknown fields are rejected, and nested `batch` is rejected. Pass `--stop-on-error` to halt at the first failure. Each entry may carry `"session": "id"`, otherwise it inherits the top-level session. An entry whose session ended before dispatch is `not_started` with reason `session_ended`. An ended top-level session refuses the whole batch with `INVALID_ARGS` (`details.kind: session_ended`) before any entry runs. Snapshot args use `skeleton`, `root`, `interactive_only`.
 
-Wait entries use flat JSON keys matching the wait argument fields. For event waits, use `event` and optional `app`, `timeout` (milliseconds; defaults to 30000), `window`, and `window_id`. For example, the batch above waits up to five seconds for a new TextEdit window. `window` and `window_id` narrow only window lifecycle events (`window-opened`, `window-closed`, `focus-changed`); they do not scope text waits. In an action-then-event sequence, the batch captures the event baseline before the action, and does not start the action if that baseline read fails.
+Wait entries use flat JSON keys matching the wait argument fields. For event waits, use `event` and optional `app`, `timeout` (milliseconds; defaults to 30000), `window`, and `window_id`. For example, the batch above waits up to five seconds for a new Notepad window. `window` and `window_id` narrow only window lifecycle events (`window-opened`, `window-closed`, `focus-changed`); they do not scope text waits. In an action-then-event sequence, the batch captures the event baseline before the action, and does not start the action if that baseline read fails.
 
-Keys are the command's own field names, so a positional argument is named after itself rather than after its placeholder: `press COMBO` is `{"combo":"cmd+s"}`, `click REF` is `{"ref_id":"@s8f3k2p9:e1"}`, and `type REF TEXT` takes `ref_id` and `text`. A flag drops its leading `--` and writes `-` as `_`, so `--timeout-ms` is `timeout_ms`.
+Keys are the command's own field names, so a positional argument is named after itself rather than after its placeholder: `press COMBO` is `{"combo":"ctrl+s"}`, `click REF` is `{"ref_id":"@s8f3k2p9:e1"}`, and `type REF TEXT` takes `ref_id` and `text`. A flag drops its leading `--` and writes `-` as `_`, so `--timeout-ms` is `timeout_ms`.
 
 ## Sessions and traces
 
 A session is an on-disk container under `<state root>/sessions/<id>/` with a manifest, snapshot refmaps and, when tracing is on, a `trace/` directory. The state root is `~/.agent-desktop`. `AGENT_DESKTOP_HOME` relocates it. It must be an absolute path, or the command fails with `INVALID_ARGS`. `status` reports it as `state_root`.
 
-```bash
-export AGENT_DESKTOP_SESSION="$(agent-desktop session start --name "invoice-bot" | jq -r '.data.session_id')"
-agent-desktop session end "$AGENT_DESKTOP_SESSION"
+```powershell
+$session = agent-desktop session start --name "invoice-bot" | ConvertFrom-Json
+$env:AGENT_DESKTOP_SESSION = $session.data.session_id
+agent-desktop session end $env:AGENT_DESKTOP_SESSION
 ```
 
 - `session start` creates the session and prints `{ session_id, name, trace, created_at }`. `--name` must be 1 to 128 bytes with no control characters, or `session start` returns `INVALID_ARGS`. `session start` does not activate later processes. Pass the id with global `--session <id>` or `AGENT_DESKTOP_SESSION`. `--session` wins over the variable. With neither, commands use the global namespace.
@@ -192,23 +192,16 @@ agent-desktop session end "$AGENT_DESKTOP_SESSION"
 
 `cursor-overlay enable` draws an agent cursor and ripple for actions. It affects presentation only. `enable` returns `data.rendered`: `false` means the setting was saved but nothing was drawn. `session start --cursor` enables it at start. `agent-desktop cursor-overlay enable --help` lists the style, image and motion flags with their ranges and defaults. Settings persist in the session and in per-agent profiles. After an upgrade, run `cursor-overlay disable`, then `enable`, to restart the renderer with the new settings.
 
-On macOS:
-
-- `--travel-ms MIN,MAX` needs `30 ≤ MIN ≤ MAX`. Travel max plus `--dwell-ms` must be at most 700 ms, or the command returns `INVALID_ARGS`.
-- Reduce Motion skips travel and dwell. Physical headed drags keep their own motion.
-
-On macOS and Windows:
-
-- The label is a black pill with white text in the system font (SF Pro on macOS, Segoe UI on Windows), sized to the text and set below and right of the cursor's tip. A label wider than 360 pt is cut with an ellipsis, and an empty label shows no pill.
+- The label is a black pill with white text in Segoe UI, sized to the text and set below and right of the cursor's tip. A label wider than 360 px is cut with an ellipsis, and an empty label shows no pill.
 - `--accent` colours the cursor body as well as the ripple, the element outline and the caret; `--fill` gives the body a different colour.
 - `--image` and `--pointer-image` take a PNG of at most 2 MiB and 1024 pixels per side, drawn at `--size` with the hotspot on the point the cursor targets. Relative paths resolve at `enable`. `--fill` and `--rim` conflict with `--image`. A missing or invalid image falls back to the arrow. With `--image`, `enable` draws no greeting.
 - The pointer image shows on arrival at a pressable control. Text fields keep the arrow.
 
 Windows accepts the motion settings but keeps its built-in motion.
 
-On macOS and Windows, after `type` or `set-value` lands, the overlay draws the agent's caret, a thin bar in the accent color, at the field's insertion point and leaves the element outline off. `type --interval-ms` moves the caret with each keystroke while the cursor stays put. A field that reports no insertion point keeps the outline and gets no caret. The caret goes away when the cursor sets off for somewhere else, and stays for another `type` into the same field. After `press` delivers, a caret that is showing moves to the focused field's new insertion point, or disappears when the focused element has none. `type` plays the click ripple only when its field does not already have keyboard focus.
+After `type` or `set-value` lands, the overlay draws the agent's caret, a thin bar in the accent color, at the field's insertion point and leaves the element outline off. `type --interval-ms` moves the caret with each keystroke while the cursor stays put. A field that reports no insertion point keeps the outline and gets no caret. The caret goes away when the cursor sets off for somewhere else, and stays for another `type` into the same field. After `press` delivers, a caret that is showing moves to the focused field's new insertion point, or disappears when the focused element has none. `type` plays the click ripple only when its field does not already have keyboard focus.
 
-Multi-agent cursors (macOS and Windows): start with `session start --cursor --multi-agent`, then pass the returned session id to every subagent.
+Multi-agent cursors: start with `session start --cursor --multi-agent`, then pass the returned session id to every subagent.
 
 - Desktop UI actions then require an agent id: global `--agent-id <id>` or `AGENT_DESKTOP_AGENT_ID`. The flag wins. Observations, clipboard commands and session administration do not need one.
 - An id has 1 to 64 letters, digits, `-` or `_`. It is scoped by session. Each distinct id gets its own cursor, and a reused id reuses its cursor.
@@ -218,7 +211,7 @@ Multi-agent cursors (macOS and Windows): start with `session start --cursor --mu
 
 ## Sandboxes
 
-`agent-desktop sandbox install` lists the providers this build includes, and `agent-desktop sandbox list` lists the sandboxes with `name`, `state`, `message`, and `next`. A single sandbox command also returns its `provider`. A build can include no providers: `sandbox install` then returns an empty list, and a command that names a provider fails with `INVALID_ARGS`.
+`agent-desktop sandbox install` lists the providers this build includes, and `agent-desktop sandbox list` lists the sandboxes with `name`, `state`, `message`, and `next`. A single sandbox command also returns its `provider`. This build includes no providers: `sandbox install` returns an empty list, and a command that names a provider fails with `INVALID_ARGS`.
 
 A sandbox whose record is missing or malformed, or names a provider this build does not include, appears in `sandbox list` with `state: "broken"`, and every command on it returns `INVALID_ARGS`. `next` and `suggestion` name the directory to delete once nothing in it is still running. A sandbox whose status check failed is also `broken`; follow its `next`, which is not always a removal.
 
@@ -227,7 +220,7 @@ A sandbox whose record is missing or malformed, or names a provider this build d
 ## status, permissions, version
 
 - `status` returns adapter health, platform, the permission report, `supported_surfaces`, the latest snapshot (`snapshot_id`, `ref_count`), `session_id`, `tracing`, `state_root`.
-- `permissions` returns `accessibility`, `screen_recording` and `automation`, each as `{ "state": "granted" | "denied" | "not_required" | "unknown" }`, with a `suggestion` when denied. It is cached per process. `permissions --request` asks the OS to prompt, through a bounded isolated helper so a stalled prompt cannot hang the command. It is the only path that prompts. On macOS, `permissions --guide` opens System Settings at the missing permission with an on-screen guide, adds `"guide": "started" | "already_running" | "not_needed"` to the result, and returns without waiting. Other platforms return `PLATFORM_NOT_SUPPORTED` for `--guide`. What to grant is in the platform skill.
+- `permissions` returns `accessibility`, `screen_recording` and `automation`, each as `{ "state": "granted" | "denied" | "not_required" | "unknown" }`, with a `suggestion` when denied. It is cached per process. `permissions --request` asks the OS to prompt, through a bounded isolated helper so a stalled prompt cannot hang the command. It is the only path that prompts. `permissions --guide` returns `PLATFORM_NOT_SUPPORTED` on Windows. What to grant is in the Windows skill.
 - `version` returns `{ version, target, os }`.
 
 ## skills
@@ -238,5 +231,5 @@ Skills ship inside the binary. The JSON envelope holds the markdown in `data.con
 agent-desktop skills                            # list skills and references
 agent-desktop skills get desktop                # this skill
 agent-desktop skills get desktop workflows      # one reference
-agent-desktop skills get platform               # skill for the current OS
+agent-desktop skills get platform               # the Windows skill
 ```

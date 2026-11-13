@@ -5,13 +5,13 @@
  *
  * Usage: node scripts/stage-native-packages.js <artifacts-dir>
  *
- * The artifacts directory holds the files built by the release workflow
- * (agent-browser-linux-x64, agent-browser-win32-x64.exe, ...), in any layout.
- * Each one is copied to packages/@agent-browser/cli-<key>/bin/. Exits non-zero
- * if any binary is missing or implausibly small.
+ * The artifacts directory holds the file built by the release workflow
+ * (agent-browser-win32-x64.exe), in any layout. It is copied to
+ * packages/@agent-browser/cli-win32-x64-msvc/bin/. Exits non-zero if the
+ * binary is missing or implausibly small.
  */
 
-import { chmodSync, copyFileSync, mkdirSync, readdirSync, statSync } from 'fs';
+import { copyFileSync, mkdirSync, readdirSync, statSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -20,12 +20,6 @@ const MIN_SIZE = 100000;
 
 // Release artifact name -> platform package directory and executable name
 const NATIVE_PACKAGES = [
-  ['agent-browser-darwin-arm64', 'cli-darwin-arm64', 'agent-browser'],
-  ['agent-browser-darwin-x64', 'cli-darwin-x64', 'agent-browser'],
-  ['agent-browser-linux-x64', 'cli-linux-x64-gnu', 'agent-browser'],
-  ['agent-browser-linux-arm64', 'cli-linux-arm64-gnu', 'agent-browser'],
-  ['agent-browser-linux-musl-x64', 'cli-linux-x64-musl', 'agent-browser'],
-  ['agent-browser-linux-musl-arm64', 'cli-linux-arm64-musl', 'agent-browser'],
   ['agent-browser-win32-x64.exe', 'cli-win32-x64-msvc', 'agent-browser.exe'],
 ];
 
@@ -66,7 +60,6 @@ for (const [artifact, packageDir, file] of NATIVE_PACKAGES) {
   const destination = join(rootDir, 'packages', '@agent-browser', packageDir, 'bin', file);
   mkdirSync(dirname(destination), { recursive: true });
   copyFileSync(source, destination);
-  chmodSync(destination, 0o755);
   console.log(`OK: ${artifact} -> packages/@agent-browser/${packageDir}/bin/${file} (${size} bytes)`);
 }
 

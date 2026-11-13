@@ -1,4 +1,5 @@
 use super::*;
+use clap::Parser;
 
 fn policy(read_only: bool, allowed: Option<Vec<&str>>) -> SafetyPolicy {
     SafetyPolicy {
@@ -6,6 +7,46 @@ fn policy(read_only: bool, allowed: Option<Vec<&str>>) -> SafetyPolicy {
         allowed_commands: allowed.map(|entries| entries.into_iter().map(str::to_string).collect()),
         audit_log: None,
     }
+}
+
+fn command(arguments: &[&str]) -> Commands {
+    let mut argv = vec!["agent-desktop"];
+    argv.extend_from_slice(arguments);
+    crate::cli::Cli::try_parse_from(argv)
+        .expect("command parses")
+        .command
+        .expect("subcommand is present")
+}
+
+fn audited_policy(test: &str) -> (SafetyPolicy, PathBuf) {
+    let dir = std::env::temp_dir().join(format!(
+        "agent-desktop-safety-{test}-{}-{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|elapsed| elapsed.as_nanos())
+            .unwrap_or(0)
+    ));
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(dir.join("audit.jsonl"))
+        .unwrap();
+    let policy = SafetyPolicy {
+        read_only: false,
+        allowed_commands: None,
+        audit_log: Some(Mutex::new(file)),
+    };
+    (policy, dir)
+}
+
+fn logged_record(policy: SafetyPolicy, dir: &std::path::Path) -> (String, Value) {
+    drop(policy);
+    let logged = std::fs::read_to_string(dir.join("audit.jsonl")).unwrap();
+    std::fs::remove_dir_all(dir).ok();
+    let record = serde_json::from_str(logged.trim()).unwrap();
+    (logged, record)
 }
 
 fn mouse_click() -> Commands {
@@ -36,6 +77,53 @@ fn read_only_denies_a_mutating_command() {
 #[test]
 fn read_only_allows_a_read_command() {
     assert!(policy(true, None).check_command("snapshot", false).is_ok());
+}
+
+#[test]
+fn read_only_allows_a_command_that_only_writes_a_file_the_caller_named() {
+    let read_only = policy(true, None);
+
+    for arguments in [
+        &["screenshot", "--window-id", "w-123", "shot.png"][..],
+        &["clipboard-get", "--out", "clipboard.png"],
+        &["trace", "export"],
+    ] {
+        assert!(
+            read_only.check(&command(arguments)).is_ok(),
+            "{arguments:?}"
+        );
+    }
+}
+
+#[test]
+fn read_only_still_denies_every_command_that_acts_on_the_desktop() {
+    let read_only = policy(true, None);
+
+    for arguments in [
+        &["click", "@e1"][..],
+        &["clipboard-set", "text"],
+        &["session", "start"],
+        &["permissions", "--request"],
+    ] {
+        let error = read_only.check(&command(arguments)).unwrap_err();
+        assert_eq!(error.code(), "POLICY_DENIED", "{arguments:?}");
+    }
+}
+
+#[test]
+fn no_refusal_suggests_removing_the_policy() {
+    let refusals = [
+        policy(true, None).check_command("batch", true),
+        policy(false, Some(vec!["snapshot"])).check_command("mouse-click", true),
+        policy(true, None).check_command("mouse-click", true),
+    ];
+
+    for refusal in refusals {
+        let error = refusal.unwrap_err();
+        let suggestion = error.suggestion().unwrap_or_default().to_ascii_lowercase();
+        assert!(!suggestion.is_empty());
+        assert!(!suggestion.contains("unset"), "{suggestion}");
+    }
 }
 
 #[test]
@@ -80,34 +168,26 @@ fn an_unrestricted_policy_allows_mutation() {
 
 #[test]
 fn audit_records_outcome_without_the_command_output() {
-    let dir = std::env::temp_dir().join(format!(
-        "agent-desktop-safety-{}-{}",
-        std::process::id(),
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|elapsed| elapsed.as_nanos())
-            .unwrap_or(0)
-    ));
-    std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join("audit.jsonl");
-    let file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&path)
-        .unwrap();
-    let policy = SafetyPolicy {
-        read_only: false,
-        allowed_commands: None,
-        audit_log: Some(Mutex::new(file)),
-    };
+    let (policy, dir) = audited_policy("direct");
     let result: Result<Value, AppError> = Ok(json!({ "secret": "not-for-the-log" }));
 
     policy.audit("snapshot", &result, Duration::from_millis(3));
-    drop(policy);
-    let logged = std::fs::read_to_string(&path).unwrap();
+    let (logged, record) = logged_record(policy, &dir);
 
-    assert!(logged.contains("\"command\":\"snapshot\""));
-    assert!(logged.contains("\"ok\":true"));
+    assert_eq!(record["command"], "snapshot");
+    assert_eq!(record["ok"], true);
     assert!(!logged.contains("not-for-the-log"));
-    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn a_relaunched_command_is_audited_with_its_exit_code() {
+    let (policy, dir) = audited_policy("relaunched");
+
+    policy.audit_relaunched("mouse-click", 1, Duration::from_millis(7));
+    let (_, record) = logged_record(policy, &dir);
+
+    assert_eq!(record["command"], "mouse-click");
+    assert_eq!(record["ok"], false);
+    assert_eq!(record["relaunched"], true);
+    assert_eq!(record["exit_code"], 1);
 }

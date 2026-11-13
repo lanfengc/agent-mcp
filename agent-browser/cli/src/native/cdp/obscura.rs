@@ -134,18 +134,6 @@ fn push_bounded(buffer: &Mutex<VecDeque<String>>, line: String) {
 }
 
 pub fn find_obscura() -> Option<PathBuf> {
-    #[cfg(unix)]
-    {
-        if let Ok(output) = Command::new("which").arg("obscura").output() {
-            if output.status.success() {
-                let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                if !path.is_empty() {
-                    return Some(PathBuf::from(path));
-                }
-            }
-        }
-    }
-
     #[cfg(windows)]
     {
         if let Ok(output) = Command::new("where").arg("obscura").output() {
@@ -165,9 +153,8 @@ pub fn find_obscura() -> Option<PathBuf> {
 
     if let Some(home) = std::env::home_dir() {
         let candidates = [
-            home.join(".obscura/obscura"),
-            home.join(".local/bin/obscura"),
-            home.join(".cargo/bin/obscura"),
+            home.join(".obscura/obscura.exe"),
+            home.join(".cargo/bin/obscura.exe"),
         ];
         for c in &candidates {
             if c.exists() {
@@ -383,131 +370,6 @@ mod tests {
         socket.write_all(response.as_bytes()).await.unwrap();
     }
 
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn waits_for_ready_without_logs() {
-        let port = unused_port();
-        tokio::spawn(serve_json_version_once_after_delay(
-            port,
-            150,
-            r#"{"webSocketDebuggerUrl":"ws://127.0.0.1:9222/"}"#,
-        ));
-
-        let mut child = Command::new("/bin/sh")
-            .args(["-c", "exec sleep 5"])
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .unwrap();
-
-        let (logs, _drainers) = start_log_drainers(&mut child).unwrap();
-        let ws_url = wait_for_obscura_ready(&mut child, port, &logs, OBSCURA_STARTUP_TIMEOUT)
-            .await
-            .unwrap();
-
-        assert_eq!(ws_url, format!("ws://127.0.0.1:{}/", port));
-        let _ = child.kill();
-        let _ = child.wait();
-    }
-
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn child_exit_surfaces_logs() {
-        let port = unused_port();
-        let mut child = Command::new("/bin/sh")
-            .args(["-c", "echo boom >&2; sleep 0.1; exit 23"])
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .unwrap();
-
-        let (logs, _drainers) = start_log_drainers(&mut child).unwrap();
-        let err = wait_for_obscura_ready(&mut child, port, &logs, OBSCURA_STARTUP_TIMEOUT)
-            .await
-            .unwrap_err();
-
-        assert!(err.contains("Obscura exited before CDP became ready"));
-        assert!(err.contains("boom"));
-    }
-
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn timeout_reports_last_probe_error() {
-        let port = unused_port();
-        let mut child = Command::new("/bin/sh")
-            .args(["-c", "exec sleep 30"])
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .unwrap();
-
-        let timeout = Duration::from_millis(300);
-        let (logs, _drainers) = start_log_drainers(&mut child).unwrap();
-        let err = tokio::time::timeout(
-            Duration::from_secs(2),
-            wait_for_obscura_ready(&mut child, port, &logs, timeout),
-        )
-        .await
-        .expect("ready wait should return before outer timeout")
-        .unwrap_err();
-
-        assert!(err.contains("Timed out after 300ms waiting for Obscura CDP endpoint"));
-        assert!(
-            err.contains("Failed to connect to CDP") || err.contains("Timeout connecting to CDP")
-        );
-
-        let _ = child.kill();
-        let _ = child.wait();
-    }
-
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn stalled_discovery_obeys_startup_deadline() {
-        let listener = TokioTcpListener::bind("127.0.0.1:0").await.unwrap();
-        let port = listener.local_addr().unwrap().port();
-        let server = tokio::spawn(async move {
-            let (mut stream, _) = listener.accept().await.unwrap();
-            let mut request = Vec::new();
-            stream.read_to_end(&mut request).await.unwrap();
-            assert!(!request.is_empty());
-        });
-        let child = Command::new("/bin/sleep").arg("30").spawn().unwrap();
-        let mut process = ObscuraProcess::for_test(child, String::new());
-        let logs = LaunchLogBuffer::default();
-        let error = tokio::time::timeout(
-            Duration::from_secs(1),
-            wait_for_obscura_ready(&mut process.child, port, &logs, Duration::from_millis(100)),
-        )
-        .await
-        .expect("discovery must not outlive its startup deadline")
-        .unwrap_err();
-        assert!(error.contains("Timed out after 100ms"), "{error}");
-        assert!(
-            error.contains("CDP discovery exceeded the startup deadline"),
-            "{error}"
-        );
-        tokio::time::timeout(Duration::from_secs(1), server)
-            .await
-            .unwrap()
-            .unwrap();
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn test_obscura_process_reports_exit() {
-        let child = Command::new("sh").args(["-c", "exit 0"]).spawn().unwrap();
-        let mut process = ObscuraProcess {
-            child,
-            ws_url: String::new(),
-            _log_drainers: Vec::new(),
-        };
-        process.child.wait().unwrap();
-        assert!(process.has_exited());
-    }
-
     #[tokio::test]
     async fn missing_explicit_binary_reports_launch_error() {
         let dir = tempfile::tempdir().unwrap();
@@ -539,52 +401,6 @@ mod tests {
             .collect();
         assert_eq!(logs.snapshot_stdout(), expected);
         assert_eq!(logs.snapshot_stderr(), expected);
-    }
-
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn cancelled_obscura_launch_reaps_child() {
-        use std::os::unix::fs::PermissionsExt;
-        let dir = tempfile::tempdir().unwrap();
-        let executable = dir.path().join("obscura");
-        let pid_path = dir.path().join("pid");
-        std::fs::write(
-            &executable,
-            format!(
-                "#!/bin/sh\nprintf '%s' \"$$\" > '{}'\nexec sleep 60\n",
-                pid_path.display()
-            ),
-        )
-        .unwrap();
-        std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700)).unwrap();
-        let options = ObscuraLaunchOptions {
-            executable_path: Some(executable.to_string_lossy().into_owned()),
-            ..Default::default()
-        };
-        let mut launch = Box::pin(launch_obscura(&options));
-        tokio::select! {
-            _ = &mut launch => panic!("fixture must not become ready"),
-            _ = async {
-                while !pid_path.exists() || std::fs::read_to_string(&pid_path).unwrap().is_empty() {
-                    tokio::time::sleep(Duration::from_millis(10)).await;
-                }
-            } => {}
-        }
-        let pid: i32 = std::fs::read_to_string(&pid_path).unwrap().parse().unwrap();
-        drop(launch);
-        assert_eq!(unsafe { libc::kill(pid, 0) }, -1);
-        assert_eq!(
-            std::io::Error::last_os_error().raw_os_error(),
-            Some(libc::ESRCH)
-        );
-        assert_eq!(
-            unsafe { libc::waitpid(pid, std::ptr::null_mut(), libc::WNOHANG) },
-            -1
-        );
-        assert_eq!(
-            std::io::Error::last_os_error().raw_os_error(),
-            Some(libc::ECHILD)
-        );
     }
 
     #[test]

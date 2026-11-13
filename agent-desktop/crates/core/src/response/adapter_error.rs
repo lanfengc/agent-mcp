@@ -225,14 +225,11 @@ impl AdapterError {
     }
 
     pub fn permission_denied() -> Self {
-        Self::new(
-            ErrorCode::PermDenied,
-            "Accessibility permission not granted",
-        )
-        .with_suggestion(
-            "Run agent-desktop permissions to see which permission is denied and how to grant it. On macOS, agent-desktop permissions --guide opens System Settings with a guide",
-        )
-        .with_disposition(DeliverySemantics::not_delivered())
+        Self::new(ErrorCode::PermDenied, "Permission not granted")
+            .with_suggestion(
+                "Windows grants no accessibility permission. An app running as administrator can be read, but only an elevated agent can send it input.",
+            )
+            .with_disposition(DeliverySemantics::not_delivered())
     }
 
     pub fn snapshot_not_found(snapshot_id: &str) -> Self {

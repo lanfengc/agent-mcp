@@ -1,6 +1,5 @@
 mod common;
 
-#[cfg(any(target_os = "macos", target_os = "windows"))]
 #[test]
 fn exact_resolve_refuses_cross_frame_geometry_before_native_resolution() {
     with_adapter(|adapter| unsafe {

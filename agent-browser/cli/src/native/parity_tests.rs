@@ -183,7 +183,6 @@ const DOCUMENTED_ACTIONS: &[&str] = &[
     "confirm",
     "deny",
     "swipe",
-    "device_list",
     "input_mouse",
     "input_keyboard",
     "input_touch",
@@ -397,8 +396,8 @@ async fn test_all_documented_actions_are_handled() {
     for (i, action) in DOCUMENTED_ACTIONS.iter().enumerate() {
         let id = format!("parity-{}", i);
         let cmd = minimal_command(action, &id);
-        // Generous: `launch` starts a real browser, and the slowest CI target
-        // (x86_64-apple-darwin) runs this suite about 3x slower than aarch64.
+        // Generous: `launch` starts a real browser, and a busy CI runner
+        // can take several times longer than a local machine.
         let result = tokio::time::timeout(
             std::time::Duration::from_secs(60),
             execute_command(&cmd, &mut state),
@@ -558,7 +557,6 @@ async fn test_daemon_state_new_defaults() {
     assert!(state.active_frame_id.is_none());
     assert!(state.iframe_sessions.is_empty());
     assert!(state.active_iframe_sessions.is_empty());
-    assert!(state.webdriver_backend.is_none());
     assert!(state.stream_client.is_none());
 }
 
@@ -735,14 +733,12 @@ async fn test_state_find_auto_returns_none_for_nonexistent() {
 fn pin_tab_env(session: &str) -> (crate::test_utils::EnvGuard<'static>, tempfile::TempDir) {
     let guard = crate::test_utils::EnvGuard::new(&[
         "AGENT_BROWSER_SOCKET_DIR",
-        "XDG_RUNTIME_DIR",
         "AGENT_BROWSER_NAMESPACE",
         "AGENT_BROWSER_SESSION",
         "AGENT_BROWSER_PIN_TAB",
     ]);
     let dir = tempfile::tempdir().unwrap();
     guard.set("AGENT_BROWSER_SOCKET_DIR", dir.path().to_str().unwrap());
-    guard.remove("XDG_RUNTIME_DIR");
     guard.remove("AGENT_BROWSER_NAMESPACE");
     guard.set("AGENT_BROWSER_SESSION", session);
     guard.remove("AGENT_BROWSER_PIN_TAB");

@@ -1,14 +1,12 @@
 use agent_desktop_core::{AdapterError, LocatorStats, ObservationRequest, ObservationRoot};
 
 use super::element::UIAElement;
-#[cfg(target_os = "windows")]
 use super::properties::property_ids::TreeProperty;
-#[cfg(target_os = "windows")]
 use super::properties::read_one;
 
 /// The top-level window class Chromium ships (A4-4 observed it on Obsidian's
 /// top-level and render-host windows). Detection keys on this class alone -
-/// an app allowlist would be the macOS renderer-probe anti-pattern this crate
+/// an app allowlist is the renderer-probe anti-pattern this crate
 /// deliberately refuses.
 const CHROMIUM_WINDOW_CLASS: &str = "Chrome_WidgetWin_1";
 
@@ -23,21 +21,12 @@ const SHELL_NODE_CEILING: usize = 32;
 /// Read from the root element's `ClassName` (a one-property live read, never a
 /// second walk). This is what gates the wrapper skip and the activation
 /// settle.
-#[cfg(target_os = "windows")]
 pub(crate) fn is_chromium_root(root: &UIAElement) -> bool {
     let class = read_one(root, TreeProperty::ClassName);
     matches!(
         class.text(),
         agent_desktop_core::LocatorField::Known(name) if name.trim() == CHROMIUM_WINDOW_CLASS
     )
-}
-
-/// The non-Windows twin, so the crate's `#![cfg]`-free internal callers compile
-/// on the Linux cross-check lane. No real element exists there, so no window is
-/// Chromium.
-#[cfg(not(target_os = "windows"))]
-pub(crate) fn is_chromium_root(_root: &UIAElement) -> bool {
-    false
 }
 
 /// Whether a full-depth walk of a detected-Chromium root landed on the shell
@@ -53,16 +42,14 @@ pub(crate) fn is_shell_shaped(stats: &LocatorStats, request: &ObservationRequest
 
 /// Whether a walk genuinely ran out of tree rather than being depth-clamped.
 ///
-/// This mirrors macOS's `observation_reached_tree_end` (the #117 lesson): a
-/// depth-clamped observation stops above the web content by design, so its
+/// A depth-clamped observation stops above the web content by design, so its
 /// small tree says nothing about whether the renderer is activated. Only a
 /// walk that ran to a natural end can conclude the tree is genuinely thin.
 fn reached_full_depth(stats: &LocatorStats, request: &ObservationRequest) -> bool {
     stats.traversal.max_logical_depth < request.max_logical_depth
 }
 
-/// Whether this observation is eligible to trigger renderer activation, the
-/// macOS `activation_eligible` gating (`crates/macos/src/tree/query/mod.rs`):
+/// Whether this observation is eligible to trigger renderer activation:
 /// a window-rooted, full-depth observation of a Chromium shell.
 ///
 /// An Element-rooted or non-Window-surface walk never demands activation - a

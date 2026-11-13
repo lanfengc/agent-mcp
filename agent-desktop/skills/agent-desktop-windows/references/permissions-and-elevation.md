@@ -81,24 +81,46 @@ case-insensitive `.exe` name: `csrss.exe`, `wininit.exe`, `winlogon.exe`,
 ## Session Placement
 
 Every command except `version`, `skills`, `session` and `trace` checks where it
-runs before touching the desktop. The process must be in the session of the
-active WTS user and its input desktop must be `Default`.
+runs before touching the desktop. The process must be in a session with a user
+at its desktop (an active WTS session; session 0 never counts) and its input
+desktop must be `Default`.
 
-- A process in another session (session 0, a service, a scheduled task set to
-  run whether the user is logged on or not) relaunches the same command line in
-  the active session with `WTSQueryUserToken` and `CreateProcessAsUserW` on
-  `winsta0\default`. The child inherits stdout and stderr, so the JSON envelope
-  still reaches the caller, and stdin is attached to `NUL` so it cannot consume
-  the MCP server's JSON-RPC stream. The parent waits and forwards the child's
-  exit code.
+- A process outside every active session (session 0, a service, a scheduled
+  task set to run whether the user is logged on or not) relaunches the same
+  command line in the first active session with `WTSQueryUserToken` and
+  `CreateProcessAsUserW` on `winsta0\default`. The child inherits stdout and
+  stderr, so the JSON envelope still reaches the caller, and stdin is attached
+  to `NUL` so it cannot consume the MCP server's JSON-RPC stream. The parent
+  waits and forwards the child's exit code.
+- The child starts from the logged-in user's environment and state root, not
+  the caller's. Flags survive because the command line is reused, so pass
+  `--session` and `--agent-id` as flags; `AGENT_DESKTOP_SESSION`,
+  `AGENT_DESKTOP_AGENT_ID`, `AGENT_DESKTOP_HOME` and
+  `AGENT_DESKTOP_MAX_CAPTURE_AGE_MS` set on the service do not reach it.
+  `session` and `trace` are not relaunched: they run under the caller's
+  account, so a session the service starts lives in a different state root
+  from the one relaunched commands use.
+- The execution policy (`AGENT_DESKTOP_READ_ONLY`,
+  `AGENT_DESKTOP_ALLOWED_COMMANDS`, `AGENT_DESKTOP_AUDIT_LOG`) is read and
+  applied by the caller before the relaunch. The caller's audit record for a
+  relaunched command carries `relaunched: true` and the child's `exit_code`.
 - The relaunch needs `SeTcbPrivilege` (and `SeAssignPrimaryTokenPrivilege` and
-  `SeIncreaseQuotaPrivilege`), which a LocalSystem service holds. Without them
-  the command returns `PERM_DENIED`, `disposition.delivery: not_delivered`, and
-  names the Win32 error in `details.win32_error`.
-- A locked workstation or a UAC secure desktop owns input (`Winlogon`), so the
-  command returns `PERM_DENIED` instead of acting on a desktop nobody sees. No
-  other session is activated and nothing is typed into the secure desktop.
-- No logged-in user means `PERM_DENIED` as well; there is no desktop to reach.
+  `SeIncreaseQuotaPrivilege`), which a LocalSystem service holds. Without
+  `SeTcbPrivilege` the command returns `PERM_DENIED` with
+  `disposition.delivery: not_delivered`. Any other failure to start the child
+  is `ACTION_FAILED` with the Win32 error in `details.win32_error`.
+- While the secure desktop (`Winlogon`) owns input, for a UAC prompt or the
+  sign-in screen, the command returns `PERM_DENIED` instead of acting on a
+  desktop nobody sees. No other session is activated and nothing is typed into
+  the secure desktop.
+- A locked session is detected only through that secure desktop. While the
+  lock screen is showing, the input desktop is still `Default` (measured on
+  Windows 10 22H2), so the command is not refused and runs against the locked
+  session. Clipboard commands return `TIMEOUT` there, because Windows refuses
+  `OpenClipboard` until the session is unlocked.
+- When no session is active, because nobody is logged on or every logged-on
+  session is disconnected, the command returns `PERM_DENIED` as well; there is
+  no desktop to reach.
 
 The `mcp` server itself is never relaunched: it must keep its own stdio
 streams. Each tool call spawns a child command, and that child takes the

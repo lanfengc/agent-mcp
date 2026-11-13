@@ -10,7 +10,7 @@ set -euo pipefail
 # The [const] allow_static_const = false key requires cbindgen >= 0.26;
 # the trailer key requires cbindgen >= 0.25.
 
-ROOT=$(git rev-parse --show-toplevel)
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$ROOT"
 
 REQUIRED_CBINDGEN="0.29.4"

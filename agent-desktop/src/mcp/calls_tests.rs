@@ -34,31 +34,21 @@ fn a_cancelled_id_stays_taken_until_its_own_call_finishes() {
     assert!(calls.admit(&json!(5)));
 }
 
-#[cfg(unix)]
 #[test]
-fn a_cancelled_child_gets_sigterm_before_any_kill() {
-    use std::io::Read;
+fn a_cancelled_child_is_killed() {
     use std::process::Stdio;
 
     let calls = Calls::default();
     let id = json!(3);
     assert!(calls.admit(&id));
-    let mut command = Command::new("sh");
+    let mut command = Command::new("cmd");
     command
-        .args([
-            "-c",
-            "trap 'echo released; exit 0' TERM; echo started; while :; do sleep 0.05; done",
-        ])
+        .args(["/C", "ping -n 30 127.0.0.1 >nul"])
         .stdout(Stdio::piped());
-    let (stdout, _) = calls
+    calls
         .start(&id, &mut command)
         .expect("admitted")
-        .expect("sh starts");
-    let mut stdout = stdout.expect("stdout is piped");
-    let mut started = [0_u8; 8];
-    stdout.read_exact(&mut started).expect("child started");
+        .expect("cmd starts");
     calls.cancel(&id);
-    let mut rest = String::new();
-    stdout.read_to_string(&mut rest).expect("child exits");
-    assert_eq!(rest, "released\n");
+    assert!(!calls.finish(&id));
 }

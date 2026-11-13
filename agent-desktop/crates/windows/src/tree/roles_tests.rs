@@ -59,7 +59,7 @@ const ALL_CONTROL_TYPES: [ControlType; 41] = [
 /// Roles [`INTERACTIVE_ROLES`] requires a producer for, that this map has
 /// none for. Asserted explicitly rather than assumed: neither Windows
 /// control type nor any pattern combination on it produces a color-well or a
-/// taskbar dock item, so both stay platform-private to macOS.
+/// taskbar dock item, so this adapter produces neither.
 #[cfg(target_os = "windows")]
 const UNPRODUCED_INTERACTIVE_ROLES: [&str; 2] = ["colorwell", "dockitem"];
 

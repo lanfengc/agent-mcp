@@ -179,24 +179,22 @@ export HTTP_PROXY="http://user:pass@proxy.example.com:8080"
 
 Some proxies perform SSL inspection with a custom CA certificate. Trust only that CA:
 
-```bash
-# Recommended: trust the proxy's CA certificate
-agent-browser --ca-cert /etc/ssl/certs/proxy-ca.crt open https://example.com
+```powershell
+# Recommended: trust the proxy's CA certificate for CLI HTTPS requests
+agent-browser --ca-cert "C:\certs\proxy-ca.crt" read https://example.com
 
 # Via environment variable
-export AGENT_BROWSER_CA_CERT=/etc/ssl/certs/proxy-ca.crt
-agent-browser open https://example.com
+$env:AGENT_BROWSER_CA_CERT = "C:\certs\proxy-ca.crt"
+agent-browser read https://example.com
 
-# CLI requests (read, install, upgrade, doctor) on any platform
-agent-browser --ca-cert /etc/ssl/certs/proxy-ca.crt read https://example.com
+# CLI requests (read, install, upgrade, doctor)
+agent-browser --ca-cert "C:\certs\proxy-ca.crt" read https://example.com
 agent-browser --use-system-ca install
 ```
 
-`read`, `install`, `upgrade`, and `doctor` make their own HTTPS requests and trust the built-in Mozilla roots by default. On every platform, `--ca-cert` adds the CA to those requests, and `--use-system-ca` switches them to the operating system trust store, which already holds a CA deployed by MDM or an enterprise image. `SSL_CERT_FILE` is used as a fallback CA file and is ignored with a warning when unusable. Neither option disables certificate or hostname verification. For `read`, a selection given on the command line stays in effect for the session until `close`, including across daemon restarts; `--no-ca-cert` or `--use-system-ca false` turns it off. `read` never launches or relaunches a browser because of these options. They do not yet change how agent-browser connects to a remote browser over `--cdp`, `--auto-connect`, or a provider.
+`read`, `install`, `upgrade`, and `doctor` make their own HTTPS requests and trust the built-in Mozilla roots by default. `--ca-cert` adds the CA to those requests, and `--use-system-ca` switches them to the operating system trust store, which already holds a CA deployed by MDM or an enterprise image. `SSL_CERT_FILE` is used as a fallback CA file and is ignored with a warning when unusable. Neither option disables certificate or hostname verification. For `read`, a selection given on the command line stays in effect for the session until `close`, including across daemon restarts; `--no-ca-cert` or `--use-system-ca false` turns it off. `read` never launches or relaunches a browser because of these options. They do not yet change how agent-browser connects to a remote browser over `--cdp`, `--auto-connect`, or a provider.
 
-On Linux, `--ca-cert` imports the certificate or PEM bundle into an isolated NSS database used only by that locally launched Chromium process. Certificate hostname, validity period, and unrelated authority verification stay enabled. Later commands retain the CA when they omit the flag. Use `--no-ca-cert` to clear it. Different certificate content or an explicit clear relaunches Chromium without restarting the daemon, while the same content from any path reuses the browser. `agent-browser install --with-deps` installs the required `certutil`; otherwise install `libnss3-tools` on Debian/Ubuntu or `nss-tools` on RPM Linux.
-
-Browser trust does not support `--profile`, `--cdp`, `--auto-connect`, providers, Lightpanda, macOS, or Windows. Use `--ignore-https-errors` only when a broad bypass is the intended contract.
+Browser launch commands reject `--ca-cert` on Windows because Chrome uses the Windows certificate store. Use `--ignore-https-errors` only when a broad bypass is the intended contract.
 
 Without the CA certificate on hand, fall back to ignoring every certificate error:
 

@@ -33,7 +33,6 @@ impl Drop for TempDir {
     }
 }
 
-#[cfg(unix)]
 #[test]
 fn image_and_motion_flags_are_validated_and_stored_together() {
     let dir = TempDir::new();
@@ -43,11 +42,9 @@ fn image_and_motion_flags_are_validated_and_stored_together() {
         b"\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR\x00\x00\x00\x20\x00\x00\x00\x20",
     )
     .unwrap();
-    let cwd = std::env::current_dir().unwrap();
-    let relative = pathdiff(&file, &cwd);
     let config = parse(&[
         "--image",
-        relative.to_str().unwrap(),
+        file.to_str().unwrap(),
         "--hotspot",
         "4,2.5",
         "--accent",
@@ -92,16 +89,6 @@ fn image_and_motion_flags_are_validated_and_stored_together() {
             .image()
             .is_none()
     );
-}
-
-#[cfg(unix)]
-fn pathdiff(target: &std::path::Path, base: &std::path::Path) -> PathBuf {
-    let ups = base.components().count() - 1;
-    let mut relative = PathBuf::new();
-    for _ in 0..ups {
-        relative.push("..");
-    }
-    relative.join(target.strip_prefix("/").unwrap())
 }
 
 #[test]

@@ -1,9 +1,7 @@
 //! Dimming an already-composed region of the surface.
 //!
-//! macOS fades by animating a window's layer opacity and letting the
-//! compositor do the work. There is no equivalent here: the overlay is one
-//! layered window presented with `UpdateLayeredWindow`, so a fade has to be
-//! in the pixels.
+//! The overlay is one layered window presented with `UpdateLayeredWindow`, so
+//! a fade has to be in the pixels.
 //!
 //! It runs **after** everything else, and that ordering is the whole reason
 //! this is a separate pass rather than an opacity threaded through the

@@ -1,9 +1,8 @@
-//! Pins the shared resolver-error payload byte-for-byte against the two
-//! platform copies these constructors replaced
+//! Pins the shared resolver-error payload byte-for-byte against the platform
+//! copy these constructors replaced
 //! (`crates/windows/src/tree/resolve/resolve_search.rs::identity_unknown_error`,
-//! `crates/macos/src/tree/resolve/resolve_errors.rs::identity_unknown`, and both
-//! platforms' `mark_deadline_elapsed`, captured before deletion). Renaming or
-//! dropping a key here is a behaviour change for both adapters at once.
+//! captured before deletion). Renaming or dropping a key here is a behaviour
+//! change for every caller at once.
 
 use super::*;
 

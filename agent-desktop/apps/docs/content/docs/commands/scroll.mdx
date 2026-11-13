@@ -26,29 +26,7 @@ agent-desktop scroll <REF> [--direction up|down|left|right] [--amount N] [--time
   </tbody>
 </table>
 
-macOS and Windows scroll through native accessibility paths headless. On Linux, `scroll` is a physical wheel event, so headless it refuses before sending anything:
-
-```json
-{
-  "version": "2.6",
-  "ok": false,
-  "command": "scroll",
-  "error": {
-    "code": "POLICY_DENIED",
-    "message": "Physical pointer input is disabled by the current interaction policy",
-    "recovery": {
-      "strategy": "request_explicit_policy_then_retry_original",
-      "retryable": true,
-      "requires_fresh_snapshot": false
-    },
-    "disposition": { "delivery": "not_delivered", "retry": "safe" }
-  }
-}
-```
-
-A delivered scroll is usually `delivered_unverified`. Take a fresh snapshot before you act on elements that were offscreen, because scrolling changes positions and a repeated scroll moves the view again. For a canvas or custom surface with no scroll action, use [`mouse-wheel`](/desktop/commands/mouse#mouse-wheel).
-
-Platform limits: Linux needs `--headed` and X11. See [macOS](/desktop/platforms/macos), [Windows](/desktop/platforms/windows), and [Linux](/desktop/platforms/linux).
+On Windows, `scroll` uses the element's native accessibility scroll action and works headless. A delivered scroll is usually `delivered_unverified`. Take a fresh snapshot before you act on elements that were offscreen, because scrolling changes positions and a repeated scroll moves the view again. For a canvas or custom surface with no scroll action, use [`mouse-wheel`](/desktop/commands/mouse#mouse-wheel).
 
 ## scroll-to
 

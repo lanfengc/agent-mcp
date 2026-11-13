@@ -341,7 +341,6 @@ fn install_rejects_an_invalid_explicit_ca_before_network_or_daemon() {
     assert!(!session.tmp.path().join("sockets/tls.pid").exists());
 }
 
-#[cfg(not(all(target_os = "linux", target_arch = "aarch64")))]
 #[test]
 fn install_fetches_manifest_with_explicit_and_native_trust() {
     let cert = include_str!("fixtures/tls/install.pem");
@@ -375,29 +374,6 @@ fn install_fetches_manifest_with_explicit_and_native_trust() {
     }
     assert_eq!(proxy.requests.load(Ordering::SeqCst), 2);
     assert!(!session.tmp.path().join("sockets/tls.pid").exists());
-}
-
-#[cfg(unix)]
-#[test]
-fn read_follows_ca_symlink_rotation() {
-    let (a, b) = (TlsServer::a(), TlsServer::b());
-    let session = Session::new();
-    let path_a = session.ca("a.pem", CA_A);
-    let path_b = session.ca("b.pem", CA_B);
-    let selected = session.tmp.path().join("current.pem");
-    std::os::unix::fs::symlink(&path_a, &selected).unwrap();
-    read(
-        &session,
-        &a.url(),
-        &["--ca-cert", selected.to_str().unwrap()],
-        true,
-    );
-    let pid = session.pid();
-    std::fs::remove_file(&selected).unwrap();
-    std::os::unix::fs::symlink(&path_b, &selected).unwrap();
-    read(&session, &b.url(), &[], true);
-    read(&session, &a.url(), &[], false);
-    assert_eq!(session.pid(), pid);
 }
 
 #[test]

@@ -18,31 +18,23 @@ in examples and verification scenarios, never in runtime special cases.
 
 ## Commands
 
-Each platform adapter compiles only on its own OS and the workspace names all three, so an unscoped `cargo build`,
-`cargo test --workspace` or `cargo clippy --all-targets` fails on every host. Scope cargo to the host's package set,
-the same set `.githooks/pre-commit` uses:
+The workspace is Windows-only: the platform adapter, the CLI, the FFI crate and core all build together, so plain
+cargo commands cover every package:
 
 ```bash
-HOST_PKGS=(-p agent-desktop-core -p agent-desktop-macos -p agent-desktop -p agent-desktop-ffi)
-# Windows: replace agent-desktop-macos with agent-desktop-windows. Linux: with agent-desktop-linux.
-# An array expands to separate arguments in both bash and zsh; a plain string does not in zsh.
-
-cargo build "${HOST_PKGS[@]}"                                  # debug build
-cargo build --release -p agent-desktop                         # release CLI; CI fails it above 15 MB
-cargo test "${HOST_PKGS[@]}"                                   # every test target
-cargo test "${HOST_PKGS[@]}" --lib                             # library tests only; skips the binary crate
-cargo test -p agent-desktop                                    # binary crate: CLI contract, dispatch, batch, policy
-cargo test "${HOST_PKGS[@]}" <test_name>                       # one test by name
-cargo clippy "${HOST_PKGS[@]}" --all-targets -- -D warnings    # zero warnings
+cargo build                                                   # debug build
+cargo build --release -p agent-desktop                        # release CLI; CI fails it above 15 MB
+cargo test --workspace                                        # every test target
+cargo test --workspace --lib                                  # library tests only; skips the binary crate
+cargo test -p agent-desktop                                   # binary crate: CLI contract, dispatch, batch, policy
+cargo test --workspace <test_name>                            # one test by name
+cargo clippy --workspace --all-targets -- -D warnings         # zero warnings
 cargo fmt --all -- --check
-cargo check -p agent-desktop-core --all-targets --target x86_64-pc-windows-msvc   # core cross-compiles
-cargo check -p agent-desktop-core --all-targets --target x86_64-unknown-linux-gnu
-cargo tree -p agent-desktop-core                               # must name no platform crate
-AGENT_DESKTOP_E2E_EXCLUSIVE=1 bash tests/e2e/run.sh            # macOS E2E; builds its own artifacts
-bash scripts/perf-baseline-compare.sh                          # macOS perf A/B against the merge-base
+cargo tree -p agent-desktop-core                              # must name no platform crate
+powershell -NoProfile -File tests/e2e-windows/Run-E2E.ps1     # live Windows E2E; needs an exclusive desktop
 ```
 
-`scripts/cargo-test-isolated-home.sh test "${HOST_PKGS[@]}" --lib` runs tests with a throwaway `HOME`, which keeps them out
+`scripts/cargo-test-isolated-home.sh test --workspace --lib` runs tests with a throwaway `HOME`, which keeps them out
 of your real `~/.agent-desktop`. The pre-commit hook uses it.
 
 Enable the hook once per clone with `git config core.hooksPath .githooks`. For staged Rust or TOML changes it runs the
@@ -81,8 +73,8 @@ check. Bypass it only in an emergency: `git commit --no-verify` or `SKIP_PRECOMM
 
 ## Branches and commits
 
-- `main` carries macOS, Windows and Linux. Fixes and features branch off `main` and merge back as squash merges;
-  `main` requires linear history.
+- `main` is Windows-only. Fixes and features branch off `main` and merge back as squash merges; `main` requires
+  linear history.
 - Never add `Co-Authored-By` lines, AI attribution or "Generated with" footers.
 - Use Conventional Commits: `feat:`, `fix:`, `feat!:` or a `BREAKING CHANGE:` footer, `docs:`, `style:`, `refactor:`,
   `perf:`, `chore:`, `ci:`, `test:`. Write `type: imperative summary` in lowercase after the colon, and say why.
@@ -95,15 +87,13 @@ check. Bypass it only in an emergency: `git commit --no-verify` or `SKIP_PRECOMM
 ```
 crates/core/     agent-desktop-core: PlatformAdapter trait in adapter/, shared types in domain folders,
                  one file per command in commands/
-crates/macos/    agent-desktop-macos: AX API
 crates/windows/  agent-desktop-windows: UI Automation
-crates/linux/    agent-desktop-linux: AT-SPI
 crates/ffi/      agent-desktop-ffi: cdylib and the committed C header include/agent_desktop.h
 src/             agent-desktop binary: cli/, cli_args/, dispatch/, batch/, command_policy/,
                  diagnostic/, visual_debug/, mcp/
 skills/          agent skills, compiled into the binary
-tests/           golden fixtures, E2E harness per OS, FFI smoke tests
-probes/          raw platform measurements; FINDINGS.md rows are citable evidence
+tests/           golden fixtures, the Windows E2E harness, FFI smoke tests
+probes/          raw Windows platform measurements; FINDINGS.md rows are citable evidence
 apps/docs/       Geistdocs site served at agent-browser.dev/desktop as a Vercel Microfrontends child app
 ```
 
@@ -111,16 +101,14 @@ apps/docs/       Geistdocs site served at agent-browser.dev/desktop as a Vercel 
 - Core defines `PlatformAdapter` and every shared type. Platform crates implement the trait.
 - Core never imports a platform crate, and platform crates never import each other. CI fails if
   `cargo tree -p agent-desktop-core` names a platform crate.
-- Only two crates wire a platform to core: the binary (`src/`) and the FFI crate.
-- The platform is chosen at compile time by `#[cfg(target_os)]` in `build_adapter()` (`src/main.rs`,
-  `crates/ffi/src/adapter.rs`) with target-gated dependencies in `src/Cargo.toml`
-  (`[target.'cfg(target_os = "macos")'.dependencies]`), never unconditional dependencies behind source `cfg`s.
+- Only two crates wire a platform to core: the binary (`src/`) and the FFI crate. Both depend on
+  `agent-desktop-windows`, the only platform crate.
 - `PlatformAdapter` is split across `crates/core/src/adapter/` (`mod.rs` plus the `actions`, `input`, `observation` and
   `system` fragments). Every method defaults to `AdapterError::not_supported`, so an adapter implements only what it
   supports. Strict resolution (`resolve_element_strict*`) returns `STALE_REF` for zero matches and `AMBIGUOUS_TARGET`
   for two or more.
-- Core must run on every OS. A `#[cfg]` branch in core that no CI lane executes is a hypothesis, not shipped code: add
-  a lane or move it behind `PlatformAdapter`.
+- Core stays free of OS-conditional code. Behavior that differs by platform belongs behind `PlatformAdapter`; the
+  architecture gate rejects `#[cfg]` branches in core outside its allow-list.
 
 **Dispatch.** `dispatch()` in `src/dispatch/mod.rs` is a direct `match` that calls each command's `execute()` in
 `crates/core/src/commands/`. There is no command trait or registry. Batch is not a second dispatcher: it deserializes
@@ -142,9 +130,9 @@ from the MCP tool list with no MCP change. `mcp` itself is attached to the root 
 5. Update the command counts in `README.md` and in this file; `src/cli/doc_literal_drift_tests.rs` checks them.
 6. A new `Action` variant goes in `crates/core/src/actions/action.rs`. A new adapter method goes in the matching
    `PlatformAdapter` fragment with a `not_supported` default.
-7. Update the matching skill in the same change: `skills/agent-desktop/` for cross-platform behavior, the platform
-   skill for what differs, `skills/agent-desktop-ffi/` for the C ABI. The skills compile into the binary and are what
-   agents read.
+7. Update the matching skill in the same change: `skills/agent-desktop/` for shared behavior,
+   `skills/agent-desktop-windows/` for Windows specifics, `skills/agent-desktop-ffi/` for the C ABI. The skills
+   compile into the binary and are what agents read.
 
 **Crate layout.** Core's root holds only `lib.rs` and domain folders named after `CONCEPTS.md` words: `actionability`,
 `actions`, `adapter`, `commands`, `context`, `cursor_overlay`, `input`, `locator`, `notifications`, `ref_action`,
@@ -219,7 +207,7 @@ Every command prints one envelope. `docs/json-output.md` holds the full contract
 ```
 
 - Omit `None` fields and empty arrays. Compact mode omits bounds. `ref_count` and `tree` live inside `data`.
-- Snapshot `data.window` is present for window-owned surfaces. macOS `menu` and `menubar` snapshots are application-owned and omit it.
+- Snapshot `data.window` is present for window-owned surfaces.
 - Every snapshot carries `data.complete`. A snapshot that runs out of observation budget succeeds with
   `"complete": false`, `"truncated": true`, `"nodes_observed"` and the tree it saw; each cut node carries
   `"subtree_truncated": true`. A `--root` drill-down returns `TIMEOUT` instead of a partial tree.
@@ -238,8 +226,8 @@ Every command prints one envelope. `docs/json-output.md` holds the full contract
 - An element gets a ref when its role is interactive (`INTERACTIVE_ROLES` in `crates/core/src/tree/roles.rs`) or it
   advertises a primary action. `SetFocus`, `RightClick` and `ScrollTo` alone do not qualify, because web runtimes
   advertise them on nearly every node.
-- Actions re-identify the element one of two ways. A genuine element token resolves through the adapter, which owns
-  re-identification on that platform (macOS). Every other ref resolves from its capture proof: role plus every
+- Actions re-identify the element one of two ways. A ref that carries a platform element token resolves through the
+  adapter, which owns re-identification. Every other ref resolves from its capture proof: role plus every
   recorded stable field, that is native id, stable name and description, counted over one complete observation of the
   window it was captured from. A ref that was not unique at capture is refused before the application is read. Zero
   live matches is `STALE_REF`, two or more is `AMBIGUOUS_TARGET`, and control values and bounds are never identity.
@@ -250,44 +238,31 @@ Every command prints one envelope. `docs/json-output.md` holds the full contract
 - A session is selected by `--session`, then `AGENT_DESKTOP_SESSION`, then none. `session start` does not activate a
   session for later processes; pass its id. Snapshot lookup never searches another session's namespace.
 
-## macOS adapter gotchas
-
-- macOS reuses `AXUIElementRef` pointers across sibling branches. Guard traversal with an ancestor-path set, never a
-  global visited set, or real subtrees disappear.
-- `AXElement` keeps its pointer `pub(crate)` to prevent a double free. `Clone` must `CFRetain` and `Drop` must
-  `CFRelease`.
-- Read attributes in batches with `AXUIElementCopyMultipleAttributeValues`, not one call per attribute.
-
 ## Testing and CI
 
 - Unit tests use small purpose-built adapter stubs (see `crates/core/src/adapter/test_support.rs`). Golden JSON in
   `tests/fixtures/` guards serialization.
-- The E2E harnesses (`tests/e2e/`, `tests/e2e-windows/`, `tests/e2e-linux/`) drive the built binary against real
-  apps. They check every effect by independent observation, never by the command's own `ok: true`. The macOS harness
-  covers every ref action in headless and `--headed` mode.
-- CI runs fmt, the MSRV build, the core cross-compile checks, clippy and tests per OS, the core isolation check, a
-  15 MB binary size check and the FFI header and panic guards.
+- The Windows E2E harness (`tests/e2e-windows/`) drives the built binary against real apps. It checks every effect by
+  independent observation, never by the command's own `ok: true`.
+- CI runs fmt, the MSRV build, clippy and tests, the core isolation check, a 15 MB binary size check and the FFI
+  header and panic guards.
 
 ## Command surface
 
 61 commands spanning App/Window, Observation, Interaction, Scroll, Keyboard, Mouse, Notifications, Clipboard, Wait,
 System (including `session`, `trace`, `skills`), Sandboxes (`sandbox`) and Batch.
-57 of the 61 command names are operational on macOS; the four held-input names (`key-down`, `key-up`, `mouse-down`,
-`mouse-up`) fail closed. Windows and Linux expose the same command names. Each platform's limits are in its skill
-(`skills/agent-desktop-macos/`, `skills/agent-desktop-windows/`, `skills/agent-desktop-linux/`).
+57 of the 61 command names are operational on Windows; the four held-input names (`key-down`, `key-up`, `mouse-down`,
+`mouse-up`) fail closed. Limits are in the Windows skill (`skills/agent-desktop-windows/`).
 
 ## Definition of done
 
 **Performance.** Check every substantive change for latency against the merge-base before merge. A latency change
 must be intended and explained, never found by users.
-- macOS: `bash scripts/perf-baseline-compare.sh` writes `report.html`. Add `--apps "Slack,Google Chrome"` for dense
-  Electron and Chromium coverage.
-- Windows: that script cannot run there. Use the probe cost method instead: min of seven runs with the warm-up
-  discarded, reported as the min with the median and max beside it (`probes/windows/FINDINGS.md` A15-13, A18-7).
-- Linux: there is no baseline comparison. Hold these budgets: release CLI at most 15 MiB; every command under a silent
-  display, a silent bus or a stopped app returns its documented code within its timeout plus 1 s; a snapshot of a
-  real app is `complete: true` or cleanly truncated; FFI threads, descriptors and memory stay flat across repeated
-  calls; the glibc floor stays at 2.35 or lower (`scripts/check-elf-glibc-floor.sh`).
+- Use the probe cost method: min of seven runs with the warm-up discarded, reported as the min with the median and max
+  beside it (`probes/windows/FINDINGS.md` A15-13, A18-7). The CLI ships at most 15 MiB.
+- Every command under a silent display, a stopped app or a locked session returns its documented code within its
+  timeout plus 1 s; a snapshot of a real app is `complete: true` or cleanly truncated; FFI threads, descriptors and
+  memory stay flat across repeated calls.
 
 **Dogfood.** Every platform sub-phase drives its own surface against real software and keeps a judged report.
 - Run it as a stranger. The operator gets the shipped skill and the built binary, and nothing else: no source, no plan.

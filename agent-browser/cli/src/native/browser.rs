@@ -52,16 +52,13 @@ pub fn validate_launch_options(
         return Err("Cannot use storage_state with extensions".to_string());
     }
     if ca_cert.is_some() && has_cdp {
-        return Err("--ca-cert requires a locally launched Chromium browser on Linux".to_string());
+        return Err("--ca-cert requires a locally launched Chromium browser".to_string());
     }
     if ca_cert.is_some() && profile.is_some() {
-        return Err(
-            "--ca-cert cannot be combined with a Chrome profile because isolated CA trust changes the profile's NSS environment"
-                .to_string(),
-        );
+        return Err("--ca-cert cannot be combined with a Chrome profile".to_string());
     }
-    if ca_cert.is_some() && !cfg!(target_os = "linux") {
-        return Err("--ca-cert is currently supported only on Linux".to_string());
+    if ca_cert.is_some() {
+        return Err("--ca-cert browser trust is not supported on Windows".to_string());
     }
     if allow_file_access {
         if let Some(path) = executable_path {
@@ -4045,218 +4042,6 @@ mod tests {
         true
     );
 
-    #[cfg(unix)]
-    fn initialization_process(url: &str) -> (tempfile::TempDir, LaunchOptions) {
-        use std::os::unix::fs::PermissionsExt;
-        let dir = tempfile::tempdir().unwrap();
-        let executable = dir.path().join("chrome");
-        let port = url::Url::parse(url).unwrap().port().unwrap();
-        std::fs::write(&executable, format!(
-            "#!/bin/sh\nfor arg in \"$@\"; do\ncase \"$arg\" in\n--user-data-dir=*) profile=${{arg#*=}} ;;\nesac\ndone\nprintf '%s\\n' {port} /devtools/browser/test > \"$profile/DevToolsActivePort\"\nprintf '%s\\n' \"$$\" > '{}/pid'\nexec sleep 60\n",
-            dir.path().display()
-        )).unwrap();
-        std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700)).unwrap();
-        let options = LaunchOptions {
-            executable_path: Some(executable.to_string_lossy().into_owned()),
-            ..Default::default()
-        };
-        (dir, options)
-    }
-
-    #[cfg(unix)]
-    fn assert_initialization_process_reaped(dir: &std::path::Path) {
-        let pid: i32 = std::fs::read_to_string(dir.join("pid"))
-            .unwrap()
-            .trim()
-            .parse()
-            .unwrap();
-        assert_eq!(
-            unsafe { libc::kill(pid, 0) },
-            -1,
-            "browser process is still alive"
-        );
-        assert_eq!(
-            std::io::Error::last_os_error().raw_os_error(),
-            Some(libc::ESRCH)
-        );
-        assert_eq!(
-            unsafe { libc::waitpid(pid, std::ptr::null_mut(), libc::WNOHANG) },
-            -1
-        );
-        assert_eq!(
-            std::io::Error::last_os_error().raw_os_error(),
-            Some(libc::ECHILD)
-        );
-    }
-
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn test_failed_local_initialization_disconnects_and_reaps() {
-        for (method, ignore_close) in [
-            ("Target.getTargets", false),
-            ("Network.enable", false),
-            ("Network.enable", true),
-        ] {
-            let (url, server) = initialization_server(method, false, 1, ignore_close).await;
-            let (dir, options) = initialization_process(&url);
-            let error = BrowserManager::launch(options, None)
-                .await
-                .err()
-                .expect("launch should fail");
-            assert!(error.contains("injected initialization failure"), "{error}");
-            let observed = server.await.unwrap();
-            assert!(observed[0].iter().any(|method| method == "Browser.close"));
-            assert_initialization_process_reaped(dir.path());
-        }
-    }
-
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn test_failed_lightpanda_initialization_disconnects_before_retry() {
-        let (url, server) = initialization_server("Network.enable", false, 2, false).await;
-        let (dir, options) = initialization_process(&url);
-        let process = tokio::task::spawn_blocking(move || launch_chrome(&options))
-            .await
-            .unwrap()
-            .unwrap();
-        let mut manager = tokio::time::timeout(
-            Duration::from_secs(4),
-            initialize_lightpanda_manager(url, BrowserProcess::Chrome(process)),
-        )
-        .await
-        .expect("Lightpanda should release the failed connection and retry")
-        .unwrap();
-        assert!(!manager.browser_process.as_mut().unwrap().has_exited());
-        manager.close().await.unwrap();
-        let observed = server.await.unwrap();
-        assert!(!observed[0].iter().any(|method| method == "Browser.close"));
-        assert!(observed[1].iter().any(|method| method == "Browser.close"));
-        assert_initialization_process_reaped(dir.path());
-    }
-
-    #[cfg(unix)]
-    fn obscura_initialization_process(url: &str) -> (tempfile::TempDir, BrowserProcess) {
-        let dir = tempfile::tempdir().unwrap();
-        let child = std::process::Command::new("/bin/sleep")
-            .arg("60")
-            .spawn()
-            .unwrap();
-        std::fs::write(dir.path().join("pid"), child.id().to_string()).unwrap();
-        (
-            dir,
-            BrowserProcess::Obscura(ObscuraProcess::for_test(child, url.to_string())),
-        )
-    }
-
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn test_obscura_failed_initialization_disconnects_before_retry() {
-        for method in [
-            "Target.setDiscoverTargets",
-            "Target.getTargets",
-            "Target.createTarget",
-            "Target.attachToTarget",
-            "Page.enable",
-            "Runtime.enable",
-            "Network.enable",
-        ] {
-            let (url, server) = initialization_server(method, false, 2, false).await;
-            let (dir, process) = obscura_initialization_process(&url);
-            let mut manager = tokio::time::timeout(
-                Duration::from_secs(4),
-                initialize_obscura_manager(url, process),
-            )
-            .await
-            .expect("Obscura should disconnect before retrying")
-            .unwrap();
-            assert!(manager.owns_obscura_process());
-            assert!(!manager.browser_process.as_mut().unwrap().has_exited());
-            manager.close().await.unwrap();
-            let observed = server.await.unwrap();
-            assert!(!observed[0].iter().any(|method| method == "Browser.close"));
-            assert!(observed[1].iter().any(|method| method == "Browser.close"));
-            assert_initialization_process_reaped(dir.path());
-        }
-    }
-
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn test_obscura_stalled_websocket_handshake_is_bounded_and_reaps() {
-        use tokio::io::AsyncReadExt;
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let url = format!("ws://{}", listener.local_addr().unwrap());
-        let server = tokio::spawn(async move {
-            let (mut stream, _) = listener.accept().await.unwrap();
-            let mut request = Vec::new();
-            stream.read_to_end(&mut request).await.unwrap();
-            assert!(String::from_utf8_lossy(&request).contains("Upgrade: websocket"));
-        });
-        let (dir, process) = obscura_initialization_process(&url);
-        let started = Instant::now();
-        let error = tokio::time::timeout(
-            OBSCURA_TARGET_INIT_TIMEOUT + Duration::from_secs(2),
-            initialize_obscura_manager(url, process),
-        )
-        .await
-        .expect("Obscura handshake must obey its startup deadline")
-        .err()
-        .expect("stalled handshake must fail");
-        assert!(error.contains("CDP WebSocket connection"), "{error}");
-        assert!(started.elapsed() >= OBSCURA_TARGET_INIT_TIMEOUT);
-        tokio::time::timeout(Duration::from_secs(1), server)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_initialization_process_reaped(dir.path());
-    }
-
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn test_obscura_stalled_target_initialization_disconnects_and_reaps() {
-        use futures_util::StreamExt;
-        use tokio::io::AsyncReadExt;
-        use tokio_tungstenite::tungstenite::Message;
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let url = format!("ws://{}", listener.local_addr().unwrap());
-        let server = tokio::spawn(async move {
-            let (stream, _) = listener.accept().await.unwrap();
-            let mut ws = tokio_tungstenite::accept_async(stream).await.unwrap();
-            let mut target_seen = false;
-            while let Some(Ok(message)) = ws.next().await {
-                match message {
-                    Message::Text(text) => {
-                        let command: Value = serde_json::from_str(&text).unwrap();
-                        assert_ne!(command["method"], "Browser.close");
-                        target_seen |= command["method"] == "Target.setDiscoverTargets";
-                    }
-                    Message::Close(_) => break,
-                    _ => {}
-                }
-            }
-            assert!(target_seen);
-            let mut byte = [0u8; 1];
-            assert_eq!(ws.get_mut().read(&mut byte).await.unwrap(), 0);
-        });
-        let (dir, process) = obscura_initialization_process(&url);
-        let error = tokio::time::timeout(
-            OBSCURA_TARGET_INIT_TIMEOUT + Duration::from_secs(2),
-            initialize_obscura_manager(url, process),
-        )
-        .await
-        .expect("Obscura target setup must obey its startup deadline")
-        .err()
-        .expect("stalled target setup must fail");
-        assert!(
-            error.contains("Target domain initialization attempt"),
-            "{error}"
-        );
-        tokio::time::timeout(Duration::from_secs(1), server)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_initialization_process_reaped(dir.path());
-    }
-
     const TARGET_A: &str = "AAAA0000BBBB1111CCCC2222DDDD3333";
     const TARGET_B: &str = "4F0A1111BBBB2222CCCC3333DDDD4444";
 
@@ -4734,7 +4519,7 @@ mod tests {
 
         // Keep sending requests so idle is never reached
         tokio::spawn(async move {
-            for i in 0u64.. {
+            for i in 0u64..u64::MAX {
                 let _ = tx.send(cdp_event(
                     "Network.requestWillBeSent",
                     session,
@@ -4804,7 +4589,7 @@ mod tests {
         let manager = test_manager(Vec::new()).await;
         let (tx, mut rx) = broadcast::channel::<CdpEvent>(16);
         tokio::spawn(async move {
-            for i in 0u64.. {
+            for i in 0u64..u64::MAX {
                 let _ = tx.send(cdp_event(
                     "Network.requestWillBeSent",
                     "s1",

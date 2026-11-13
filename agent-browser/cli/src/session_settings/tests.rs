@@ -57,8 +57,6 @@ pub(crate) fn full_flags() -> Flags {
     f.cli_webgpu = true;
     f.no_webmcp = true;
     f.cli_no_webmcp = true;
-    f.no_xvfb = true;
-    f.device = Some("iPhone 15".to_string());
     f.auto_connect = true;
     f.pin_tab = true;
     f.cli_pin_tab = true;
@@ -211,7 +209,6 @@ fn patch_carries_every_daemon_options_field() {
     assert_eq!(set(&p, Key::Profile), json!("/profile")); // profile
     assert_eq!(set(&p, Key::StorageState), json!("/state.json")); // state
     assert_eq!(set(&p, Key::Provider), json!("browserless")); // provider
-    assert_eq!(set(&p, Key::Device), json!("iPhone 15")); // device
     assert_eq!(set(&p, Key::RestoreKey), json!("work")); // session_name
     assert_eq!(set(&p, Key::RestoreSave), json!("always")); // restore_save
     assert_eq!(set(&p, Key::RestoreCheckUrl), json!("https://x.test/")); // restore_check_url
@@ -264,10 +261,8 @@ fn patch_carries_every_launch_envelope_field() {
     // colorScheme, downloadPath
     assert_eq!(set(&p, Key::ColorScheme), json!("dark"));
     assert_eq!(set(&p, Key::DownloadPath), json!("/downloads"));
-    // hideScrollbars, webgpu, noXvfb
     assert_eq!(set(&p, Key::HideScrollbars), json!(false));
     assert_eq!(set(&p, Key::Webgpu), json!(true));
-    assert_eq!(set(&p, Key::NoXvfb), json!(true));
     // executablePath, profile, storageState, userAgent, args, extensions
     assert_eq!(set(&p, Key::ExecutablePath), json!("/bin/chrome"));
     assert_eq!(set(&p, Key::Profile), json!("/profile"));
@@ -453,7 +448,6 @@ fn defaults_view() {
     assert!(o.hide_scrollbars);
     assert!(!o.webgpu);
     assert!(o.webmcp);
-    assert!(!o.no_xvfb);
     assert!(!o.restrict_webrtc);
     assert_eq!(r.connection(), Connection::Local);
     assert_eq!(r.default_timeout_ms(), 25_000);
@@ -492,7 +486,6 @@ fn launch_options_view_reads_every_launch_variable() {
         ("AGENT_BROWSER_HIDE_SCROLLBARS", "no"),
         ("AGENT_BROWSER_WEBGPU", "1"),
         ("AGENT_BROWSER_NO_WEBMCP", "yes"),
-        ("AGENT_BROWSER_NO_XVFB", "true"),
         ("AGENT_BROWSER_ALLOWED_DOMAINS", "example.com"),
     ]);
     let o = r.launch_options();
@@ -524,7 +517,6 @@ fn launch_options_view_reads_every_launch_variable() {
     assert!(!o.hide_scrollbars);
     assert!(o.webgpu);
     assert!(!o.webmcp);
-    assert!(o.no_xvfb);
     assert!(o.restrict_webrtc);
     assert_eq!(o.ca_cert, None);
     assert_eq!(o.viewport_size, None);
@@ -578,15 +570,6 @@ fn connection_keys_are_not_seeded_from_the_environment() {
     assert_eq!(r.connection(), Connection::Local);
     assert_eq!(r.cdp_headers(), None);
     assert_eq!(r.provider(), None);
-}
-
-#[test]
-fn device_is_still_seeded_from_the_environment() {
-    let r = seeded(&[("AGENT_BROWSER_IOS_DEVICE", "iPhone 15")]);
-    assert_eq!(
-        r.get(Key::Device).and_then(Value::as_str),
-        Some("iPhone 15")
-    );
 }
 
 #[test]
@@ -656,16 +639,18 @@ fn timeout_views() {
 
 #[test]
 fn security_view() {
+    let policy = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("policy.json");
+    let policy = policy.to_str().unwrap();
     let r = seeded(&[
         ("AGENT_BROWSER_ALLOWED_DOMAINS", " a.test , ,*.b.test "),
         ("AGENT_BROWSER_CONFIRM_ACTIONS", "click,fill"),
-        ("AGENT_BROWSER_ACTION_POLICY", "/policy.json"),
+        ("AGENT_BROWSER_ACTION_POLICY", policy),
     ]);
     assert_eq!(
         r.security(),
         SecurityView {
             allowed_domains: Some(vec!["a.test".into(), "*.b.test".into()]),
-            action_policy_path: Some("/policy.json".into()),
+            action_policy_path: Some(policy.into()),
             confirm_actions: Some("click,fill".into()),
         }
     );
@@ -712,19 +697,17 @@ fn provider_view_ignores_connection_precedence() {
 
 #[test]
 fn legacy_policy_variable_applies_only_when_the_current_one_is_unset() {
-    let legacy = seeded(&[("AGENT_BROWSER_POLICY", "/old.json")]);
-    assert_eq!(
-        legacy.security().action_policy_path.as_deref(),
-        Some("/old.json")
-    );
+    let old = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("old.json");
+    let old = old.to_str().unwrap();
+    let new = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("new.json");
+    let new = new.to_str().unwrap();
+    let legacy = seeded(&[("AGENT_BROWSER_POLICY", old)]);
+    assert_eq!(legacy.security().action_policy_path.as_deref(), Some(old));
     let both = seeded(&[
-        ("AGENT_BROWSER_POLICY", "/old.json"),
-        ("AGENT_BROWSER_ACTION_POLICY", "/new.json"),
+        ("AGENT_BROWSER_POLICY", old),
+        ("AGENT_BROWSER_ACTION_POLICY", new),
     ]);
-    assert_eq!(
-        both.security().action_policy_path.as_deref(),
-        Some("/new.json")
-    );
+    assert_eq!(both.security().action_policy_path.as_deref(), Some(new));
 }
 
 #[test]
@@ -1356,19 +1339,6 @@ fn local_only_settings_apply_to_a_local_session() {
         is(Key::Args, json!(["--x"])),
     ]));
     assert_eq!(plan.ignored.len(), 1);
-}
-
-#[test]
-fn no_xvfb_can_be_turned_off() {
-    let mut flags = blank_flags();
-    flags.no_xvfb_set = true;
-    flags.no_xvfb = false;
-    let patch = Patch::from_flags(&flags);
-    assert_eq!(patch.get(Key::NoXvfb), Some(&Requested::Set(json!(false))));
-
-    let running = running_with(&[(Key::NoXvfb, json!(true))]);
-    assert_eq!(changed_keys(&running.plan(&patch)), vec![Key::NoXvfb]);
-    assert!(Patch::from_flags(&blank_flags()).get(Key::NoXvfb).is_none());
 }
 
 #[test]

@@ -27,7 +27,7 @@ A fixed sleep either wastes time or races the app. agent-desktop gives you two w
 
 ## Wait inside the action
 
-`--wait-for` polls the ref's original process until the selector matches, then returns a fresh snapshot with the action's own report under `after_action`, so you can act on the new refs at once. Application-owned refs keep their source surface. Window-owned refs stay pinned to their original window, including refs captured from a sheet, alert, popover, focused view, or window-owned Linux menu:
+`--wait-for` polls the ref's original process until the selector matches, then returns a fresh snapshot with the action's own report under `after_action`, so you can act on the new refs at once. Window-owned refs stay pinned to their original window, including refs captured from a sheet, a focused view, or a menu:
 
 ```bash
 agent-desktop click @s8f3k2p9:e5 --wait-for "button:Done" --wait-timeout 10000
@@ -38,10 +38,10 @@ If the wait times out, the action already ran: the error keeps the action's deli
 
 ## Wait for an element
 
-Use `wait --element` when you hold a ref and need a condition on it. The verify step of the [quick start](/desktop/quick-start#verify) waits for the calculator display to read `7`, which took 286 ms after the click:
+Use `wait --element` when you hold a ref and need a condition on it. The verify step of the [quick start](/desktop/quick-start#5-verify) waits for the editor to hold `hello from agent-desktop`, which took 68 ms after the write:
 
 ```bash
-agent-desktop wait --element @s2txcl95uvubmn:e6 --predicate value --value 7 --timeout 5000
+agent-desktop wait --element @s130xb68qxnjxe:e1 --predicate value --value "hello from agent-desktop" --timeout 5000
 ```
 
 Use `--predicate actionable --action type` before typing into a field that is still loading. You rarely need a wait before a plain click: ref actions already wait for their target to become actionable.
@@ -51,11 +51,11 @@ Use `--predicate actionable --action type` before typing into a field that is st
 A window can exist before its content does. Wait for the window, then for the content:
 
 ```bash
-agent-desktop wait --window "Save As" --app gedit --timeout 10000
-agent-desktop wait --text "Save" --app gedit --timeout 10000
+agent-desktop wait --window "Save As" --app notepad.exe --timeout 10000
+agent-desktop wait --text "Save" --app notepad.exe --timeout 10000
 ```
 
-`--window` matches a title that contains your text. If an app has a document and a dialog open, `wait --text` returns `AMBIGUOUS_TARGET` before it checks any text; wait for the dialog by title with `--window`, then read it with `snapshot --surface sheet` or `--window-id`.
+`--window` matches a title that contains your text. If an app has a document and a dialog open, `wait --text` returns `AMBIGUOUS_TARGET` before it checks any text; wait for the dialog by title with `--window`, then read it with `--window-id`.
 
 ## Wait for an event your action causes
 
@@ -63,24 +63,25 @@ agent-desktop wait --text "Save" --app gedit --timeout 10000
 
 ```bash
 agent-desktop batch '[
-  {"command":"launch","args":{"app":"gtk3-demo"}},
-  {"command":"wait","args":{"event":"window-opened","app":"gtk3-demo","timeout":10000}}
+  {"command":"launch","args":{"app":"notepad.exe"}},
+  {"command":"wait","args":{"event":"window-opened","app":"notepad.exe","timeout":10000}}
 ]' --stop-on-error
 ```
 
-On Linux this returned the new window 144 ms after the launch; the [`wait` reference](/desktop/commands/wait#event) shows the result. A misspelled `--app` makes closing events such as `app-terminated` return at once with `target_unresolved: true`, so check the name with `list-apps` first.
+On Windows this returned the new window 81 ms after the launch; the [`wait` reference](/desktop/commands/wait#event) shows the result. A misspelled `--app` makes closing events such as `app-terminated` return at once with `target_unresolved: true`, so check the name with `list-apps` first.
 
 ## Wait for a menu
 
 Open the menu, wait for it, and read it as a surface:
 
 ```bash
-agent-desktop click @s2qfke45s1966h:e1                                       # the Menu button
-agent-desktop wait --menu --app gtk3-widget-factory --timeout 5000
-agent-desktop snapshot --app gtk3-widget-factory --surface menu -i --compact
+agent-desktop find --app notepad.exe --role menuitem --name "File" --exact --first   # @s1zjuq7z4wqgdu:e1
+agent-desktop click @s1zjuq7z4wqgdu:e1                                               # the File menu item
+agent-desktop wait --menu --app notepad.exe --timeout 5000
+agent-desktop snapshot --app notepad.exe --surface menu -i --compact
 ```
 
-After you choose an item or dismiss the menu, `wait --menu-closed --app gtk3-widget-factory` confirms it is gone. Wait for `--menu` before `--menu-closed`: on Linux, `--menu-closed` on a menu that never opened is true at once. See [Surfaces](/desktop/surfaces).
+After you choose an item or dismiss the menu, `wait --menu-closed --app notepad.exe` confirms it is gone. Wait for `--menu` before `--menu-closed`: `--menu-closed` is already true when no menu is open. See [Surfaces](/desktop/surfaces).
 
 ## Set timeouts
 
@@ -100,6 +101,6 @@ After you choose an item or dismiss the menu, `wait --menu-closed --app gtk3-wid
 
 ## Read a timeout
 
-A `TIMEOUT` from a wait says what the wait last saw in `details.last_observed`. A `wait --window "Save As"` that timed out reported the only window it found, `Untitled Document 1 - gedit`, which tells you the dialog never opened rather than that the title was wrong. Use it to decide between a wrong title, a wrong `--app`, and a slow app. The fields per mode are in the [`wait` reference](/desktop/commands/wait#errors).
+A `TIMEOUT` from a wait says what the wait last saw in `details.last_observed`. A `wait --window "Save As"` that timed out reported the only window it found, `Untitled - Notepad`, which tells you the dialog never opened rather than that the title was wrong. Use it to decide between a wrong title, a wrong `--app`, and a slow app. The fields per mode are in the [`wait` reference](/desktop/commands/wait#errors).
 
-On macOS and Windows, a headless `wait --notification` sees only an already-open notification surface; see [macOS](/desktop/platforms/macos) and [Windows](/desktop/platforms/windows).
+A headless `wait --notification` sees only an already-open Action Center; with it closed, pass `--headed`. See [Windows](/desktop/platforms/windows#what-works-headless).

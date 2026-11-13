@@ -86,7 +86,7 @@ impl SystemOps for FailingInventoryAdapter {
     ) -> Result<SignalBaseline, AdapterError> {
         *self.calls.lock().unwrap() += 1;
         Err(
-            AdapterError::app_unresponsive("macOS inventory").with_details(json!({
+            AdapterError::app_unresponsive("app inventory").with_details(json!({
                 "kind": "inventory_sources",
             })),
         )
@@ -275,7 +275,7 @@ fn seeded_baseline_failure_is_not_disguised_as_timeout() {
 #[test]
 fn retryable_seed_inventory_failure_is_preserved_in_timeout_evidence() {
     let adapter = SequenceAdapter::new(vec![empty_baseline()]);
-    let seed_error = AdapterError::app_unresponsive("macOS inventory").with_details(json!({
+    let seed_error = AdapterError::app_unresponsive("app inventory").with_details(json!({
         "kind": "inventory_sources",
     }));
     let mut request = input("window-opened", None);

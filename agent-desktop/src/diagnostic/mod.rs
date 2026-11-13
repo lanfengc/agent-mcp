@@ -1,3 +1,5 @@
+pub(crate) mod logging;
+
 pub(crate) fn clap_command_name(args: impl IntoIterator<Item = String>) -> String {
     let command = crate::root_command();
     let global_flags: Vec<_> = command

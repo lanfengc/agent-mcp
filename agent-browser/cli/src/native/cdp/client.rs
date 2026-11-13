@@ -871,9 +871,7 @@ fn enable_tcp_keepalive(stream: &tokio_tungstenite::MaybeTlsStream<tokio::net::T
     let keepalive = socket2::TcpKeepalive::new().with_time(std::time::Duration::from_secs(30));
 
     // with_interval sets TCP_KEEPINTVL — the time between probes after the
-    // first keepalive probe goes unanswered. Available on most platforms
-    // (Linux, macOS, Windows, FreeBSD, etc.) but not OpenBSD or Haiku.
-    #[cfg(not(any(target_os = "openbsd", target_os = "haiku")))]
+    // first keepalive probe goes unanswered.
     let keepalive = keepalive.with_interval(std::time::Duration::from_secs(10));
 
     let _ = sock.set_tcp_keepalive(&keepalive);
@@ -1506,6 +1504,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::result_large_err)]
     async fn root_websocket_url_with_query_sends_slash_request_target() {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = listener.local_addr().unwrap().port();

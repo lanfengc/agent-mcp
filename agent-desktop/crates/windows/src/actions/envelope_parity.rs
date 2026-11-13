@@ -1,4 +1,4 @@
-//! ActionResult / classifier error wire-shape parity pins (macOS structure).
+//! ActionResult / classifier error wire-shape pins.
 //!
 //! Hot-path cost baseline: A19-8 captures under
 //! `probes/windows/19-semantic-actions/captures/semantic-cost-{devbox,ci}.json`.

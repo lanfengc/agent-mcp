@@ -1,13 +1,11 @@
 const assert = require('node:assert/strict');
 const {
-  chmodSync,
   closeSync,
   cpSync,
   mkdirSync,
   openSync,
   readFileSync,
   rmSync,
-  statSync,
   unlinkSync,
   writeFileSync,
 } = require('node:fs');
@@ -32,9 +30,6 @@ test('OS stubs live in a private temporary directory', () => {
   const stub = writeOsStub('win32', 'x64');
   try {
     assert.notEqual(dirname(stub), tmpdir());
-    if (process.platform !== 'win32') {
-      assert.equal(statSync(dirname(stub)).mode & 0o077, 0);
-    }
     assert.match(readFileSync(stub, 'utf8'), /const platform = process\.env/);
   } finally {
     removeOsStub(stub);
@@ -42,7 +37,6 @@ test('OS stubs live in a private temporary directory', () => {
 });
 
 afterEach(() => {
-  delete process.env.AGENT_DESKTOP_MACOS_HELPER_PATH;
   // Installing now also writes a digest sidecar. Leaving one behind puts an
   // unexpected file in npm/bin, which `npm pack` would include and the package
   // contract gate rejects - so the sweep has to match what installing creates.
@@ -85,29 +79,11 @@ test('wrapper refuses an unmapped platform key by name', async () => {
   assert.match(stderr, /Error: Unsupported platform: sunos-x64/);
 });
 
-test('wrapper reports a non-zero exit status when the child dies to a signal', {
-  skip: process.platform === 'win32',
-}, async () => {
-  const entry = resolve('darwin', 'arm64');
-  const fakeBinary = join(wrapperScriptPath, '..', entry.binaryName);
-  const fakeHelper = join(wrapperScriptPath, '..', 'agent-desktop-macos-helper');
-  writeFileSync(fakeBinary, '#!/usr/bin/env node\nprocess.kill(process.pid, "SIGKILL");\n', { mode: 0o755 });
-  chmodSync(fakeBinary, 0o755);
-  writeFileSync(fakeHelper, '#!/usr/bin/env node\n', { mode: 0o755 });
-  chmodSync(fakeHelper, 0o755);
-  try {
-    const { code, stderr } = await runScriptWithOsStub(
-      wrapperScriptPath,
-      'darwin',
-      'arm64',
-      ['version'],
-    );
-    assert.notEqual(code, 0, 'a signal-killed child must not be reported as success');
-    assert.match(stderr, /terminated by signal/);
-  } finally {
-    try { unlinkSync(fakeBinary); } catch {}
-    try { unlinkSync(fakeHelper); } catch {}
-  }
+test('wrapper refuses a darwin key by name now that only win32 is released', async () => {
+  const { code, stderr } = await runScriptWithOsStub(wrapperScriptPath, 'darwin', 'arm64', ['version']);
+  assert.equal(code, 1);
+  assert.match(stderr, /Error: Unsupported platform: darwin-arm64/);
+  assert.match(stderr, /Released platform keys today: win32-arm64, win32-x64/);
 });
 
 test('AGENT_DESKTOP_BINARY_PATH installs on windows without any helper present', () => {
@@ -138,79 +114,8 @@ test('AGENT_DESKTOP_BINARY_PATH installs on windows without any helper present',
   try {
     assert.equal(readFileSync(installedBinary, 'utf8'), 'fake-win-binary');
     assert.match(stderr, /Using binary from AGENT_DESKTOP_BINARY_PATH/);
-    assert.doesNotMatch(stderr, /macOS helper not found/);
   } finally {
     try { unlinkSync(installedBinary); } catch {}
     try { unlinkSync(`${installedBinary}.sha256`); } catch {}
-  }
-});
-
-function noticeWrapper() {
-  const root = temporaryDirectory();
-  const binDir = join(root, 'bin');
-  mkdirSync(binDir);
-  cpSync(wrapperScriptPath, join(binDir, 'agent-desktop'));
-  cpSync(join(__dirname, '../../npm/lib'), join(root, 'lib'), { recursive: true });
-  writeFileSync(join(root, 'package.json'), JSON.stringify({ version: '9.8.7' }));
-  const entry = resolve('linux', 'x64');
-  writeFileSync(
-    join(binDir, entry.binaryName),
-    '#!/usr/bin/env node\nconsole.log(JSON.stringify(process.argv.slice(2)));process.exit(3);\n',
-    { mode: 0o755 },
-  );
-  chmodSync(join(binDir, entry.binaryName), 0o755);
-  return { binDir, script: join(binDir, 'agent-desktop') };
-}
-
-async function runLinux(script) {
-  const stub = writeOsStub('linux', 'x64');
-  const { spawn } = require('node:child_process');
-  try {
-    return await new Promise((settle) => {
-      let stdout = '';
-      let stderr = '';
-      const child = spawn(process.execPath, ['-r', stub, script, 'a', '--b'], {
-        stdio: ['ignore', 'pipe', 'pipe'],
-        env: { ...process.env, ...osStubEnv('linux', 'x64') },
-      });
-      child.stdout.on('data', (c) => { stdout += c; });
-      child.stderr.on('data', (c) => { stderr += c; });
-      child.on('close', (code) => settle({ code, stdout, stderr }));
-    });
-  } finally {
-    removeOsStub(stub);
-  }
-}
-
-test('launcher notice prints once per version and leaves stdout and exit code alone', {
-  skip: process.platform === 'win32',
-}, async () => {
-  const { binDir, script } = noticeWrapper();
-  const first = await runLinux(script);
-  assert.equal(first.code, 3);
-  assert.equal(first.stdout, '["a","--b"]\n');
-  assert.match(first.stderr, /runs through the Node launcher/);
-  assert.match(first.stderr, /--allow-scripts=agent-desktop/);
-  assert.match(first.stderr, /npm install-scripts approve agent-desktop, then npm rebuild agent-desktop/);
-  assert.doesNotMatch(first.stderr, /\(npm 1\d\)/);
-  assert.equal(statSync(join(binDir, '.launcher-notice-9.8.7')).isFile(), true);
-  const second = await runLinux(script);
-  assert.equal(second.code, 3);
-  assert.equal(second.stdout, first.stdout);
-  assert.doesNotMatch(second.stderr, /Node launcher/);
-});
-
-test('launcher notice stays silent when the marker cannot be written', {
-  skip: process.platform === 'win32' || (process.getuid && process.getuid() === 0),
-}, async () => {
-  const { binDir, script } = noticeWrapper();
-  chmodSync(binDir, 0o555);
-  try {
-    const result = await runLinux(script);
-    assert.equal(result.code, 3);
-    assert.equal(result.stdout, '["a","--b"]\n');
-    assert.doesNotMatch(result.stderr, /Node launcher/);
-  } finally {
-    chmodSync(binDir, 0o755);
   }
 });

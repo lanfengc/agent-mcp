@@ -10,10 +10,10 @@ symptom first.
 | Chromium/Electron app returns far fewer nodes than the UI shows | The first read came before the renderer's accessibility build settled | Run `snapshot --timeout-ms 30000`. The settle can take 10 to 25 s cold. See `chromium-and-electron.md` |
 | Node count frozen at a small number however long you wait | Other windows fully cover the target during the settle | Bring the target to the foreground or minimize the covering windows, then snapshot again |
 | WPF app: one node, `ClassName` like `HwndWrapper[...]`, zero children | A read before the automation peer existed bound the generic HWND provider permanently | Take a fresh snapshot. In-process retries never recover |
-| Custom-rendered UI or a game returns nothing meaningful | No accessibility exposure at all | Take `screenshot --ocr --ocr-query "Label"` and pass `ocr_match.center_x/center_y` to `mouse-click --background --capture-id`. Verify the effect from a fresh capture |
-| `mouse-click --background` returns `ok` but the app does nothing | The app ignores posted window messages, or (WinForms) checks the physical cursor position and async key state | Add `--semantic` to invoke the UI Automation element at the point; it works in the target's own subtree while the window is covered. `--cursor-fallback` only helps frameworks that read the cursor position. Verify from fresh state and do not retry blindly: a posted click is `delivered_unverified` with `retry: unsafe` |
-| Background click fails `INVALID_ARGS` for a minimized window | Posted clicks need a restored client area | Pass `--restore-minimized`; the click restores the window and minimizes it again |
-| Background click fails `STALE_REF` with `details.kind: stale_capture` | The window moved or resized, the process restarted, or the capture is older than 10 seconds | Take a new `screenshot --window-id` and pass its new `capture_id` |
+| Custom-rendered UI or a game returns nothing meaningful | No accessibility exposure at all | Take `screenshot --window-id <id> --ocr --ocr-query "Label"` and pass its `capture_id` with `ocr_match.center_x` and `center_y` to `mouse-click --background --window-id <id> --capture-id <capture_id> --xy X,Y`. `ocr_match` is absent when the text was not found. Verify the effect from a fresh capture |
+| `mouse-click --background` returns `ok` but the app does nothing | The app ignores posted window messages, (WinForms) checks the physical cursor position and async key state, or acts only on a double-click message, which `--count 2` does not send | Add `--semantic` to invoke the UI Automation element at the point with the left button; it works in the target's own subtree while the window is covered. `--cursor-fallback` only helps frameworks that read the cursor position. Verify from fresh state and do not retry blindly: a posted click is `delivered_unverified` with `retry: unsafe` |
+| Background click fails `INVALID_ARGS` for a minimized window | Posted clicks need a restored client area | Pass `--restore-minimized`; the click restores the window and minimizes it again, so the window shows on screen for a moment |
+| Background click fails `STALE_REF` with `details.kind: stale_capture` | The capture belongs to another window, the window moved or resized, the process restarted, or the capture is older than the limit (10 seconds unless `AGENT_DESKTOP_MAX_CAPTURE_AGE_MS` sets another). `details.reason` says which | Take a new `screenshot --window-id` and pass its new `capture_id` |
 | Background click fails `PERM_DENIED` | The target runs at a higher integrity level (UIPI) | Run agent-desktop at the same integrity level as the target |
 
 ## PERM_DENIED with an E_ACCESSDENIED Detail
@@ -29,6 +29,22 @@ that boundary, while reads still succeed.
 
 Fix: run your terminal elevated to the target's level. See
 `permissions-and-elevation.md`.
+
+## Clipboard TIMEOUT with a NULL Holder
+
+```json
+"code": "TIMEOUT",
+"platform_detail": "GetOpenClipboardWindow returned NULL, which is ambiguous
+between a free clipboard and a windowless holder"
+```
+
+Cause: either a holder without a window has the clipboard open, or the session
+is locked. Windows refuses `OpenClipboard` to every process while the session
+is locked, and a session that shows its lock screen is not refused with
+`PERM_DENIED`. See `permissions-and-elevation.md`.
+
+Fix: if the failure repeats, check whether the session is locked and unlock
+it. Waiting for a holder to release the clipboard does not help there.
 
 ## COM Apartment Error
 

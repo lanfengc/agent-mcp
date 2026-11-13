@@ -20,7 +20,7 @@ use crate::validation::{is_valid_session_name, session_name_error};
 use super::a11y;
 use super::auth;
 use super::browser::{should_track_target, BrowserManager, WaitUntil, WedgeReport};
-use super::cdp::chrome::{prepare_nss_home, LaunchOptions};
+use super::cdp::chrome::LaunchOptions;
 use super::cdp::client::CdpClient;
 use super::cdp::types::{
     AttachToTargetParams, AttachToTargetResult, CdpEvent, DispatchMouseEventParams,
@@ -45,10 +45,6 @@ use super::storage;
 use super::stream::{self, IdleActivity, StreamServer};
 use super::tab_binding;
 use super::tracing::{self as native_tracing, TracingState};
-use super::webdriver::appium::AppiumManager;
-use super::webdriver::backend::{BrowserBackend, WebDriverBackend, WEBDRIVER_UNSUPPORTED_ACTIONS};
-use super::webdriver::ios;
-use super::webdriver::safari;
 use super::webmcp;
 
 /// Wait strategy used by `auth_login` when navigating to the login page.
@@ -209,11 +205,6 @@ pub struct FetchPausedRequest {
     pub request_headers: Option<serde_json::Map<String, Value>>,
 }
 
-pub enum BackendType {
-    Cdp,
-    WebDriver,
-}
-
 #[derive(Debug, Clone, Default)]
 pub struct PendingDialog {
     pub dialog_type: String,
@@ -304,7 +295,6 @@ const LOCAL_ONLY_LAUNCH_FIELDS: &[&str] = &[
     "extensions",
     "headless",
     "hideScrollbars",
-    "noXvfb",
     "profile",
     "proxy",
     "proxyBypass",
@@ -347,11 +337,9 @@ impl AttachedTarget {
         Some(Self::Provider(provider.to_ascii_lowercase()))
     }
 
-    /// The target a successful launch leaves the session attached to. The iOS and
-    /// Safari providers are WebDriver-backed and have no CDP attach to resume.
+    /// The target a successful launch leaves the session attached to.
     fn from_launch_command(cmd: &Value) -> Option<Self> {
         Self::named_by(cmd)
-            .filter(|target| !matches!(target, Self::Provider(p) if p == "ios" || p == "safari"))
     }
 
     fn insert_into(&self, cmd: &mut serde_json::Map<String, Value>) {
@@ -391,12 +379,12 @@ fn validate_ca_cert_launch_mode(
     }
     if external_launch {
         return Err(
-            "CA trust is active for this session and requires a locally launched Chromium browser on Linux. Pass --no-ca-cert to clear it before using CDP, auto-connect, or a provider."
+            "CA trust is active for this session and requires a locally launched Chromium browser. Pass --no-ca-cert to clear it before using CDP, auto-connect, or a provider."
                 .to_string(),
         );
     }
     if engine.is_some_and(|value| !value.eq_ignore_ascii_case("chrome")) {
-        return Err("--ca-cert is supported only with the Chrome engine on Linux".to_string());
+        return Err("--ca-cert browser trust is supported only with the Chrome engine".to_string());
     }
     if options.ignore_https_errors {
         return Err("--ca-cert cannot be combined with --ignore-https-errors".to_string());
@@ -455,8 +443,6 @@ fn apply_effective_ca_cert(
     effective_ca_cert: &Option<EffectiveCaCert>,
 ) {
     options.ca_cert = effective_ca_cert.as_ref().map(|ca| ca.path.clone());
-    options.ca_bundle = effective_ca_cert.as_ref().map(|ca| ca.bundle.clone());
-    options.ca_cert_digest = effective_ca_cert.as_ref().map(|ca| *ca.bundle.digest());
 }
 
 /// Arguments of the last `Emulation.setEmulatedMedia` call, kept so the same
@@ -560,10 +546,6 @@ impl SessionSetup {
 
 pub struct DaemonState {
     pub browser: Option<BrowserManager>,
-    pub appium: Option<AppiumManager>,
-    pub safari_driver: Option<safari::SafariDriverProcess>,
-    pub webdriver_backend: Option<super::webdriver::backend::WebDriverBackend>,
-    pub backend_type: BackendType,
     pub ref_map: RefMap,
     /// Last delta snapshot per page session. Bounded to the currently tracked tabs.
     snapshot_revisions: HashMap<String, SnapshotRevision>,
@@ -720,12 +702,8 @@ pub struct DaemonState {
     last_persisted_binding: Option<tab_binding::TabBinding>,
 }
 
-fn default_idle_shutdown_is_blocked(
-    is_webdriver: bool,
-    provider_owned: bool,
-    browser_blocks_shutdown: bool,
-) -> bool {
-    is_webdriver || (!provider_owned && browser_blocks_shutdown)
+fn default_idle_shutdown_is_blocked(provider_owned: bool, browser_blocks_shutdown: bool) -> bool {
+    !provider_owned && browser_blocks_shutdown
 }
 
 impl DaemonState {
@@ -767,10 +745,6 @@ impl DaemonState {
                 .is_some_and(|b| b.pinned);
         Self {
             browser: None,
-            appium: None,
-            safari_driver: None,
-            webdriver_backend: None,
-            backend_type: BackendType::Cdp,
             ref_map: RefMap::new(),
             snapshot_revisions: HashMap::new(),
             screenshot_observations: HashMap::new(),
@@ -869,12 +843,10 @@ impl DaemonState {
     }
 
     /// True when the default idle timeout must not shut down this session.
-    /// WebDriver-backed Safari and iOS sessions are always headed, while CDP
-    /// sessions delegate the decision to BrowserManager. Provider-owned CDP
+    /// CDP sessions delegate the decision to BrowserManager. Provider-owned
     /// connections remain eligible because the daemon owns their lifecycle.
     pub(crate) fn blocks_default_idle_shutdown(&self) -> bool {
         default_idle_shutdown_is_blocked(
-            matches!(self.backend_type, BackendType::WebDriver),
             self.active_provider_connection,
             self.browser
                 .as_ref()
@@ -2515,14 +2487,10 @@ fn command_changes_restore_key(cmd: &Value, state: &DaemonState) -> bool {
         .is_some_and(|key| state.session_name.as_deref() != Some(key))
 }
 
-/// Whether the session holds a browser of any backend: CDP, a provider
-/// session, or a WebDriver session (Safari, iOS).
+/// Whether the session holds a browser of any backend: CDP or a provider
+/// session.
 fn has_active_browser_session(state: &DaemonState) -> bool {
-    state.browser.is_some()
-        || state.active_provider_session.is_some()
-        || state.webdriver_backend.is_some()
-        || state.appium.is_some()
-        || state.safari_driver.is_some()
+    state.browser.is_some() || state.active_provider_session.is_some()
 }
 
 async fn close_before_implicit_relaunch(state: &mut DaemonState) -> Result<(), String> {
@@ -2664,27 +2632,8 @@ pub(crate) async fn close_current_browser(state: &mut DaemonState) -> Result<(),
 }
 
 /// Close every browser backend owned by the daemon.
-///
-/// Lifecycle shutdown paths use this instead of `close_current_browser`
-/// because Safari and iOS sessions live outside `state.browser`.
 pub(crate) async fn close_all_browser_backends(state: &mut DaemonState) -> Result<(), String> {
-    let close_result = close_current_browser(state).await;
-
-    if let Some(ref mut webdriver) = state.webdriver_backend {
-        let _ = tokio::time::timeout(std::time::Duration::from_secs(3), webdriver.close()).await;
-    }
-    state.webdriver_backend = None;
-    if let Some(ref mut appium) = state.appium {
-        let _ = tokio::time::timeout(std::time::Duration::from_secs(3), appium.close()).await;
-    }
-    state.appium = None;
-    if let Some(ref mut driver) = state.safari_driver {
-        driver.kill();
-    }
-    state.safari_driver = None;
-    state.backend_type = BackendType::Cdp;
-
-    close_result
+    close_current_browser(state).await
 }
 
 async fn close_after_network_control_failure(
@@ -2750,7 +2699,6 @@ fn skip_launch_action(action: &str) -> bool {
             | "state_clear"
             | "state_clean"
             | "state_rename"
-            | "device_list"
             | "stream_enable"
             | "stream_disable"
             | "stream_status"
@@ -2931,7 +2879,7 @@ fn policy_actions_for_command(
         let provider_launch = settings
             .provider()
             .map(|provider| provider.to_lowercase())
-            .filter(|provider| !provider.is_empty() && provider != "ios" && provider != "safari");
+            .filter(|provider| !provider.is_empty());
         if let Some(provider) = provider_launch {
             append_browser_provider_policy_action_for(&mut actions, &provider, &plugins);
         } else {
@@ -2942,12 +2890,10 @@ fn policy_actions_for_command(
 }
 
 /// The external browser the session's settings connect to, as the launch field
-/// that names it. Local sessions and the WebDriver providers name none.
+/// that names it. Local sessions name none.
 fn settings_launch_target(settings: &Running) -> Option<(&'static str, Value)> {
     match settings.connection() {
-        Connection::Provider(provider)
-            if !matches!(provider.to_lowercase().as_str(), "" | "ios" | "safari") =>
-        {
+        Connection::Provider(provider) if !provider.is_empty() => {
             Some(("provider", json!(provider.to_lowercase())))
         }
         Connection::Cdp(cdp) => Some(("cdpUrl", json!(cdp))),
@@ -3232,7 +3178,7 @@ async fn execute_command_inner(cmd: &Value, state: &mut DaemonState) -> Value {
         } else if let Some(ref mut mgr) = state.browser {
             mgr.has_process_exited() || !mgr.is_connection_alive().await
         } else {
-            state.webdriver_backend.is_none()
+            true
         }
     } else {
         false
@@ -3431,22 +3377,6 @@ async fn execute_command_inner(cmd: &Value, state: &mut DaemonState) -> Value {
                 }
             }
         }
-    }
-
-    // WebDriver backend: reject unsupported CDP-only actions
-    if matches!(state.backend_type, BackendType::WebDriver)
-        && WEBDRIVER_UNSUPPORTED_ACTIONS.contains(&action)
-    {
-        let mut resp = error_response(
-            &id,
-            &format!(
-                "Action '{}' is not supported on the WebDriver backend",
-                action
-            ),
-        );
-        // The launch above may have run; report what it applied.
-        attach_settings_outcome(&mut resp, &settings_outcome);
-        return resp;
     }
 
     // A pending confirm/prompt dialog blocks the renderer's main thread, so
@@ -3684,7 +3614,6 @@ async fn execute_command_inner(cmd: &Value, state: &mut DaemonState) -> Value {
         "confirm" => handle_confirm(cmd, state).await,
         "deny" => handle_deny(cmd, state).await,
         "swipe" => handle_swipe(cmd, state).await,
-        "device_list" => handle_device_list().await,
         "input_mouse" => handle_input_mouse(cmd, state).await,
         "input_keyboard" => handle_input_keyboard(cmd, state).await,
         "input_touch" => handle_input_touch(cmd, state).await,
@@ -4153,24 +4082,6 @@ fn ensure_allowed_domains_supported_for_launch(
             "--allowed-domains is not supported with --profile because Chrome may restore existing pages before network containment is installed"
                 .to_string(),
         );
-    }
-
-    if let Some(provider) = support.provider_name {
-        match provider.to_lowercase().as_str() {
-            "ios" => {
-                return Err(
-                    "--allowed-domains is not supported with the iOS provider because WebRTC containment cannot be enforced"
-                        .to_string(),
-                );
-            }
-            "safari" => {
-                return Err(
-                    "--allowed-domains is not supported with the Safari provider because WebRTC containment cannot be enforced"
-                        .to_string(),
-                );
-            }
-            _ => {}
-        }
     }
 
     if let Some(arg) = allowed_domains_disallowed_chrome_arg(support.args) {
@@ -4701,7 +4612,7 @@ async fn auto_launch(
 
 /// Launches or attaches the session's browser from its settings. `cmd` is the
 /// launch command that asked for it, when there is one; it carries only what
-/// the settings do not (device selection for the WebDriver providers).
+/// the settings do not.
 ///
 /// `strict_state` is set when the command named a `--state` file: a file that
 /// cannot be loaded then fails the launch instead of launching without state.
@@ -4745,7 +4656,7 @@ async fn auto_launch_with(
 async fn auto_launch_inner(
     state: &mut DaemonState,
     plugins: Vec<crate::plugins::PluginConfig>,
-    cmd: &Value,
+    _cmd: &Value,
     strict_state: bool,
 ) -> Result<Value, String> {
     if has_active_browser_session(state) {
@@ -4894,32 +4805,6 @@ async fn auto_launch_inner(
             restore_key: restore_key.as_deref(),
             storage_state,
         })?;
-        // ios and safari are WebDriver-backed device providers.
-        if p == "ios" {
-            // A relaunch keeps the device the session was set up with.
-            let mut ios_cmd = if cmd.is_object() {
-                cmd.clone()
-            } else {
-                json!({})
-            };
-            if ios_cmd.get("deviceName").is_none() {
-                if let Some(device) = state.settings.get(Key::Device).and_then(Value::as_str) {
-                    ios_cmd["deviceName"] = json!(device);
-                }
-            }
-            let result = launch_ios(&ios_cmd, state).await;
-            if result.is_ok() {
-                state.effective_ca_cert = effective_ca_cert;
-            }
-            return result;
-        }
-        if p == "safari" {
-            let result = launch_safari(cmd, state).await;
-            if result.is_ok() {
-                state.effective_ca_cert = effective_ca_cert;
-            }
-            return result;
-        }
         if !p.is_empty() {
             let conn =
                 providers::connect_provider_with_plugins(&p, &plugins, &state.settings).await?;
@@ -5016,9 +4901,6 @@ async fn auto_launch_inner(
         &state.settings,
         options.extensions.as_deref(),
     );
-    if let Some(ref ca) = effective_ca_cert {
-        options.prepared_nss_home = Some(prepare_nss_home(&ca.bundle)?);
-    }
     state.session_setup = SessionSetup::from_launch_options(&options);
     let mgr = BrowserManager::launch(options, engine.as_deref()).await?;
     state.reset_input_state();
@@ -5134,8 +5016,6 @@ async fn apply_launch_mutator_plugins(
             "downloadPath": options.download_path.clone(),
             "hideScrollbars": options.hide_scrollbars,
             "allowFileAccess": options.allow_file_access,
-            "webgpu": options.webgpu,
-            "noXvfb": options.no_xvfb,
         }
     });
 
@@ -5630,7 +5510,6 @@ fn launch_envelope_patch(cmd: &Value, engine: Option<&str>) -> Patch {
         ("hideScrollbars", Key::HideScrollbars),
         ("webgpu", Key::Webgpu),
         ("webmcp", Key::Webmcp),
-        ("noXvfb", Key::NoXvfb),
         ("clearCaCert", Key::ClearCaCert),
     ] {
         if let Some(value) = flag(field) {
@@ -6097,10 +5976,9 @@ async fn handle_launch_inner(cmd: &Value, state: &mut DaemonState) -> Result<Val
 
     let mut outcome = apply_settings_patch(state, &patch, true).await?;
     let reusable = !outcome.relaunched_browser
-        && match (state.browser.as_mut(), state.webdriver_backend.as_ref()) {
-            (Some(mgr), _) => !mgr.has_process_exited() && mgr.is_connection_alive().await,
-            (None, Some(webdriver)) => webdriver.is_connection_alive().await,
-            (None, None) => false,
+        && match state.browser.as_mut() {
+            Some(mgr) => !mgr.has_process_exited() && mgr.is_connection_alive().await,
+            None => false,
         };
     if reusable {
         return Ok(json!({ "launched": true, "reused": true, "relaunchedBrowser": false }));
@@ -6128,97 +6006,6 @@ async fn handle_launch_inner(cmd: &Value, state: &mut DaemonState) -> Result<Val
     }
 }
 
-async fn launch_ios(cmd: &Value, state: &mut DaemonState) -> Result<Value, String> {
-    let device_name = cmd.get("deviceName").and_then(|v| v.as_str());
-    let device_udid = cmd.get("udid").and_then(|v| v.as_str());
-    let platform_version = cmd.get("platformVersion").and_then(|v| v.as_str());
-
-    // Select device (or use default)
-    let device = ios::select_device(device_name, device_udid)?;
-
-    // Boot simulator if it's not real and not already booted
-    if !device.is_real && device.state != "Booted" {
-        ios::boot_simulator(&device.udid)?;
-    }
-
-    // Start Appium
-    let mut appium = AppiumManager::connect_or_launch(Some(&device.udid)).await?;
-
-    // Create iOS Safari session
-    appium
-        .create_ios_session(Some(&device.name), platform_version)
-        .await?;
-
-    // Create a WebDriverBackend from the Appium session for common commands
-    if let Some(sid) = appium.client.session_id_pub().map(String::from) {
-        let wd_client = super::webdriver::client::WebDriverClient::new_with_session(4723, sid);
-        state.webdriver_backend = Some(WebDriverBackend::new(wd_client));
-    }
-
-    state.appium = Some(appium);
-    state.backend_type = BackendType::WebDriver;
-    state.engine = "safari".to_string();
-    write_engine_file(&state.session_id, &state.engine);
-    write_provider_file(&state.session_id, "ios");
-    write_extensions_file(&state.session_id, &state.settings);
-    state.reset_input_state();
-
-    Ok(json!({
-        "launched": true,
-        "provider": "ios",
-        "device": device.name,
-        "udid": device.udid,
-        "backend": "webdriver",
-    }))
-}
-
-async fn launch_safari(cmd: &Value, state: &mut DaemonState) -> Result<Value, String> {
-    let port: u16 = cmd
-        .get("port")
-        .and_then(|v| v.as_u64())
-        .map(|p| p as u16)
-        .unwrap_or(0);
-    let driver_port = if port > 0 { port } else { 0 };
-
-    // Find a free port if none specified
-    let actual_port = if driver_port > 0 {
-        driver_port
-    } else {
-        // Use any available high port
-        let listener = std::net::TcpListener::bind("127.0.0.1:0")
-            .map_err(|e| format!("Failed to find free port: {}", e))?;
-        listener
-            .local_addr()
-            .map_err(|e| format!("Failed to get local address: {}", e))?
-            .port()
-    };
-
-    let driver = safari::launch_safaridriver(actual_port)?;
-    let mut client = super::webdriver::client::WebDriverClient::new(actual_port);
-
-    client
-        .create_session(serde_json::json!({
-            "browserName": "safari",
-        }))
-        .await?;
-
-    state.safari_driver = Some(driver);
-    state.webdriver_backend = Some(WebDriverBackend::new(client));
-    state.backend_type = BackendType::WebDriver;
-    state.engine = "safari".to_string();
-    write_engine_file(&state.session_id, &state.engine);
-    write_provider_file(&state.session_id, "safari");
-    write_extensions_file(&state.session_id, &state.settings);
-    state.reset_input_state();
-
-    Ok(json!({
-        "launched": true,
-        "provider": "safari",
-        "port": actual_port,
-        "backend": "webdriver",
-    }))
-}
-
 async fn handle_navigate(cmd: &Value, state: &mut DaemonState) -> Result<Value, String> {
     let url = cmd
         .get("url")
@@ -6229,18 +6016,6 @@ async fn handle_navigate(cmd: &Value, state: &mut DaemonState) -> Result<Value, 
         let df = state.domain_filter.read().await;
         if let Some(ref filter) = *df {
             filter.check_url(url)?;
-        }
-    }
-
-    // WebDriver backend path
-    if let Some(ref wb) = state.webdriver_backend {
-        if state.browser.is_none() {
-            state.webmcp.clear_invocations();
-            state.ref_map.invalidate_all_documents();
-            wb.navigate(url).await?;
-            let new_url = wb.get_url().await.unwrap_or_else(|_| url.to_string());
-            let title = wb.get_title().await.unwrap_or_default();
-            return Ok(json!({ "url": new_url, "title": title }));
         }
     }
 
@@ -6366,12 +6141,6 @@ async fn navigate_active_page(
 }
 
 async fn handle_url(state: &DaemonState) -> Result<Value, String> {
-    if let Some(ref wb) = state.webdriver_backend {
-        if state.browser.is_none() {
-            let url = wb.get_url().await?;
-            return Ok(json!({ "url": url }));
-        }
-    }
     let mgr = state.browser.as_ref().ok_or("Browser not launched")?;
     let url = mgr.get_url().await?;
     Ok(json!({ "url": url }))
@@ -6450,44 +6219,21 @@ async fn handle_inspect(state: &mut DaemonState) -> Result<Value, String> {
 }
 
 fn open_url_in_browser(url: &str) {
-    #[cfg(target_os = "macos")]
-    let result = std::process::Command::new("open").arg(url).spawn();
-    #[cfg(target_os = "linux")]
-    let result = std::process::Command::new("xdg-open").arg(url).spawn();
-    #[cfg(target_os = "windows")]
     let result = std::process::Command::new("cmd")
         .args(["/c", "start", "", url])
         .spawn();
-    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
-    let result: Result<std::process::Child, std::io::Error> = Err(std::io::Error::new(
-        std::io::ErrorKind::Unsupported,
-        "unsupported platform",
-    ));
     if let Err(e) = result {
         let _ = writeln!(std::io::stderr(), "[inspect] Failed to open browser: {}", e);
     }
 }
 
 async fn handle_title(state: &DaemonState) -> Result<Value, String> {
-    if let Some(ref wb) = state.webdriver_backend {
-        if state.browser.is_none() {
-            let title = wb.get_title().await?;
-            return Ok(json!({ "title": title }));
-        }
-    }
     let mgr = state.browser.as_ref().ok_or("Browser not launched")?;
     let title = mgr.get_title().await?;
     Ok(json!({ "title": title }))
 }
 
 async fn handle_content(state: &DaemonState) -> Result<Value, String> {
-    if let Some(ref wb) = state.webdriver_backend {
-        if state.browser.is_none() {
-            let html = wb.get_content().await?;
-            let url = wb.get_url().await.unwrap_or_default();
-            return Ok(json!({ "html": html, "origin": url }));
-        }
-    }
     let mgr = state.browser.as_ref().ok_or("Browser not launched")?;
     let html = mgr.get_content().await?;
     let url = mgr.get_url().await.unwrap_or_default();
@@ -6495,17 +6241,6 @@ async fn handle_content(state: &DaemonState) -> Result<Value, String> {
 }
 
 async fn handle_evaluate(cmd: &Value, state: &DaemonState) -> Result<Value, String> {
-    if let Some(ref wb) = state.webdriver_backend {
-        if state.browser.is_none() {
-            let script = cmd
-                .get("script")
-                .and_then(|v| v.as_str())
-                .ok_or("Missing 'script' parameter")?;
-            let result = wb.evaluate(script).await?;
-            let url = wb.get_url().await.unwrap_or_default();
-            return Ok(json!({ "result": result, "origin": url }));
-        }
-    }
     let mgr = state.browser.as_ref().ok_or("Browser not launched")?;
     let script = cmd
         .get("script")
@@ -6936,7 +6671,7 @@ async fn handle_screenshot(cmd: &Value, state: &mut DaemonState) -> Result<Value
         .unwrap_or("png")
         .to_string();
 
-    let mut options = ScreenshotOptions {
+    let options = ScreenshotOptions {
         selector: cmd
             .get("selector")
             .and_then(|v| v.as_str())
@@ -6958,63 +6693,32 @@ async fn handle_screenshot(cmd: &Value, state: &mut DaemonState) -> Result<Value
             .map(String::from),
     };
 
-    let (session_id, result) = if let Some(wb) = state
-        .webdriver_backend
-        .as_ref()
-        .filter(|_| state.browser.is_none())
-    {
-        if annotate {
-            return Err(
-                "Annotated screenshots are not yet implemented on the WebDriver backend"
-                    .to_string(),
-            );
-        }
-        options.path.get_or_insert_with(|| {
-            format!(
-                "/tmp/screenshot-{}.png",
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map(|d| d.as_millis())
-                    .unwrap_or(0)
-            )
-        });
-        (
-            "webdriver-active".to_string(),
-            screenshot::ScreenshotResult {
-                base64: wb.screenshot().await?,
-                annotations: Vec::new(),
-            },
-        )
-    } else {
-        let mgr = state.browser.as_ref().ok_or("Browser not launched")?;
-        let session_id = mgr.active_session_id()?.to_string();
-        if annotate {
-            state.ref_map.begin_snapshot();
-            let _ = snapshot::take_snapshot(
-                &mgr.client,
-                &session_id,
-                &SnapshotOptions {
-                    interactive: true,
-                    ..SnapshotOptions::default()
-                },
-                &mut state.ref_map,
-                state.active_frame_id.as_deref(),
-                &state.iframe_sessions,
-            )
-            .await?;
-        }
-
-        let result = screenshot::take_screenshot(
+    let mgr = state.browser.as_ref().ok_or("Browser not launched")?;
+    let session_id = mgr.active_session_id()?.to_string();
+    if annotate {
+        state.ref_map.begin_snapshot();
+        let _ = snapshot::take_snapshot(
             &mgr.client,
             &session_id,
-            &state.ref_map,
-            &options,
+            &SnapshotOptions {
+                interactive: true,
+                ..SnapshotOptions::default()
+            },
+            &mut state.ref_map,
+            state.active_frame_id.as_deref(),
             &state.iframe_sessions,
         )
         .await?;
+    }
 
-        (session_id, result)
-    };
+    let result = screenshot::take_screenshot(
+        &mgr.client,
+        &session_id,
+        &state.ref_map,
+        &options,
+        &state.iframe_sessions,
+    )
+    .await?;
 
     let mut response = if if_changed {
         observe_screenshot(
@@ -7060,13 +6764,6 @@ async fn handle_click(cmd: &Value, state: &mut DaemonState) -> Result<Value, Str
         .get("selector")
         .and_then(|v| v.as_str())
         .ok_or("Missing 'selector' parameter")?;
-
-    if let Some(ref wb) = state.webdriver_backend {
-        if state.browser.is_none() {
-            wb.click(selector).await?;
-            return Ok(json!({ "clicked": selector }));
-        }
-    }
 
     let mgr = state.browser.as_ref().ok_or("Browser not launched")?;
     let session_id = mgr.active_session_id()?.to_string();
@@ -7245,13 +6942,6 @@ async fn handle_fill(cmd: &Value, state: &mut DaemonState) -> Result<Value, Stri
         .get("value")
         .and_then(|v| v.as_str())
         .ok_or("Missing 'value' parameter")?;
-
-    if let Some(ref wb) = state.webdriver_backend {
-        if state.browser.is_none() {
-            wb.fill(selector, value).await?;
-            return Ok(json!({ "filled": selector }));
-        }
-    }
 
     let mgr = state.browser.as_ref().ok_or("Browser not launched")?;
     let session_id = mgr.active_session_id()?.to_string();
@@ -7660,15 +7350,6 @@ async fn handle_ischecked(cmd: &Value, state: &mut DaemonState) -> Result<Value,
 }
 
 async fn handle_back(state: &mut DaemonState) -> Result<Value, String> {
-    if let Some(ref wb) = state.webdriver_backend {
-        if state.browser.is_none() {
-            wb.back().await?;
-            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-            let url = wb.get_url().await.unwrap_or_default();
-            state.ref_map.invalidate_all_documents();
-            return Ok(json!({ "url": url }));
-        }
-    }
     let mgr = state.browser.as_ref().ok_or("Browser not launched")?;
     let session_id = mgr.active_session_id()?.to_string();
     mgr.evaluate("history.back()", None).await?;
@@ -7679,15 +7360,6 @@ async fn handle_back(state: &mut DaemonState) -> Result<Value, String> {
 }
 
 async fn handle_forward(state: &mut DaemonState) -> Result<Value, String> {
-    if let Some(ref wb) = state.webdriver_backend {
-        if state.browser.is_none() {
-            wb.forward().await?;
-            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-            let url = wb.get_url().await.unwrap_or_default();
-            state.ref_map.invalidate_all_documents();
-            return Ok(json!({ "url": url }));
-        }
-    }
     let mgr = state.browser.as_ref().ok_or("Browser not launched")?;
     let session_id = mgr.active_session_id()?.to_string();
     mgr.evaluate("history.forward()", None).await?;
@@ -7698,15 +7370,6 @@ async fn handle_forward(state: &mut DaemonState) -> Result<Value, String> {
 }
 
 async fn handle_reload(state: &mut DaemonState) -> Result<Value, String> {
-    if let Some(ref wb) = state.webdriver_backend {
-        if state.browser.is_none() {
-            wb.reload().await?;
-            tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
-            let url = wb.get_url().await.unwrap_or_default();
-            state.ref_map.invalidate_all_documents();
-            return Ok(json!({ "url": url }));
-        }
-    }
     let mgr = state.browser.as_ref().ok_or("Browser not launched")?;
     let session_id = mgr.active_session_id()?.to_string();
 
@@ -7931,12 +7594,6 @@ async fn poll_until_true(
 // ---------------------------------------------------------------------------
 
 async fn handle_cookies_get(cmd: &Value, state: &DaemonState) -> Result<Value, String> {
-    if let Some(ref wb) = state.webdriver_backend {
-        if state.browser.is_none() {
-            let cookies_list = wb.get_cookies().await?;
-            return Ok(json!({ "cookies": cookies_list }));
-        }
-    }
     let mgr = state.browser.as_ref().ok_or("Browser not launched")?;
     let session_id = mgr.active_session_id()?.to_string();
 
@@ -9247,16 +8904,6 @@ async fn handle_highlight(cmd: &Value, state: &mut DaemonState) -> Result<Value,
 async fn handle_tap(cmd: &Value, state: &mut DaemonState) -> Result<Value, String> {
     let selector = cmd.get("selector").and_then(|v| v.as_str());
 
-    // Route through Appium for iOS/WebDriver using coordinate-based tap
-    if let Some(ref appium) = state.appium {
-        if state.browser.is_none() {
-            let x = cmd.get("x").and_then(|v| v.as_f64()).unwrap_or(200.0);
-            let y = cmd.get("y").and_then(|v| v.as_f64()).unwrap_or(200.0);
-            appium.tap(x, y).await?;
-            return Ok(json!({ "tapped": true, "x": x, "y": y }));
-        }
-    }
-
     let sel = selector.ok_or("Missing 'selector' parameter")?;
     let mgr = state.browser.as_ref().ok_or("Browser not launched")?;
     let session_id = mgr.active_session_id()?.to_string();
@@ -10013,8 +9660,8 @@ async fn handle_clipboard(cmd: &Value, state: &DaemonState) -> Result<Value, Str
 
     let session_id = mgr.active_session_id()?.to_string();
 
-    // cfg! is compile-time; assumes the browser runs on the same OS as the CLI binary.
-    let modifier: i32 = if cfg!(target_os = "macos") { 4 } else { 2 };
+    // Windows Ctrl modifier.
+    let modifier: i32 = 2;
 
     match action {
         "write" => {
@@ -10304,7 +9951,7 @@ async fn handle_stream_status(state: &DaemonState) -> Result<Value, String> {
 async fn webmcp_page_context(
     state: &DaemonState,
 ) -> Result<(Arc<CdpClient>, String, String), String> {
-    if matches!(state.backend_type, BackendType::WebDriver) || state.engine != "chrome" {
+    if state.engine != "chrome" {
         return Err(webmcp::unsupported_error(&format!(
             "active backend is {}",
             state.engine
@@ -10404,10 +10051,7 @@ async fn collect_webmcp_tools(state: &mut DaemonState) -> Result<Vec<webmcp::Too
 /// Subscribe once per CDP page session. Ordinary actions then read the event
 /// cache without renderer evaluation, repeated CDP requests, or discovery waits.
 async fn enable_webmcp_events(state: &mut DaemonState) -> Result<(), String> {
-    if !state.webmcp_enabled
-        || state.engine != "chrome"
-        || matches!(state.backend_type, BackendType::WebDriver)
-    {
+    if !state.webmcp_enabled || state.engine != "chrome" {
         return Err("WebMCP observation disabled".to_string());
     }
     let browser = state.browser.as_ref().ok_or("Browser not launched")?;
@@ -14779,48 +14423,7 @@ async fn handle_deny(_cmd: &Value, state: &mut DaemonState) -> Result<Value, Str
     Ok(json!({ "denied": true, "action": pending.action }))
 }
 
-// ---------------------------------------------------------------------------
-// iOS handlers (stub)
-// ---------------------------------------------------------------------------
-
 async fn handle_swipe(cmd: &Value, state: &mut DaemonState) -> Result<Value, String> {
-    // Route through Appium for iOS/WebDriver
-    if let Some(ref appium) = state.appium {
-        if state.browser.is_none() {
-            let start_x = cmd.get("startX").and_then(|v| v.as_f64()).unwrap_or(200.0);
-            let start_y = cmd.get("startY").and_then(|v| v.as_f64()).unwrap_or(400.0);
-            let end_x = cmd.get("endX").and_then(|v| v.as_f64()).unwrap_or(200.0);
-            let end_y = cmd.get("endY").and_then(|v| v.as_f64()).unwrap_or(100.0);
-
-            if let Some(direction) = cmd.get("direction").and_then(|v| v.as_str()) {
-                let distance = cmd
-                    .get("distance")
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(300.0);
-                let (dx, dy) = match direction {
-                    "up" => (0.0, -distance),
-                    "down" => (0.0, distance),
-                    "left" => (-distance, 0.0),
-                    "right" => (distance, 0.0),
-                    _ => (0.0, -distance),
-                };
-                let actual_end_x = start_x + dx;
-                let actual_end_y = start_y + dy;
-                let duration = cmd.get("duration").and_then(|v| v.as_u64()).unwrap_or(800);
-                appium
-                    .swipe(start_x, start_y, actual_end_x, actual_end_y, duration)
-                    .await?;
-                return Ok(json!({ "swiped": direction }));
-            }
-
-            let duration = cmd.get("duration").and_then(|v| v.as_u64()).unwrap_or(800);
-            appium
-                .swipe(start_x, start_y, end_x, end_y, duration)
-                .await?;
-            return Ok(json!({ "swiped": true, "from": [start_x, start_y], "to": [end_x, end_y] }));
-        }
-    }
-
     let mgr = state.browser.as_ref().ok_or("Browser not launched")?;
     let session_id = mgr.active_session_id()?.to_string();
 
@@ -14909,20 +14512,6 @@ async fn handle_swipe(cmd: &Value, state: &mut DaemonState) -> Result<Value, Str
         .await?;
 
     Ok(json!({ "swiped": true, "from": [start_x, start_y], "to": [end_x, end_y] }))
-}
-
-async fn handle_device_list() -> Result<Value, String> {
-    #[cfg(target_os = "macos")]
-    {
-        use super::webdriver::ios;
-        let devices = ios::list_all_devices()?;
-        Ok(ios::to_device_json(&devices))
-    }
-
-    #[cfg(not(target_os = "macos"))]
-    {
-        Err("device_list is only available on macOS with Xcode".to_string())
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -15383,7 +14972,6 @@ fn includes_webmcp_context(action: &str) -> bool {
 
 async fn attach_webmcp_availability(resp: &mut Value, action: &str, state: &mut DaemonState) {
     if !includes_webmcp_context(action)
-        || matches!(state.backend_type, BackendType::WebDriver)
         || state.engine != "chrome"
         || !state.webmcp_enabled
         || state.browser.is_none()
@@ -15575,11 +15163,7 @@ mod tests {
                             "id": request["id"],
                             "result": { "product": "Chrome/1.0.0.0" },
                         });
-                        if ws
-                            .send(Message::Text(reply.to_string().into()))
-                            .await
-                            .is_err()
-                        {
+                        if ws.send(Message::Text(reply.to_string())).await.is_err() {
                             return;
                         }
                     }
@@ -15754,12 +15338,6 @@ mod tests {
         assert!(!super::may_move_download(&outside, true, downloads));
         let escape = dir.path().join("downloads").join("..").join("secret");
         assert!(!super::may_move_download(&escape, true, downloads));
-        #[cfg(unix)]
-        {
-            let link = dir.path().join("downloads").join("link");
-            std::os::unix::fs::symlink(&outside, &link).unwrap();
-            assert!(!super::may_move_download(&link, true, downloads));
-        }
     }
 
     #[test]
@@ -16153,8 +15731,6 @@ mod tests {
     use super::*;
     use crate::test_utils::EnvGuard;
     use std::fs;
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    use tokio::net::TcpListener;
 
     #[tokio::test]
     #[ignore]
@@ -16222,10 +15798,9 @@ mod tests {
     /// from the error arm and `launch_identity` survives the error.
     #[tokio::test]
     async fn apply_tab_binding_rollback_clears_launch_state_on_recovery_failure() {
-        let guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR", "XDG_RUNTIME_DIR"]);
+        let guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR"]);
         let dir = tempfile::tempdir().unwrap();
         guard.set("AGENT_BROWSER_SOCKET_DIR", dir.path().to_str().unwrap());
-        guard.remove("XDG_RUNTIME_DIR");
 
         let mut state = DaemonState::new();
         fs::write(
@@ -16672,149 +16247,6 @@ mod tests {
         }
 
         let _ = execute_command(&json!({ "id": "99", "action": "close" }), &mut state).await;
-    }
-
-    async fn start_webdriver_response_server(
-        responses: Vec<(&'static str, Value)>,
-    ) -> (u16, tokio::task::JoinHandle<usize>) {
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let port = listener.local_addr().unwrap().port();
-        let handle = tokio::spawn(async move {
-            let mut handled = 0;
-            for (expected_path, body) in responses {
-                let (mut stream, _) = listener.accept().await.unwrap();
-                let mut buf = [0_u8; 2048];
-                let n = stream.read(&mut buf).await.unwrap_or(0);
-                let request = String::from_utf8_lossy(&buf[..n]);
-                let (method, path) = expected_path
-                    .split_once(' ')
-                    .unwrap_or(("GET", expected_path));
-                assert!(request.starts_with(&format!("{} {} ", method, path)));
-                let body = body.to_string();
-                let response = format!(
-                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-                    body.len(),
-                    body
-                );
-                stream.write_all(response.as_bytes()).await.unwrap();
-                handled += 1;
-            }
-            handled
-        });
-        (port, handle)
-    }
-
-    fn safari_settings() -> crate::session_settings::Running {
-        let mut settings = crate::session_settings::Running::default();
-        settings.set(Key::Provider, json!("safari"));
-        settings.set(Key::Headed, json!(false));
-        settings
-    }
-
-    #[tokio::test]
-    async fn ordinary_commands_keep_the_active_webdriver_session() {
-        let guard = EnvGuard::new(&["AGENT_BROWSER_EXECUTABLE_PATH", "AGENT_BROWSER_PROVIDER"]);
-        guard.set("AGENT_BROWSER_EXECUTABLE_PATH", "/missing/chrome-for-test");
-        guard.remove("AGENT_BROWSER_PROVIDER");
-        let (port, server) = start_webdriver_response_server(vec![
-            (
-                "/session/test-session/url",
-                json!({ "value": "https://example.test/first" }),
-            ),
-            (
-                "/session/test-session/url",
-                json!({ "value": "https://example.test/first" }),
-            ),
-        ])
-        .await;
-        let mut state = DaemonState::new();
-        state.backend_type = BackendType::WebDriver;
-        state.webdriver_backend = Some(WebDriverBackend::new(
-            crate::native::webdriver::client::WebDriverClient::new_with_session(
-                port,
-                "test-session".to_string(),
-            ),
-        ));
-        state.settings = safari_settings();
-
-        for _ in 0..2 {
-            let response = execute_command(
-                &json!({ "id": "url", "action": "url", "provider": "safari" }),
-                &mut state,
-            )
-            .await;
-            assert_eq!(response["success"], true);
-            assert_eq!(response["data"]["url"], "https://example.test/first");
-            assert!(state.browser.is_none());
-            assert!(state.webdriver_backend.is_some());
-        }
-
-        assert_eq!(server.await.unwrap(), 2);
-    }
-
-    #[tokio::test]
-    #[cfg_attr(
-        target_os = "macos",
-        ignore = "replacement launch starts the real safaridriver"
-    )]
-    async fn webdriver_launch_reuses_matching_config_and_closes_before_replacement() {
-        let vars = &[
-            "AGENT_BROWSER_ENGINE",
-            "AGENT_BROWSER_EXECUTABLE_PATH",
-            "AGENT_BROWSER_PROXY_USERNAME",
-            "AGENT_BROWSER_PROXY_PASSWORD",
-            "AGENT_BROWSER_HEADED",
-            "AGENT_BROWSER_ENABLE",
-            "AGENT_BROWSER_INIT_SCRIPTS",
-            "AGENT_BROWSER_ALLOWED_DOMAINS",
-            "AGENT_BROWSER_HIDE_SCROLLBARS",
-            "AGENT_BROWSER_WEBGPU",
-            "AGENT_BROWSER_NO_XVFB",
-            "AGENT_BROWSER_NO_WEBMCP",
-        ];
-        let guard = EnvGuard::new(vars);
-        for name in vars {
-            guard.remove(name);
-        }
-        for changed_config in [false, true] {
-            let mut cmd =
-                json!({ "action": "launch", "provider": "safari", "port": 0, "headless": true });
-            let invalid_session = json!({ "value": { "error": "invalid session id", "message": "Session has ended" } });
-            let mut responses = vec![(
-                "/session/test-session/window/handles",
-                json!({ "value": ["window-1"] }),
-            )];
-            if !changed_config {
-                responses.push((
-                    "/session/test-session/window/handles",
-                    invalid_session.clone(),
-                ));
-            }
-            responses.push(("DELETE /session/test-session", invalid_session));
-            let (port, server) = start_webdriver_response_server(responses).await;
-            let mut state = DaemonState::new();
-            state.backend_type = BackendType::WebDriver;
-            state.webdriver_backend = Some(WebDriverBackend::new(
-                crate::native::webdriver::client::WebDriverClient::new_with_session(
-                    port,
-                    "test-session".to_string(),
-                ),
-            ));
-            state.settings = safari_settings();
-
-            let response = handle_launch_inner(&cmd, &mut state).await.unwrap();
-
-            assert_eq!(response["reused"], true);
-            assert!(state.webdriver_backend.is_some());
-            if changed_config {
-                cmd["ignoreHTTPSErrors"] = json!(true);
-            }
-            let result = handle_launch_inner(&cmd, &mut state).await;
-            assert!(result.is_err());
-            assert!(state.webdriver_backend.is_none());
-            assert!(state.browser.is_none());
-            assert_eq!(server.await.unwrap(), if changed_config { 2 } else { 3 });
-        }
     }
 
     fn unique_socket_dir(label: &str) -> PathBuf {
@@ -17806,106 +17238,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_read_without_url_blocks_disallowed_active_tab_before_content() {
-        let (port, server) = start_webdriver_response_server(vec![(
-            "/session/test-session/url",
-            json!({ "value": "https://evil.example/private" }),
-        )])
-        .await;
-        let mut state = DaemonState::new();
-        state.backend_type = BackendType::WebDriver;
-        state.webdriver_backend = Some(WebDriverBackend::new(
-            crate::native::webdriver::client::WebDriverClient::new_with_session(
-                port,
-                "test-session".to_string(),
-            ),
-        ));
-        let cmd = json!({
-            "action": "read",
-            "id": "read-active-tab-denied",
-            "allowedDomains": ["example.com"]
-        });
-
-        let resp = execute_command(&cmd, &mut state).await;
-
-        assert_eq!(resp["success"], false);
-        let error = resp["error"].as_str().unwrap();
-        assert!(error.contains("evil.example"));
-        assert!(error.contains("allowed domains"));
-        assert_eq!(server.await.unwrap(), 1);
-    }
-
-    #[tokio::test]
-    async fn test_read_without_url_uses_session_domain_filter_before_content() {
-        let (port, server) = start_webdriver_response_server(vec![(
-            "/session/test-session/url",
-            json!({ "value": "https://evil.example/private" }),
-        )])
-        .await;
-        let mut state = DaemonState::new();
-        {
-            let mut df = state.domain_filter.write().await;
-            *df = Some(DomainFilter::new("example.com"));
-        }
-        state.backend_type = BackendType::WebDriver;
-        state.webdriver_backend = Some(WebDriverBackend::new(
-            crate::native::webdriver::client::WebDriverClient::new_with_session(
-                port,
-                "test-session".to_string(),
-            ),
-        ));
-        let cmd = json!({
-            "action": "read",
-            "id": "read-active-tab-denied"
-        });
-
-        let resp = execute_command(&cmd, &mut state).await;
-
-        assert_eq!(resp["success"], false);
-        let error = resp["error"].as_str().unwrap();
-        assert!(error.contains("evil.example"));
-        assert!(error.contains("allowed domains"));
-        assert_eq!(server.await.unwrap(), 1);
-    }
-
-    #[tokio::test]
-    async fn test_read_without_url_allows_matching_active_tab() {
-        let (port, server) = start_webdriver_response_server(vec![
-            (
-                "/session/test-session/url",
-                json!({ "value": "https://example.com/app" }),
-            ),
-            (
-                "/session/test-session/source",
-                json!({ "value": "<html><body><h1>Account</h1><p>Signed in.</p></body></html>" }),
-            ),
-        ])
-        .await;
-        let mut state = DaemonState::new();
-        state.backend_type = BackendType::WebDriver;
-        state.webdriver_backend = Some(WebDriverBackend::new(
-            crate::native::webdriver::client::WebDriverClient::new_with_session(
-                port,
-                "test-session".to_string(),
-            ),
-        ));
-        let cmd = json!({
-            "action": "read",
-            "id": "read-active-tab-allowed",
-            "allowedDomains": ["example.com"]
-        });
-
-        let resp = execute_command(&cmd, &mut state).await;
-
-        assert_eq!(resp["success"], true);
-        assert_eq!(resp["data"]["source"], "active-tab-html");
-        let content = resp["data"]["content"].as_str().unwrap();
-        assert!(content.contains("# Account"));
-        assert!(content.contains("Signed in."));
-        assert_eq!(server.await.unwrap(), 2);
-    }
-
-    #[tokio::test]
     async fn test_a_policy_change_drops_the_pending_confirmation() {
         let dir = tempfile::tempdir().unwrap();
         let confirm_read = dir.path().join("a.json");
@@ -18062,138 +17394,6 @@ mod tests {
         let pending = state.pending_confirmation.as_ref().unwrap();
         assert_eq!(pending.action, "plugin:stealth:launch.mutate");
         assert!(pending.approved_actions.iter().any(|a| a == "navigate"));
-    }
-
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn test_auth_login_does_not_resolve_plugin_without_browser() {
-        use std::os::unix::fs::PermissionsExt;
-
-        let dir = tempfile::tempdir().unwrap();
-        let marker_path = dir.path().join("credential-plugin-invoked");
-        let plugin_path = dir.path().join("mock-credential-plugin");
-        fs::write(
-            &plugin_path,
-            r#"#!/bin/sh
-printf invoked > "$1"
-cat >/dev/null
-printf '%s' '{"protocol":"agent-browser.plugin.v1","success":true,"credential":{"username":"user","password":"pass","url":"https://example.com/login"}}'
-"#,
-        )
-        .unwrap();
-        let mut perms = fs::metadata(&plugin_path).unwrap().permissions();
-        perms.set_mode(0o755);
-        fs::set_permissions(&plugin_path, perms).unwrap();
-
-        let mut state = DaemonState::new();
-        let cmd = json!({
-            "id": "auth-plugin-no-browser",
-            "action": "auth_login",
-            "name": "example",
-            "credentialProvider": "mock",
-            "plugins": [
-                {
-                    "name": "mock",
-                    "command": plugin_path.to_string_lossy(),
-                    "args": [marker_path.to_string_lossy()],
-                    "capabilities": ["credential.read"]
-                }
-            ]
-        });
-
-        let err = handle_auth_login(&cmd, &mut state).await.unwrap_err();
-
-        assert_eq!(err, "Browser not launched");
-        assert!(!marker_path.exists());
-    }
-
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn test_auth_login_no_navigate_rejects_missing_page_before_plugin_resolution() {
-        use std::os::unix::fs::PermissionsExt;
-
-        let dir = tempfile::tempdir().unwrap();
-        let marker_path = dir.path().join("credential-plugin-invoked");
-        let plugin_path = dir.path().join("mock-credential-plugin");
-        fs::write(
-            &plugin_path,
-            r#"#!/bin/sh
-printf invoked > "$1"
-cat >/dev/null
-printf '%s' '{"protocol":"agent-browser.plugin.v1","success":true,"credential":{"username":"user","password":"pass","url":"https://example.com/login"}}'
-"#,
-        )
-        .unwrap();
-        let mut perms = fs::metadata(&plugin_path).unwrap().permissions();
-        perms.set_mode(0o755);
-        fs::set_permissions(&plugin_path, perms).unwrap();
-
-        let mut state = DaemonState::new();
-        let cmd = json!({
-            "id": "auth-plugin-no-page",
-            "action": "auth_login",
-            "name": "example",
-            "noNavigate": true,
-            "credentialProvider": "mock",
-            "plugins": [
-                {
-                    "name": "mock",
-                    "command": plugin_path.to_string_lossy(),
-                    "args": [marker_path.to_string_lossy()],
-                    "capabilities": ["credential.read"]
-                }
-            ]
-        });
-
-        let err = handle_auth_login(&cmd, &mut state).await.unwrap_err();
-
-        assert_eq!(err, AUTH_LOGIN_NO_NAVIGATE_PAGE_ERROR);
-        assert!(!marker_path.exists());
-    }
-
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn test_close_current_browser_closes_active_provider_plugin_session() {
-        use std::os::unix::fs::PermissionsExt;
-
-        let dir = tempfile::tempdir().unwrap();
-        let request_path = dir.path().join("browser-close-request.json");
-        let plugin_path = dir.path().join("mock-provider-plugin");
-        fs::write(
-            &plugin_path,
-            r#"#!/bin/sh
-cat > "$1"
-printf '%s' '{"protocol":"agent-browser.plugin.v1","success":true,"data":{}}'
-"#,
-        )
-        .unwrap();
-        let mut perms = fs::metadata(&plugin_path).unwrap().permissions();
-        perms.set_mode(0o755);
-        fs::set_permissions(&plugin_path, perms).unwrap();
-
-        let mut state = DaemonState::new();
-        state.active_provider_connection = true;
-        state.active_provider_session = Some(ActiveProviderSession {
-            session: providers::ProviderSession {
-                provider: "plugin:cloud-browser".to_string(),
-                session_id: r#"{"sessionId":"s1"}"#.to_string(),
-            },
-            plugins: vec![crate::plugins::PluginConfig {
-                name: "cloud-browser".to_string(),
-                command: plugin_path.to_string_lossy().to_string(),
-                args: vec![request_path.to_string_lossy().to_string()],
-                capabilities: vec![crate::plugins::CAPABILITY_BROWSER_PROVIDER.to_string()],
-                ..crate::plugins::PluginConfig::default()
-            }],
-        });
-
-        close_current_browser(&mut state).await.unwrap();
-
-        assert!(state.active_provider_session.is_none());
-        assert!(!state.active_provider_connection);
-        let request = fs::read_to_string(request_path).unwrap();
-        assert!(request.contains(r#""type":"browser.close""#));
-        assert!(request.contains(r#""sessionId":"s1""#));
     }
 
     fn pending_browser_use_session() -> ActiveProviderSession {
@@ -18431,11 +17631,11 @@ printf '%s' '{"protocol":"agent-browser.plugin.v1","success":true,"data":{}}'
     #[test]
     fn test_provider_owned_cdp_connection_remains_idle_cleanup_eligible() {
         assert!(
-            !default_idle_shutdown_is_blocked(false, true, true),
+            !default_idle_shutdown_is_blocked(true, true),
             "provider ownership must override the attached-CDP exemption"
         );
-        assert!(default_idle_shutdown_is_blocked(false, false, true));
-        assert!(default_idle_shutdown_is_blocked(true, true, false));
+        assert!(default_idle_shutdown_is_blocked(false, true));
+        assert!(!default_idle_shutdown_is_blocked(false, false));
     }
 
     #[test]
@@ -19471,32 +18671,6 @@ printf '%s' '{"protocol":"agent-browser.plugin.v1","success":true,"data":{}}'
     }
 
     #[tokio::test]
-    async fn test_allowed_domains_reject_providers_without_webrtc_containment() {
-        let guard = EnvGuard::new(&["AGENT_BROWSER_ALLOWED_DOMAINS"]);
-        guard.remove("AGENT_BROWSER_ALLOWED_DOMAINS");
-
-        for provider in ["ios", "safari"] {
-            let mut state = DaemonState::new();
-            let error = handle_launch(
-                &json!({
-                    "action": "launch",
-                    "provider": provider,
-                    "allowedDomains": ["example.com"]
-                }),
-                &mut state,
-            )
-            .await
-            .unwrap_err();
-            assert!(error.contains("WebRTC containment"), "got: {}", error);
-            assert!(error.to_lowercase().contains(provider), "got: {}", error);
-            assert!(
-                state.domain_filter.read().await.is_none(),
-                "rejected provider launch should not commit allowedDomains"
-            );
-        }
-    }
-
-    #[tokio::test]
     async fn test_allowed_domains_reject_preexisting_external_cdp_sessions() {
         let guard = EnvGuard::new(&["AGENT_BROWSER_ALLOWED_DOMAINS"]);
         guard.remove("AGENT_BROWSER_ALLOWED_DOMAINS");
@@ -19983,112 +19157,6 @@ printf '%s' '{"protocol":"agent-browser.plugin.v1","success":true,"data":{}}'
         assert!(
             state.browser.is_none(),
             "auto_launch should reject storage state replay before launching Chrome"
-        );
-    }
-
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn test_allowed_domains_reject_plugin_profile_args() {
-        use std::os::unix::fs::PermissionsExt;
-
-        let guard = EnvGuard::new(&["AGENT_BROWSER_ALLOWED_DOMAINS"]);
-        guard.remove("AGENT_BROWSER_ALLOWED_DOMAINS");
-        let dir = tempfile::tempdir().unwrap();
-        let plugin_path = dir.path().join("mock-launch-mutator");
-        fs::write(
-            &plugin_path,
-            r#"#!/bin/sh
-cat >/dev/null
-printf '%s' '{"protocol":"agent-browser.plugin.v1","success":true,"launch":{"args":["--user-data-dir=/tmp/plugin-profile"]}}'
-"#,
-        )
-        .unwrap();
-        let mut perms = fs::metadata(&plugin_path).unwrap().permissions();
-        perms.set_mode(0o755);
-        fs::set_permissions(&plugin_path, perms).unwrap();
-
-        let mut state = DaemonState::new();
-        let error = handle_launch(
-            &json!({
-                "action": "launch",
-                "allowedDomains": ["example.com"],
-                "plugins": [
-                    {
-                        "name": "profile-mutator",
-                        "command": plugin_path.to_string_lossy(),
-                        "capabilities": ["launch.mutate"]
-                    }
-                ]
-            }),
-            &mut state,
-        )
-        .await
-        .unwrap_err();
-
-        assert!(error.contains("--args"), "got: {}", error);
-        assert!(error.contains("--user-data-dir"), "got: {}", error);
-        assert!(
-            state.domain_filter.read().await.is_none(),
-            "rejected plugin args should not commit allowedDomains"
-        );
-        assert!(
-            state.browser.is_none(),
-            "plugin args should be rejected before launching Chrome"
-        );
-    }
-
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn test_allowed_domains_reject_direct_page_provider_plugins() {
-        use std::os::unix::fs::PermissionsExt;
-
-        let guard = EnvGuard::new(&["AGENT_BROWSER_ALLOWED_DOMAINS"]);
-        guard.remove("AGENT_BROWSER_ALLOWED_DOMAINS");
-        let dir = tempfile::tempdir().unwrap();
-        let plugin_path = dir.path().join("mock-direct-page-provider");
-        fs::write(
-            &plugin_path,
-            r#"#!/bin/sh
-cat >/dev/null
-printf '%s' '{"protocol":"agent-browser.plugin.v1","success":true,"browser":{"cdpUrl":"ws://127.0.0.1:9222/devtools/page/test","directPage":true}}'
-"#,
-        )
-        .unwrap();
-        let mut perms = fs::metadata(&plugin_path).unwrap().permissions();
-        perms.set_mode(0o755);
-        fs::set_permissions(&plugin_path, perms).unwrap();
-
-        let mut state = DaemonState::new();
-        let error = handle_launch(
-            &json!({
-                "action": "launch",
-                "provider": "direct-page",
-                "allowedDomains": ["example.com"],
-                "plugins": [
-                    {
-                        "name": "direct-page",
-                        "command": plugin_path.to_string_lossy(),
-                        "capabilities": ["browser.provider"]
-                    }
-                ]
-            }),
-            &mut state,
-        )
-        .await
-        .unwrap_err();
-
-        assert!(
-            error.contains("direct-page browser providers"),
-            "got: {}",
-            error
-        );
-        assert!(
-            state.domain_filter.read().await.is_none(),
-            "rejected direct-page provider should not commit allowedDomains"
-        );
-        assert!(
-            state.browser.is_none(),
-            "direct-page provider should be rejected before CDP connect"
         );
     }
 
@@ -20593,36 +19661,6 @@ printf '%s' '{"protocol":"agent-browser.plugin.v1","success":true,"browser":{"cd
                 assert_eq!(resp["code"], "outcome_unknown");
             }
         }
-    }
-
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn a_flow_file_that_cannot_be_saved_does_not_hide_an_applied_write() {
-        use std::os::unix::fs::PermissionsExt;
-        let dir = tempfile::tempdir().unwrap();
-        let guard = crate::test_utils::EnvGuard::new(&["AGENT_BROWSER_FLOWS_DIR"]);
-        guard.set("AGENT_BROWSER_FLOWS_DIR", dir.path().to_str().unwrap());
-        // The site takes the write and answers with another shape.
-        let (port, hits) = serve_counting("HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 13\r\nconnection: close\r\n\r\n{\"cart\":[7]}\n");
-        write_flow_fixture(dir.path(), port);
-        let origin_dir = dir.path().join("127.0.0.1");
-        let file = origin_dir.join("cart.json");
-        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o400)).unwrap();
-        std::fs::set_permissions(&origin_dir, std::fs::Permissions::from_mode(0o500)).unwrap();
-        let run = json!({ "id": "r", "action": "flow_run", "name": "cart", "params": {}, "allowWrite": "all" });
-        let mut state = DaemonState::new();
-        state.policy = None;
-        state.confirm_actions = None;
-        let resp = execute_command(&run, &mut state).await;
-        std::fs::set_permissions(&origin_dir, std::fs::Permissions::from_mode(0o700)).unwrap();
-        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o600)).unwrap();
-        assert_eq!(resp["success"], false, "{resp}");
-        assert_eq!(resp["code"], "write_applied", "{resp}");
-        let error = resp["error"].as_str().unwrap();
-        assert!(error.contains("do not repeat it"), "{resp}");
-        assert!(error.contains("the flow file was not updated"), "{resp}");
-        assert!(resp["data"]["saveError"].is_string(), "{resp}");
-        assert_eq!(hits.load(std::sync::atomic::Ordering::SeqCst), 1);
     }
 
     #[tokio::test]
@@ -22858,14 +21896,10 @@ printf '%s' '{"protocol":"agent-browser.plugin.v1","success":true,"browser":{"cd
         assert!(local.contains(&"plugin:stealth:launch.mutate".to_string()));
         assert!(!local.contains(&"plugin:browserbox:browser.provider".to_string()));
 
-        // A named target wins over the settings, and ios has no plugin provider.
+        // A named target wins over the settings.
         let named = json!({ "action": "launch", "cdpPort": 9222, "plugins": provider_plugins() });
         let actions = policy_actions_for_command(&named, "launch", false, None, None, &settings);
         assert!(!actions.contains(&"plugin:browserbox:browser.provider".to_string()));
-        let mut ios = Running::defaults();
-        ios.set(Key::Provider, json!("ios"));
-        let actions = policy_actions_for_command(&launch, "launch", false, None, None, &ios);
-        assert!(!actions.iter().any(|a| a.starts_with("plugin:browserbox")));
     }
 
     #[tokio::test]
@@ -23457,11 +22491,6 @@ printf '%s' '{"protocol":"agent-browser.plugin.v1","success":true,"browser":{"cd
 
     fn write_private(path: &std::path::Path, contents: &str) {
         fs::write(path, contents).unwrap();
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            fs::set_permissions(path, fs::Permissions::from_mode(0o600)).unwrap();
-        }
     }
 
     /// A daemon start for `session`: the settings come from `store`, as in

@@ -138,9 +138,8 @@ function Invoke-AgentDesktopBatch {
         invokes it through Invoke-AgentDesktop (Lib.psm1's one staged-binary
         door) and flattens each result entry into a plain, safely-named
         object - never a raw envelope a caller could index into banned
-        fields on. This is the mechanism macOS's own AE6 leg
-        (tests/e2e/scenarios/acceptance.sh) uses: `batch` captures the
-        signal baseline immediately before the acting entry runs, so an
+        fields on. This is the mechanism the AE6 legs use: `batch` captures
+        the signal baseline immediately before the acting entry runs, so an
         event a later entry waits for is detected against a truly
         pre-action baseline with no concurrency of any kind - one process,
         sequential entries, no detached spawn needed. Entries halt at the

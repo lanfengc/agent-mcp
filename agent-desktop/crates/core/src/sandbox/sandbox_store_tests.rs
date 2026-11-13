@@ -44,13 +44,13 @@ fn write_record(root: &Path, name: &str, bytes: &[u8]) {
 fn duplicate_create_fails_and_keeps_the_first_record() {
     let scratch = Scratch::new("duplicate");
     let root = scratch.root();
-    create(&root, &record("dev-1", "macos", 1)).unwrap();
+    create(&root, &record("dev-1", "example", 1)).unwrap();
 
-    let error = create(&root, &record("dev-1", "macos", 2)).unwrap_err();
+    let error = create(&root, &record("dev-1", "example", 2)).unwrap_err();
 
     assert_eq!(error.code(), "INVALID_ARGS");
     let kept = load(&root, "dev-1").unwrap();
-    assert_eq!(kept.provider, "macos");
+    assert_eq!(kept.provider, "example");
     assert_eq!(kept.created_at, 1);
 }
 
@@ -66,7 +66,7 @@ fn concurrent_creates_of_one_name_admit_exactly_one_and_refuse_the_rest_as_dupli
         let barrier = Arc::clone(&barrier);
         handles.push(std::thread::spawn(move || {
             barrier.wait();
-            create(&root, &record("race", "macos", index as u64))
+            create(&root, &record("race", "example", index as u64))
                 .map(|_| ())
                 .map_err(|error| error.code().to_string())
         }));
@@ -92,7 +92,7 @@ fn concurrent_creates_of_one_name_admit_exactly_one_and_refuse_the_rest_as_dupli
 fn malformed_record_is_kept_beside_a_healthy_one_and_non_sandboxes_are_skipped() {
     let scratch = Scratch::new("list-malformed");
     let root = scratch.root();
-    create(&root, &record("healthy", "macos", 1)).expect("healthy record");
+    create(&root, &record("healthy", "example", 1)).expect("healthy record");
     write_record(&root, "broken", b"{not json");
     std::fs::create_dir_all(root.join("Not-A-Sandbox")).expect("invalid name directory");
 
@@ -114,7 +114,7 @@ fn malformed_record_is_kept_beside_a_healthy_one_and_non_sandboxes_are_skipped()
     );
     assert_eq!(
         entries[1].record.as_ref().expect("healthy record").provider,
-        "macos"
+        "example"
     );
 }
 
@@ -155,7 +155,7 @@ fn subprocess_crash_before_record_publish() {
         return;
     };
     let root = PathBuf::from(root);
-    let _ = create(&root, &record("crash", "macos", 1));
+    let _ = create(&root, &record("crash", "example", 1));
     panic!("crash failpoint did not abort");
 }
 
@@ -180,7 +180,7 @@ fn a_crash_before_publish_leaves_no_record_and_the_next_create_publishes() {
         "INVALID_ARGS"
     );
 
-    create(&root, &record("crash", "macos", 1)).expect("a crashed publish is retryable");
+    create(&root, &record("crash", "example", 1)).expect("a crashed publish is retryable");
 
     assert_eq!(load(&root, "crash").unwrap().created_at, 1);
 }
@@ -196,8 +196,8 @@ fn names_that_escape_the_root_are_refused() {
 fn a_record_that_names_another_sandbox_is_refused_as_malformed() {
     let scratch = Scratch::new("renamed");
     let root = scratch.root();
-    create(&root, &record("victim", "macos", 1)).unwrap();
-    let foreign = serde_json::to_vec(&record("victim", "macos", 2)).unwrap();
+    create(&root, &record("victim", "example", 1)).unwrap();
+    let foreign = serde_json::to_vec(&record("victim", "example", 2)).unwrap();
     write_record(&root, "dev-1", &foreign);
 
     assert_eq!(load(&root, "dev-1").unwrap_err().code(), "INVALID_ARGS");
@@ -210,7 +210,7 @@ fn a_record_that_names_another_sandbox_is_refused_as_malformed() {
 fn removing_a_directory_the_provider_already_removed_succeeds() {
     let scratch = Scratch::new("removed");
     let root = scratch.root();
-    create(&root, &record("dev-1", "macos", 1)).unwrap();
+    create(&root, &record("dev-1", "example", 1)).unwrap();
     std::fs::remove_dir_all(root.join("dev-1")).unwrap();
 
     super::remove(&root, "dev-1").expect("nothing is left to remove");

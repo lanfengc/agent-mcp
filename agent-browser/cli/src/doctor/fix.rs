@@ -7,9 +7,6 @@ use std::fs;
 use std::path::Path;
 use std::time::{Duration, SystemTime};
 
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
-
 use serde_json::json;
 
 use super::helpers::new_id;
@@ -131,10 +128,6 @@ fn create_encryption_key_at(dir: &Path) -> bool {
     if fs::create_dir_all(dir).is_err() {
         return false;
     }
-    #[cfg(unix)]
-    {
-        let _ = fs::set_permissions(dir, fs::Permissions::from_mode(0o700));
-    }
     let path = dir.join(".encryption-key");
     if path.exists() {
         return false;
@@ -146,10 +139,6 @@ fn create_encryption_key_at(dir: &Path) -> bool {
     let hex: String = buf.iter().map(|b| format!("{:02x}", b)).collect();
     if fs::write(&path, format!("{}\n", hex)).is_err() {
         return false;
-    }
-    #[cfg(unix)]
-    {
-        let _ = fs::set_permissions(&path, fs::Permissions::from_mode(0o600));
     }
     true
 }
@@ -190,58 +179,5 @@ mod tests {
         assert!(!create_encryption_key_at(&dir));
         let after = fs::read_to_string(dir.join(".encryption-key")).unwrap();
         assert_eq!(original, after);
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn test_create_encryption_key_at_sets_0600_perms() {
-        let tmp = TempDir::new().unwrap();
-        let dir = tmp.path().join("state");
-
-        assert!(create_encryption_key_at(&dir));
-
-        let key = dir.join(".encryption-key");
-        let mode = fs::metadata(&key).unwrap().permissions().mode() & 0o777;
-        assert_eq!(mode, 0o600, "key file should be 0600, got {:o}", mode);
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn test_run_fixes_generates_missing_encryption_key() {
-        // Reaches the Info-status arm in run_fixes that was previously
-        // unreachable due to an early-continue guard. Overrides HOME so
-        // get_state_dir() resolves under a temp dir.
-        let guard = crate::test_utils::EnvGuard::new(&["HOME"]);
-        let tmp = TempDir::new().unwrap();
-        guard.set("HOME", tmp.path().to_str().unwrap());
-
-        let mut checks = vec![Check::new(
-            "security.encryption_key",
-            "Security",
-            Status::Info,
-            "No encryption key set",
-        )
-        .with_fix("export AGENT_BROWSER_ENCRYPTION_KEY=...")];
-        let mut fixed = Vec::new();
-
-        run(&mut checks, &mut fixed);
-
-        assert_eq!(
-            checks[0].status,
-            Status::Pass,
-            "Info check should transition to Pass after --fix"
-        );
-        assert!(
-            checks[0].fix.is_none(),
-            "fix hint should be cleared after repair"
-        );
-        assert!(
-            fixed.iter().any(|s| s.contains("encryption key")),
-            "fixed summary should mention the key generation"
-        );
-        assert!(
-            tmp.path().join(".agent-browser/.encryption-key").exists(),
-            "key file should exist at ~/.agent-browser/.encryption-key"
-        );
     }
 }

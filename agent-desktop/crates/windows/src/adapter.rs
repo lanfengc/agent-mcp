@@ -65,8 +65,7 @@ impl ObservationOps for WindowsAdapter {
     }
 
     /// The FFI legacy entrypoint: a thin wrapper over the same `observe_tree`
-    /// path the binary's `snapshot` uses (mirroring
-    /// `crates/macos/src/tree/adapter.rs`).
+    /// path the binary's `snapshot` uses.
     fn get_tree(
         &self,
         window: &WindowInfo,
@@ -260,9 +259,8 @@ impl InputOps for WindowsAdapter {
     }
 
     /// A standalone key edge has no daemon to own the hold across a request
-    /// boundary, so it rejects the same way macOS's `key_event` does -
-    /// the atomic `press`/`type` composers live in the
-    /// `execute_action` physical legs, not here.
+    /// boundary, so it rejects - the atomic `press`/`type` composers live in
+    /// the `execute_action` physical legs, not here.
     fn key_event(
         &self,
         combo: &KeyCombo,

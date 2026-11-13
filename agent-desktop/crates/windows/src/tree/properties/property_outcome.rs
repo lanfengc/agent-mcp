@@ -9,10 +9,9 @@ pub const MAX_EVIDENCE_CHARS: usize = 2_048;
 
 /// One property read, in the three states core's `LocatorField` distinguishes.
 ///
-/// UI Automation has no per-property error channel. macOS gets a parallel
-/// array where an absent slot is `kCFNull` and a failed slot carries its own
-/// error; UIA has neither, so this type is built by hand from the
-/// not-supported sentinel, the variant tag, and the call's own result.
+/// UI Automation has no per-property error channel, so this type is built by
+/// hand from the not-supported sentinel, the variant tag, and the call's own
+/// result.
 #[derive(Debug, Clone, PartialEq)]
 pub enum PropertyOutcome {
     /// The provider answered with a value.

@@ -39,8 +39,7 @@ pub(super) fn frame(style: &CursorOverlayStyle, label: Option<LabelPill>) -> Fra
 /// into one that can no longer fire.
 ///
 /// So it is gated the way every other performance number on this platform is.
-/// The macOS baseline script cannot run here - it opens an `.app` bundle - and
-/// the probe corpus measures cost locally, min-of-seven with the warm-up
+/// The probe corpus measures cost locally, min-of-seven with the warm-up
 /// discarded, on a quiesced desktop. This budget belongs to that same run:
 /// export `AGENT_DESKTOP_PERF_BUDGET=1` on a controlled host and it is
 /// enforced; everywhere else the numbers are reported so a developer watching

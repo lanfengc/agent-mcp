@@ -240,9 +240,11 @@ fn current_command_line() -> Result<Vec<u16>, AdapterError> {
 fn no_interactive_user() -> AdapterError {
     AdapterError::new(
         ErrorCode::PermDenied,
-        "No user is logged on to an interactive session",
+        "No session has a user at its desktop, so there is no desktop to relaunch into",
     )
-    .with_suggestion("Log in to the console session, then retry the command")
+    .with_suggestion(
+        "Log in at the console or reconnect the remote desktop session, then retry the command",
+    )
     .with_disposition(DeliverySemantics::not_delivered())
 }
 

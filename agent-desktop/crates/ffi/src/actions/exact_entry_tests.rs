@@ -21,19 +21,11 @@ fn decode(entry: AdRefEntry) -> Result<CoreRefEntry, AdapterError> {
 
 #[test]
 fn exact_ref_geometry_accepts_only_the_platform_native_frame() {
-    let (native_space, other_space, expected_space) = if cfg!(target_os = "linux") {
-        (
-            crate::AD_BOUNDS_SPACE_WINDOW,
-            crate::AD_BOUNDS_SPACE_SCREEN,
-            agent_desktop_core::BoundsSpace::Window,
-        )
-    } else {
-        (
-            crate::AD_BOUNDS_SPACE_SCREEN,
-            crate::AD_BOUNDS_SPACE_WINDOW,
-            agent_desktop_core::BoundsSpace::Screen,
-        )
-    };
+    let (native_space, other_space, expected_space) = (
+        crate::AD_BOUNDS_SPACE_SCREEN,
+        crate::AD_BOUNDS_SPACE_WINDOW,
+        agent_desktop_core::BoundsSpace::Screen,
+    );
     for (space, has_bounds, has_hash, expected) in [
         (native_space, true, false, Some(expected_space)),
         (native_space, false, false, Some(expected_space)),
@@ -75,7 +67,7 @@ fn ffi_ref_entry_preserves_description_identity() {
     let description = CString::new("Insert Shape").unwrap();
     let state = CString::new("focused").unwrap();
     let action = CString::new("Click").unwrap();
-    let source_app = CString::new("Finder").unwrap();
+    let source_app = CString::new("notepad.exe").unwrap();
     let window_id = CString::new("w-1").unwrap();
     let window_title = CString::new("Documents").unwrap();
     let root_ref = CString::new("@e1").unwrap();
@@ -99,11 +91,7 @@ fn ffi_ref_entry_preserves_description_identity() {
         height: 4.0,
     };
     entry.geometry.has_bounds = true;
-    entry.geometry.bounds_space = if cfg!(target_os = "linux") {
-        crate::AD_BOUNDS_SPACE_WINDOW
-    } else {
-        crate::AD_BOUNDS_SPACE_SCREEN
-    };
+    entry.geometry.bounds_space = crate::AD_BOUNDS_SPACE_SCREEN;
     entry.geometry.bounds_hash = Rect {
         x: 1.0,
         y: 2.0,
@@ -139,17 +127,13 @@ fn ffi_ref_entry_preserves_description_identity() {
     assert_eq!(core_entry.geometry.bounds.unwrap().width, 3.0);
     assert_eq!(
         core_entry.geometry.bounds_space,
-        Some(if cfg!(target_os = "linux") {
-            agent_desktop_core::BoundsSpace::Window
-        } else {
-            agent_desktop_core::BoundsSpace::Screen
-        })
+        Some(agent_desktop_core::BoundsSpace::Screen)
     );
     assert_eq!(
         core_entry.geometry.bounds_hash,
         core_entry.geometry.bounds.unwrap().bounds_hash()
     );
-    assert_eq!(core_entry.source.source_app.as_deref(), Some("Finder"));
+    assert_eq!(core_entry.source.source_app.as_deref(), Some("notepad.exe"));
     assert_eq!(core_entry.source.source_window_id.as_deref(), Some("w-1"));
     assert_eq!(
         core_entry.source.source_window_title.as_deref(),
@@ -178,11 +162,7 @@ fn ffi_ref_entry_derives_bounds_hash_when_caller_omits_it() {
         height: 4.0,
     };
     entry.geometry.has_bounds = true;
-    entry.geometry.bounds_space = if cfg!(target_os = "linux") {
-        crate::AD_BOUNDS_SPACE_WINDOW
-    } else {
-        crate::AD_BOUNDS_SPACE_SCREEN
-    };
+    entry.geometry.bounds_space = crate::AD_BOUNDS_SPACE_SCREEN;
 
     let core_entry = decode(entry).unwrap();
 

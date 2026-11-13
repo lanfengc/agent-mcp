@@ -19,15 +19,8 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 agent-desktop-core.workspace = true
 
-[target.'cfg(target_os = "macos")'.dependencies]
-agent-desktop-macos = { path = "../macos" }
-libc                = "0.2"
-
 [target.'cfg(target_os = "windows")'.dependencies]
 agent-desktop-windows = { path = "../windows" }
-
-[target.'cfg(target_os = "linux")'.dependencies]
-agent-desktop-linux = { path = "../linux" }
 
 [target.'cfg(target_os = "windows")'.dev-dependencies]
 windows-sys = { version = "0.61", features = [

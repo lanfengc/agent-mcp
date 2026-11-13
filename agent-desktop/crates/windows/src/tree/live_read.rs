@@ -1,10 +1,9 @@
 //! The shared single-element live read and its five projections.
 //!
-//! Mirrors macOS `post_state.rs`'s single shared read: one function takes a
-//! resolved `NativeHandle`, corroborates the verified process identity the
-//! resolver stamped into the handle payload - a dead provider never
-//! satisfies completeness, because a corpse's reads can succeed empty on some
-//! builds (A14-9), reads the full walk property set live through
+//! One function takes a resolved `NativeHandle`, corroborates the verified
+//! process identity the resolver stamped into the handle payload - a dead
+//! provider never satisfies completeness, because a corpse's reads can succeed
+//! empty on some builds (A14-9), reads the full walk property set live through
 //! `properties::read_live`, and projects it through the walk's own vocabulary
 //! composition (`read_label` + `walk_vocabulary` + `locator_evidence`).
 //! The five readers are projections over that one read: value, state, actions,

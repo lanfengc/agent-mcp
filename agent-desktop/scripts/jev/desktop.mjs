@@ -156,7 +156,7 @@ export const enterText = async ({ app, windowId = null }, node, text, clipboard)
   clipboard.borrow();
   const copied = cli("clipboard-set", text);
   if (!copied.ok) return { route: "paste", result: copied };
-  const pasted = cli("press", "cmd+v", "--app", app, ...(windowId ? ["--window-id", windowId] : []));
+  const pasted = cli("press", "ctrl+v", "--app", app, ...(windowId ? ["--window-id", windowId] : []));
   if (!pasted.ok) return { route: "paste", result: pasted };
   const { held, observed } = await awaitFieldText(node.ref_id, text);
   if (!held) return { route: "paste", result: { ok: false, error: verificationFailure(observed) } };

@@ -4,8 +4,8 @@
  * agent-desktop command that carries it out. Built to be called by an LLM
  * agent that holds the goal and the memory but never reads the tree.
  *
- *   node scripts/jev/act.mjs --app TextEdit "the button that saves the document"
- *   node scripts/jev/act.mjs --app TextEdit --execute --text "hello" "the body of the document"
+ *   node scripts/jev/act.mjs --app notepad.exe "the button that saves the document"
+ *   node scripts/jev/act.mjs --app notepad.exe --execute --text "hello" "the body of the document"
  *
  * The agent sends one sentence and gets back one small object. A 150-element
  * accessibility tree never enters its context.

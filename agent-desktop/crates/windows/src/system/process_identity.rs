@@ -1,14 +1,12 @@
 use agent_desktop_core::{AdapterError, ProcessId};
 
 /// The process-generation token: a creation-time-derived identity that
-/// survives HWND recycling, mirroring macOS's
-/// `"macos-proc-v1:{start_seconds}:{start_microseconds}"` shape.
+/// survives HWND recycling.
 ///
 /// Windows FILETIME is 100-nanosecond ticks since 1601; the token keeps the
 /// integer second and the sub-second tick so two processes started in the same
-/// second stay distinct, the same way the macOS token's microsecond field
-/// does. A token is read from the process handle the identity check already
-/// needs, so the identity never costs a separate enumeration.
+/// second stay distinct. A token is read from the process handle the identity
+/// check already needs, so the identity never costs a separate enumeration.
 const TOKEN_PREFIX: &str = "windows-proc-v1";
 const TICKS_PER_SECOND: u64 = 10_000_000;
 
@@ -246,7 +244,7 @@ mod tests {
     }
 
     #[test]
-    fn token_shape_mirrors_macos_is_two_component_creation_time() {
+    fn token_shape_is_two_component_creation_time() {
         let identity = ProcessIdentity {
             pid: ProcessId::new(1),
             creation_seconds: 1_700_000_000,
@@ -295,7 +293,7 @@ mod tests {
     fn a_shape_mismatch_matches_nothing() {
         let pid = ProcessId::new(1);
 
-        assert!(!matches_instance(pid, "macos-proc-v1:1:2").unwrap());
+        assert!(!matches_instance(pid, "foreign-proc-v1:1:2").unwrap());
         assert!(!matches_instance(pid, "windows-proc-v2:1:2").unwrap());
         assert!(!matches_instance(pid, "windows-proc-v1:nope:2").unwrap());
         assert!(!matches_instance(pid, "").unwrap());

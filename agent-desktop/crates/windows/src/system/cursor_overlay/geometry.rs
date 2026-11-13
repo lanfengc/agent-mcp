@@ -1,21 +1,19 @@
-//! The overlay's shape, in the numbers the macOS renderer already uses.
+//! The overlay's shape, in fixed numbers.
 //!
-//! Pure. The overlay claims Windows draws the same visual vocabulary as macOS, and a
-//! claim like that needs numbers to fail against — core shares the motion,
-//! the style and the label placement, but none of these dimensions. They are
-//! carried across rather than invented, and scaled by the session's style
-//! size so a caller that asks for a larger cursor gets a larger everything.
+//! Pure. Core shares the motion, the style and the label placement, but none
+//! of these dimensions. They are defined here and scaled by the session's
+//! style size so a caller that asks for a larger cursor gets a larger
+//! everything.
 
 use agent_desktop_core::{Point, Rect};
 
 /// The cursor glyph's box, and the four-point dart drawn inside it, with the
 /// tip at the first point — which is what the pose's position names.
 ///
-/// The dart is the macOS path **flipped vertically**, not copied. Core
-/// Graphics authors that path in a y-up space where the tip's `35.0` sits
+/// The dart path is authored in a y-up space where the tip's `35.0` sits
 /// near the top of a 40-unit box; this surface is a top-down DIB where the
 /// same number is near the bottom, so carrying the coordinates across
-/// unchanged draws the pointer upside down. Flipping once here is what keeps
+/// unchanged would draw the pointer upside down. Flipping once here is what keeps
 /// every consumer — the glyph rectangle and the rasterizer both — in one
 /// space.
 pub(crate) const GLYPH_WIDTH: f64 = 32.0;

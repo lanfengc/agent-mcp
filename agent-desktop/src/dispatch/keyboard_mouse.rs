@@ -123,7 +123,7 @@ pub(super) fn mouse_click(
 ) -> Result<Value, AppError> {
     let (x, y) = parse_xy(&args.xy)?;
     if args.background.background {
-        return background_click(args, x, y, adapter, context);
+        return background_click(args, x, y, adapter);
     }
     let orphaned_background_flag = args.background.window_id.is_some()
         || args.background.capture_id.is_some()
@@ -154,7 +154,6 @@ fn background_click(
     x: f64,
     y: f64,
     adapter: &dyn PlatformAdapter,
-    context: &CommandContext,
 ) -> Result<Value, AppError> {
     if !args.modifiers.is_empty() {
         return Err(AppError::invalid_input_with_suggestion(
@@ -168,27 +167,22 @@ fn background_click(
             "Run 'list-windows' and pass the target window id.",
         ));
     };
-    let space = if args.background.capture_id.is_some() {
-        "image"
-    } else {
-        "screen"
-    };
     mouse_click_background_command::execute(
         mouse_click_background_command::BackgroundClickArgs {
             window_id,
             capture_id: args.background.capture_id,
-            space: space.to_string(),
+            x,
+            y,
             max_capture_age_ms: max_capture_age_ms()?,
-            restore_minimized: args.background.restore_minimized,
-            cursor_fallback: args.background.cursor_fallback,
-            semantic: args.background.semantic,
+            options: agent_desktop_core::BackgroundClickOptions {
+                button: parse_mouse_button(&args.button)?,
+                count: args.count,
+                restore_minimized: args.background.restore_minimized,
+                cursor_fallback: args.background.cursor_fallback,
+                semantic: args.background.semantic,
+            },
         },
-        x,
-        y,
-        parse_mouse_button(&args.button)?,
-        args.count,
         adapter,
-        context,
     )
 }
 

@@ -31,7 +31,7 @@ Each tool is one command, named `desktop_` plus the command with hyphens as unde
 | `session start` | `desktop_session_start` |
 | `skills get` | `desktop_skills_get` |
 
-A tool's arguments are its command's arguments, with hyphens as underscores: `snapshot --app Finder -i` is `desktop_snapshot` with `{ "app": "Finder", "interactive_only": true }`. Positional arguments use their names too, such as `ref_id` for `click`. A null argument counts as omitted.
+A tool's arguments are its command's arguments, with hyphens as underscores: `snapshot --app notepad.exe -i` is `desktop_snapshot` with `{ "app": "notepad.exe", "interactive_only": true }`. Positional arguments use their names too, such as `ref_id` for `click`. A null argument counts as omitted.
 
 On Windows, a background click is the same `desktop_mouse_click` tool with `background`, `window_id` and `capture_id`: `{ "background": true, "window_id": "w-123", "capture_id": "eyJ...", "xy": "195,139" }`. The screenshot's `capture_id` and `capture_bounds` stay in the structured result when its image becomes an image block.
 
@@ -59,12 +59,12 @@ An unknown argument returns a tool error that names the accepted arguments, and 
 
 ## Start with the skills
 
-Call `desktop_skills_get` with `{ "name": "desktop" }` for the observe-act loop and `{ "name": "platform" }` for what differs on your OS. The server's instructions point clients there too.
+Call `desktop_skills_get` with `{ "name": "desktop" }` for the observe-act loop and `{ "name": "platform" }` for the Windows specifics. The server's instructions point clients there too.
 
 ## Security
 
 The server adds nothing the CLI cannot already do. Tool arguments become CLI arguments without a shell. A value is always passed as a value, never as a flag. A tool cannot set global flags such as `--session` or `--headed`; only the server's own command line can.
 
-A tool still has the CLI's full reach: it can operate any app the accessibility tree exposes, and `desktop_launch` starts any program on `PATH` with any arguments. Treat the server like a shell for the signed-in user. Keep your client's confirmation on for actions, and remember that text read from the screen is untrusted input to the model.
+A tool still has the CLI's full reach: it can operate any app the accessibility tree exposes, and `desktop_launch` starts any program at an absolute path with any arguments. Treat the server like a shell for the signed-in user. Keep your client's confirmation on for actions, and remember that text read from the screen is untrusted input to the model.
 
-The server runs at most 8 tool calls at once and answers more with a tool error. It refuses any message over 4 MiB. A `notifications/cancelled` stops the call and it gets no response. A call that has not started never starts. A running call gets `SIGTERM` first, so it releases any key or button it holds, and is killed if it is still running 3 seconds later; on Windows it is killed at once.
+The server runs at most 8 tool calls at once and answers more with a tool error. It refuses any message over 4 MiB. A `notifications/cancelled` stops the call and it gets no response. A call that has not started never starts. A running call is killed at once.

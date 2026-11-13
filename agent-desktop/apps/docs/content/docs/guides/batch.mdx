@@ -35,7 +35,7 @@ The check does not reach the live desktop. Whether a ref still resolves, and whe
 
 ## Read every entry
 
-A batch returns `ok: true` and exit code `0` even when entries fail, so read each entry's `ok`. This batch clicked the calculator's C button, then a ref that does not exist, then C again, with `--stop-on-error` (fields abridged):
+A batch returns `ok: true` and exit code `0` even when entries fail, so read each entry's `ok`. This batch clicked Notepad's File menu item, then a ref that does not exist, then File again, with `--stop-on-error` (fields abridged):
 
 ```json
 {
@@ -45,7 +45,7 @@ A batch returns `ok: true` and exit code `0` even when entries fail, so read eac
       "index": 1, "ok": false, "execution": "completed",
       "error": {
         "code": "STALE_REF",
-        "message": "@s3sl23kzkoxzvb:e999 not found in current RefMap",
+        "message": "@s22rkqf0fk8j7t:e999 not found in current RefMap",
         "disposition": { "delivery": "not_delivered", "retry": "safe" }
       }
     }

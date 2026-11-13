@@ -956,61 +956,6 @@ fn cleanup_restore_state_files(restore_key: &str) {
     }
 }
 
-async fn send_raw_http_request(port: u64, request: &str) -> String {
-    let mut stream = tokio::net::TcpStream::connect(format!("127.0.0.1:{port}"))
-        .await
-        .expect("HTTP client should connect to stream server");
-    stream
-        .write_all(request.as_bytes())
-        .await
-        .expect("HTTP request should be written");
-    stream
-        .shutdown()
-        .await
-        .expect("HTTP client write side should shut down");
-
-    let mut response = Vec::new();
-    stream
-        .read_to_end(&mut response)
-        .await
-        .expect("HTTP response should be read");
-    String::from_utf8(response).expect("HTTP response should be utf-8")
-}
-
-#[cfg(unix)]
-async fn spawn_fake_daemon_socket(
-    socket_dir: &std::path::Path,
-    session_name: &str,
-) -> tokio::sync::oneshot::Receiver<String> {
-    use tokio::io::AsyncBufReadExt;
-
-    let socket_path = socket_dir.join(format!("{session_name}.sock"));
-    let _ = std::fs::remove_file(&socket_path);
-    let listener =
-        tokio::net::UnixListener::bind(&socket_path).expect("fake daemon socket should bind");
-    let (tx, rx) = tokio::sync::oneshot::channel();
-
-    tokio::spawn(async move {
-        let Ok((stream, _)) = listener.accept().await else {
-            return;
-        };
-        let mut reader = tokio::io::BufReader::new(stream);
-        let mut command = String::new();
-        if reader.read_line(&mut command).await.is_err() {
-            return;
-        }
-
-        let mut stream = reader.into_inner();
-        let _ = stream
-            .write_all(br#"{"success":true,"data":{"ok":true}}"#)
-            .await;
-        let _ = stream.write_all(b"\n").await;
-        let _ = tx.send(command);
-    });
-
-    rx
-}
-
 // ---------------------------------------------------------------------------
 // Core: launch, navigate, evaluate, url, title, close
 // ---------------------------------------------------------------------------
@@ -1391,82 +1336,6 @@ fn test_obscura_e2e_clears_inherited_connection_modes() {
     );
 }
 
-#[cfg(unix)]
-#[tokio::test]
-async fn test_obscura_e2e_unlaunchable_binary_does_not_attach_to_inherited_cdp() {
-    use futures_util::SinkExt;
-    use tokio_tungstenite::tungstenite::Message;
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let endpoint = format!("ws://{}", listener.local_addr().unwrap());
-    let accepted = Arc::new(AtomicUsize::new(0));
-    let server_accepted = accepted.clone();
-    let server = tokio::spawn(async move {
-        loop {
-            let (stream, _) = listener.accept().await.unwrap();
-            server_accepted.fetch_add(1, Ordering::SeqCst);
-            let mut ws = tokio_tungstenite::accept_async(stream).await.unwrap();
-            while let Some(Ok(message)) = ws.next().await {
-                match message {
-                    Message::Text(text) => {
-                        let command: Value = serde_json::from_str(&text).unwrap();
-                        let response = json!({"id": command["id"], "error": {
-                            "code": -32000, "message": "controlled CDP endpoint must not be used by Obscura verification"
-                        }});
-                        let _ = ws.send(Message::Text(response.to_string())).await;
-                    }
-                    Message::Close(_) => break,
-                    _ => {}
-                }
-            }
-        }
-    });
-    let fixture = ObscuraFixture {
-        url: endpoint.clone(),
-        server,
-    };
-    let dir = tempfile::tempdir().unwrap();
-    let false_bin = if std::path::Path::new("/usr/bin/false").is_file() {
-        "/usr/bin/false"
-    } else {
-        "/bin/false"
-    };
-    let mut command = tokio::process::Command::new(std::env::current_exe().unwrap());
-    command
-        .env_clear()
-        .env("HOME", dir.path())
-        .env("AGENT_BROWSER_SOCKET_DIR", dir.path())
-        .env("OBSCURA_BIN", false_bin)
-        .env("AGENT_BROWSER_CDP", &fixture.url)
-        .env("AGENT_BROWSER_PROVIDER", "obscura-test-not-a-provider")
-        .args([
-            "--exact",
-            "native::e2e_tests::e2e_obscura_auto_launch_can_open_page",
-            "--ignored",
-            "--nocapture",
-        ])
-        .kill_on_drop(true);
-    let output = tokio::time::timeout(std::time::Duration::from_secs(10), command.output())
-        .await
-        .expect("Obscura false-binary probe must terminate")
-        .unwrap();
-    let diagnostics = format!(
-        "{}\n{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert_eq!(output.status.code(), Some(101), "{diagnostics}");
-    assert!(
-        diagnostics.contains("Obscura exited before CDP became ready"),
-        "accepted {} inherited CDP connections\n{diagnostics}",
-        accepted.load(Ordering::SeqCst)
-    );
-    assert_eq!(
-        accepted.load(Ordering::SeqCst),
-        0,
-        "Obscura E2E attached to the inherited endpoint"
-    );
-}
-
 /// Requires a real OBSCURA_BIN; missing binaries fail rather than silently skip verification.
 #[tokio::test]
 #[ignore = "requires OBSCURA_BIN; run serially"]
@@ -1599,98 +1468,6 @@ async fn e2e_runtime_stream_enable_before_launch_attaches_and_disables() {
     let resp = execute_command(&json!({ "id": "99", "action": "close" }), &mut state).await;
     assert_success(&resp);
     let _ = std::fs::remove_dir_all(&socket_dir);
-}
-
-#[cfg(unix)]
-#[tokio::test]
-#[ignore]
-async fn e2e_stream_command_requires_same_origin_before_daemon_relay() {
-    let guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR", "AGENT_BROWSER_SESSION"]);
-    let temp_parent = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("target")
-        .join("t");
-    std::fs::create_dir_all(&temp_parent).expect("socket temp parent should be created");
-    let socket_dir = tempfile::Builder::new()
-        .prefix("ab-e2e-")
-        .tempdir_in(temp_parent)
-        .expect("socket dir should be created");
-    guard.set(
-        "AGENT_BROWSER_SOCKET_DIR",
-        socket_dir
-            .path()
-            .to_str()
-            .expect("socket dir should be utf-8"),
-    );
-    guard.set("AGENT_BROWSER_SESSION", "x");
-
-    let mut state = DaemonState::new();
-    let resp = execute_command(
-        &json!({ "id": "1", "action": "stream_enable", "port": 0 }),
-        &mut state,
-    )
-    .await;
-    assert_success(&resp);
-    let port = get_data(&resp)["port"]
-        .as_u64()
-        .expect("stream enable should report the bound port");
-
-    let mut daemon_command = spawn_fake_daemon_socket(socket_dir.path(), "x").await;
-    let body = r#"{"action":"tabs"}"#;
-    let cross_origin_request = format!(
-        "POST /api/command HTTP/1.1\r\nHost: localhost:{port}\r\nOrigin: https://evil.example\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
-        body.len(),
-        body
-    );
-
-    let response = send_raw_http_request(port, &cross_origin_request).await;
-    assert!(
-        response.starts_with("HTTP/1.1 403 Forbidden"),
-        "unexpected cross-origin response: {response}"
-    );
-    assert!(
-        !response.contains("Access-Control-Allow-Origin: *"),
-        "forbidden command response exposed wildcard CORS: {response}"
-    );
-    assert!(
-        tokio::time::timeout(std::time::Duration::from_millis(100), &mut daemon_command)
-            .await
-            .is_err(),
-        "cross-origin command request reached daemon relay"
-    );
-
-    let same_origin_request = format!(
-        "POST /api/command HTTP/1.1\r\nHost: localhost:{port}\r\nOrigin: http://localhost:{port}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
-        body.len(),
-        body
-    );
-    let response = send_raw_http_request(port, &same_origin_request).await;
-    assert!(
-        response.starts_with("HTTP/1.1 200 OK"),
-        "unexpected same-origin response: {response}"
-    );
-    assert!(
-        response.contains(&format!(
-            "Access-Control-Allow-Origin: http://localhost:{port}"
-        )),
-        "same-origin command response did not reflect origin: {response}"
-    );
-    assert!(
-        !response.contains("Access-Control-Allow-Origin: *"),
-        "same-origin command response exposed wildcard CORS: {response}"
-    );
-
-    let relayed = tokio::time::timeout(std::time::Duration::from_secs(1), daemon_command)
-        .await
-        .expect("same-origin request should reach fake daemon")
-        .expect("fake daemon should return relayed command");
-    assert!(relayed.contains(r#""action":"tabs""#), "{relayed}");
-
-    let resp = execute_command(
-        &json!({ "id": "2", "action": "stream_disable" }),
-        &mut state,
-    )
-    .await;
-    assert_success(&resp);
 }
 
 // ---------------------------------------------------------------------------
@@ -3834,8 +3611,8 @@ async fn e2e_hover_scroll_press() {
 }
 
 /// One `press` must produce exactly one keydown/keyup pair whose `code`
-/// matches the key. Sending the Windows VK code as `nativeVirtualKeyCode`
-/// made macOS Chrome resolve a different physical key and repeat keydown
+/// matches the key. Sending a virtual-key code as `nativeVirtualKeyCode`
+/// lets Chrome resolve a different physical key and repeat keydown
 /// thousands of times per second until navigation.
 #[tokio::test]
 #[ignore]
@@ -8216,105 +7993,6 @@ async fn e2e_auth_login_no_navigate_preserves_active_page_state() {
     assert_success(&execute_command(&json!({ "id": "99", "action": "close" }), &mut state).await);
 }
 
-#[cfg(unix)]
-#[tokio::test]
-#[ignore]
-async fn e2e_auth_login_no_navigate_preserves_state_with_credential_provider() {
-    use std::os::unix::fs::PermissionsExt;
-
-    let (base_url, document_requests, _server) = start_stateful_auth_login_server().await;
-    let plugin_dir = tempfile::tempdir().unwrap();
-    let plugin_path = plugin_dir.path().join("stateful-credential-provider");
-    std::fs::write(
-        &plugin_path,
-        format!(
-            r#"#!/bin/sh
-cat >/dev/null
-printf '%s' '{{"protocol":"agent-browser.plugin.v1","success":true,"credential":{{"username":"provider-user@example.com","password":"provider-password-secret","url":"{}/provider/login"}}}}'
-"#,
-            base_url
-        ),
-    )
-    .unwrap();
-    let mut permissions = std::fs::metadata(&plugin_path).unwrap().permissions();
-    permissions.set_mode(0o755);
-    std::fs::set_permissions(&plugin_path, permissions).unwrap();
-
-    let mut state = DaemonState::new();
-    assert_success(
-        &execute_command(
-            &json!({ "id": "1", "action": "launch", "headless": true }),
-            &mut state,
-        )
-        .await,
-    );
-    assert_success(
-        &execute_command(
-            &json!({ "id": "2", "action": "navigate", "url": format!("{}/flow/provider", base_url) }),
-            &mut state,
-        )
-        .await,
-    );
-    assert_success(
-        &execute_command(
-            &json!({ "id": "3", "action": "click", "selector": "#reveal" }),
-            &mut state,
-        )
-        .await,
-    );
-    assert_success(
-        &execute_command(
-            &json!({ "id": "4", "action": "evaluate", "script": "window.__marker = 'provider-preserved'" }),
-            &mut state,
-        )
-        .await,
-    );
-    let request_count_before = document_requests.load(Ordering::SeqCst);
-
-    let login = execute_command(
-        &json!({
-            "id": "5",
-            "action": "auth_login",
-            "name": "provider-stateful-login",
-            "noNavigate": true,
-            "credentialProvider": "mock",
-            "plugins": [{
-                "name": "mock",
-                "command": plugin_path.to_string_lossy(),
-                "capabilities": ["credential.read"]
-            }]
-        }),
-        &mut state,
-    )
-    .await;
-    assert_success(&login);
-    let serialized_login = serde_json::to_string(&login).unwrap();
-    assert!(!serialized_login.contains("provider-user@example.com"));
-    assert!(!serialized_login.contains("provider-password-secret"));
-    assert_eq!(
-        document_requests.load(Ordering::SeqCst),
-        request_count_before
-    );
-
-    let verify = execute_command(
-        &json!({
-            "id": "6",
-            "action": "evaluate",
-            "script": "({ marker: window.__marker, submitted: !!window.__submitted, user: document.querySelector('input[type=email]').value, pass: document.querySelector('input[type=password]').value })",
-        }),
-        &mut state,
-    )
-    .await;
-    assert_success(&verify);
-    let result = &get_data(&verify)["result"];
-    assert_eq!(result["marker"], "provider-preserved");
-    assert_eq!(result["submitted"], true);
-    assert_eq!(result["user"], "provider-user@example.com");
-    assert_eq!(result["pass"], "provider-password-secret");
-
-    assert_success(&execute_command(&json!({ "id": "99", "action": "close" }), &mut state).await);
-}
-
 #[tokio::test]
 #[ignore]
 async fn e2e_auth_login_rejects_cross_origin_no_navigate() {
@@ -11135,7 +10813,8 @@ async fn e2e_recording_cursor_stays_aligned_during_drag() {
     let mut measured = 0;
     let mut worst = 0;
     let mut positions = std::collections::HashSet::new();
-    for bytes in output.stdout.chunks_exact(640 * 80 * 3) {
+    let (frames, _) = output.stdout.as_chunks::<{ 640 * 80 * 3 }>();
+    for bytes in frames {
         let frame = image::RgbImage::from_raw(640, 80, bytes.to_vec()).unwrap();
         let line = (0..640).find(|&x| {
             let [r, g, b] = frame.get_pixel(x, 0).0;
@@ -13830,14 +13509,12 @@ async fn e2e_removeinitscript_roundtrip() {
 fn binding_test_env() -> (EnvGuard<'static>, tempfile::TempDir) {
     let guard = EnvGuard::new(&[
         "AGENT_BROWSER_SOCKET_DIR",
-        "XDG_RUNTIME_DIR",
         "AGENT_BROWSER_NAMESPACE",
         "AGENT_BROWSER_SESSION",
         "AGENT_BROWSER_PIN_TAB",
     ]);
     let dir = tempfile::tempdir().unwrap();
     guard.set("AGENT_BROWSER_SOCKET_DIR", dir.path().to_str().unwrap());
-    guard.remove("XDG_RUNTIME_DIR");
     guard.remove("AGENT_BROWSER_NAMESPACE");
     guard.remove("AGENT_BROWSER_PIN_TAB");
     (guard, dir)

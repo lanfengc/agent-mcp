@@ -10,7 +10,6 @@ enum InstallMethod {
     Pnpm,
     Yarn,
     Bun,
-    Homebrew,
     Cargo,
     Unknown,
 }
@@ -67,13 +66,6 @@ fn detect_install_method() -> InstallMethod {
             return InstallMethod::Cargo;
         }
 
-        if path_str.contains("/Cellar/agent-browser/")
-            || path_str.contains("/homebrew/")
-            || path_str.contains("/linuxbrew/")
-        {
-            return InstallMethod::Homebrew;
-        }
-
         if path_str.contains("/pnpm/") || path_str.contains("/pnpm-global/") {
             return InstallMethod::Pnpm;
         }
@@ -94,13 +86,6 @@ fn detect_install_method() -> InstallMethod {
     }
 
     // Last resort: probe package managers via subprocess
-
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
-    {
-        if command_succeeds("brew", &["list", "agent-browser"]) {
-            return InstallMethod::Homebrew;
-        }
-    }
 
     if command_output_contains(
         "pnpm",
@@ -168,11 +153,6 @@ fn run_upgrade_command(method: &InstallMethod) -> bool {
             &["install", "-g", "agent-browser@latest"],
             "bun install -g agent-browser@latest",
         ),
-        InstallMethod::Homebrew => (
-            "brew",
-            &["upgrade", "agent-browser"],
-            "brew upgrade agent-browser",
-        ),
         InstallMethod::Cargo => (
             "cargo",
             &["install", "agent-browser", "--force"],
@@ -232,7 +212,6 @@ pub fn run_upgrade() {
         InstallMethod::Pnpm => "pnpm",
         InstallMethod::Yarn => "yarn",
         InstallMethod::Bun => "bun",
-        InstallMethod::Homebrew => "Homebrew",
         InstallMethod::Cargo => "Cargo",
         InstallMethod::Unknown => "",
     };
@@ -247,7 +226,6 @@ pub fn run_upgrade() {
         eprintln!("    pnpm add -g agent-browser@latest          # pnpm");
         eprintln!("    yarn global add agent-browser@latest       # yarn");
         eprintln!("    bun install -g agent-browser@latest        # bun");
-        eprintln!("    brew upgrade agent-browser                 # Homebrew");
         eprintln!("    cargo install agent-browser --force        # Cargo");
         exit(1);
     }

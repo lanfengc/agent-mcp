@@ -61,9 +61,8 @@ pub fn dismiss_all(
 /// Invokes the named action button on the identified notification.
 ///
 /// The name must match one of the entry's action buttons exactly,
-/// case-insensitively, the way the macOS adapter matches action names; a
-/// notification offering no such button is refused with `ACTION_NOT_SUPPORTED`
-/// and is left unchanged, because nothing was invoked.
+/// case-insensitively; a notification offering no such button is refused with
+/// `ACTION_NOT_SUPPORTED` and is left unchanged, because nothing was invoked.
 pub fn notification_action(
     index: usize,
     identity: Option<&NotificationIdentity>,

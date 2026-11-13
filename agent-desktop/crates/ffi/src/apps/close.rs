@@ -3,12 +3,12 @@ use crate::error::{AdResult, set_last_error};
 use crate::ffi_try::trap_panic;
 use std::os::raw::c_char;
 
-/// Closes the application identified by `id` (bundle id on macOS,
-/// executable path on other platforms). `force = true` skips the
+/// Closes the application identified by `id` (an executable path or a bare
+/// executable name). `force = true` skips the
 /// graceful-shutdown path, terminates matching app processes, and escalates
 /// survivors when the platform supports it. Session-critical processes
-/// (for example loginwindow and Dock on macOS, csrss.exe and winlogon.exe
-/// on Windows) are refused with `AD_RESULT_ERR_INVALID_ARGS` — the protected-process
+/// (for example csrss.exe and winlogon.exe) are refused with
+/// `AD_RESULT_ERR_INVALID_ARGS` — the protected-process
 /// guard is enforced inside the adapter, so FFI and CLI behave
 /// identically.
 ///

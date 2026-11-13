@@ -12,18 +12,18 @@ pub enum SlotStatus {
     /// The slot does not apply to this element on this platform, and
     /// contributes neither a value nor uncertainty.
     ///
-    /// This is how a platform folds its own role-gating in **before** calling
+    /// This is how an adapter folds its own role-gating in **before** calling
     /// the shared precedence, instead of passing a platform role token into
-    /// shared code. macOS admits `static_value` only for `AXStaticText`; every
-    /// other role suppresses the slot, and suppressing it must also suppress
-    /// the uncertainty of a `AXValue` read that was never going to be used.
+    /// shared code. An adapter admits `static_value` only for its static-text
+    /// role; every other role suppresses the slot, and suppressing it must also
+    /// suppress the uncertainty of a value read that was never going to be used.
     Suppressed,
 }
 
 /// The per-slot read outcome the shared name precedence consumes.
 ///
 /// It carries no role and no notion of child completeness on purpose. Both are
-/// platform concepts - a raw `AXStaticText` token, an adapter's own view of
+/// platform concepts - a raw platform role token, an adapter's own view of
 /// whether it enumerated every child - and threading either through would put
 /// a platform token inside shared code where no lint would catch it. Each
 /// caller folds its own gating into these statuses first, so the shared

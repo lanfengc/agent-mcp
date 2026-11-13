@@ -128,11 +128,6 @@ fn saved_snapshot_and_click_capture_use_exact_source_evidence() {
                 .as_nanos()
         ));
         std::fs::create_dir(&home).unwrap();
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&home, std::fs::Permissions::from_mode(0o700)).unwrap();
-        }
         let output = std::process::Command::new(std::env::current_exe().unwrap())
             .args(["--exact", "visual_debug::capture::tests::saved_snapshot_and_click_capture_use_exact_source_evidence", "--nocapture"])
             .env("VISUAL_DEBUG_CAPTURE_TEST_CHILD", "1").env("AGENT_DESKTOP_HOME", &home).output().unwrap();

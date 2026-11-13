@@ -102,7 +102,7 @@
     },
     "provider": {
       "type": "string",
-      "description": "Provider to use, such as 'ios'."
+      "description": "Provider to use, such as 'browserbase'."
     },
     "device": {
       "type": "string",
@@ -114,7 +114,7 @@
     },
     "webgpu": {
       "type": "boolean",
-      "description": "Enable WebGPU (SwiftShader software Vulkan on Linux; no GPU required). Defaults to false."
+      "description": "Enable WebGPU. Defaults to false."
     },
     "noWebmcp": {
       "type": "boolean",
@@ -126,7 +126,7 @@
     },
     "caCert": {
       "type": "string",
-      "description": "Path to a CA certificate or PEM bundle. Trusted by the CLI's own HTTPS requests (read, install, upgrade, doctor), and by locally launched Chromium on Linux. Trust remains active for later commands in the same running session."
+      "description": "Path to a CA certificate or PEM bundle. Trusted by the CLI's own HTTPS requests (read, install, upgrade, doctor). Trust remains active for later commands in the same running session."
     },
     "useSystemCa": {
       "type": "boolean",
@@ -179,7 +179,7 @@
       "items": {
         "type": "string"
       },
-      "description": "Allowed domain patterns (e.g., ['example.com', '*.example.com']). Requires a fresh controllable browser context, so CDP, auto-connect, Chrome profiles, restore/state replay, direct-page provider plugins, iOS, and Safari are not supported."
+      "description": "Allowed domain patterns (e.g., ['example.com', '*.example.com']). Requires a fresh controllable browser context, so CDP, auto-connect, Chrome profiles, restore/state replay, and direct-page provider plugins are not supported."
     },
     "actionPolicy": {
       "type": "string",

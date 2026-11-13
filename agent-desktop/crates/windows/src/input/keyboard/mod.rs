@@ -1,8 +1,8 @@
 //! `InputOps::key_event` and the keyboard-synthesis primitives it composes
 //! with: modifier chords (`keyboard_event`) and chunked UTF-16 text
 //! (`keyboard_text`). A standalone key edge has no daemon to own the hold
-//! across a request boundary, so it rejects the same way macOS's
-//! `reject_standalone_key_state` does - the atomic `press`/`type`
+//! across a request boundary, so it rejects through
+//! `reject_standalone_key_state` - the atomic `press`/`type`
 //! composers that call `synthesize_key`/`synthesize_text` under a focus
 //! verify belong to the `execute_action` physical legs wired in
 //! `actions/physical_keyboard`.

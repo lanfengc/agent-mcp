@@ -107,13 +107,6 @@ fn is_process_alive(pid_path: &Path) -> bool {
         Ok(p) => p,
         Err(_) => return false,
     };
-    #[cfg(unix)]
-    {
-        unsafe { libc::kill(pid as i32, 0) == 0 }
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = pid;
-        true
-    }
+    let _ = pid;
+    true
 }

@@ -6,8 +6,8 @@
 //! `f64`→`i32` narrowing into the crate `Point`. Mixed-DPI live verification
 //! stays with the A16-4 deferral chain.
 //!
-//! Ancestor landings yield `Unknown` with no macOS-style application-scoped
-//! retry — UIA has no scoped `ElementFromPoint`. That is the designed Chromium
+//! Ancestor landings yield `Unknown` with no application-scoped retry — UIA
+//! has no scoped `ElementFromPoint`. That is the designed Chromium
 //! outcome when a render-host pane answers for non-hit-addressable web content.
 //!
 //! Unrelated hits reach window-attribution corroboration (`hit_test_corroborate`):

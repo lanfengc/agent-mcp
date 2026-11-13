@@ -135,10 +135,6 @@ pub(super) fn check(checks: &mut Vec<Check>) {
     }
 }
 
-/// Longest we wait for a browser to report its own version before giving up.
-#[cfg(not(windows))]
-const VERSION_QUERY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
-
 /// Read the version from the binary's own resource table. Windows Chrome does
 /// not write a version to a redirected stdout, and `chrome.exe --version`
 /// leaves a process tree whose inherited stdout handle never closes, so the
@@ -204,63 +200,6 @@ fn query_chrome_version(path: &Path) -> Option<String> {
     ))
 }
 
-#[cfg(not(windows))]
-fn query_chrome_version(path: &Path) -> Option<String> {
-    let mut cmd = std::process::Command::new(path);
-    cmd.arg("--version");
-    run_version_command(cmd, VERSION_QUERY_TIMEOUT)
-}
-
-/// Run a version command, giving up after `timeout` and killing the child so
-/// doctor's liveness never depends on the browser exiting.
-#[cfg(not(windows))]
-fn run_version_command(
-    mut cmd: std::process::Command,
-    timeout: std::time::Duration,
-) -> Option<String> {
-    use std::io::Read;
-
-    let mut child = cmd
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-        .ok()?;
-
-    let deadline = std::time::Instant::now() + timeout;
-    let status = loop {
-        match child.try_wait() {
-            Ok(Some(status)) => break status,
-            Ok(None) => {
-                if std::time::Instant::now() >= deadline {
-                    let _ = child.kill();
-                    let _ = child.wait();
-                    return None;
-                }
-                std::thread::sleep(std::time::Duration::from_millis(20));
-            }
-            Err(_) => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return None;
-            }
-        }
-    };
-
-    if !status.success() {
-        return None;
-    }
-
-    let mut stdout = String::new();
-    child.stdout.take()?.read_to_string(&mut stdout).ok()?;
-    let s = stdout.trim().to_string();
-    if s.is_empty() {
-        None
-    } else {
-        Some(s)
-    }
-}
-
 pub(super) fn puppeteer_cache_dir() -> Option<PathBuf> {
     if let Ok(p) = env::var("PUPPETEER_CACHE_DIR") {
         return Some(PathBuf::from(p));
@@ -283,37 +222,5 @@ mod tests {
             assert!(s.contains(".cache"));
             assert!(s.ends_with("puppeteer"));
         }
-    }
-
-    #[cfg(not(windows))]
-    #[test]
-    fn version_query_gives_up_on_a_command_that_never_exits() {
-        use std::time::{Duration, Instant};
-
-        let mut cmd = std::process::Command::new("/bin/sh");
-        cmd.arg("-c").arg("sleep 60");
-
-        let started = Instant::now();
-        let result = run_version_command(cmd, Duration::from_millis(300));
-        let elapsed = started.elapsed();
-
-        assert!(result.is_none());
-        assert!(
-            elapsed < Duration::from_secs(5),
-            "took {:?}, so the deadline did not fire",
-            elapsed
-        );
-    }
-
-    #[cfg(not(windows))]
-    #[test]
-    fn version_query_returns_trimmed_stdout() {
-        let mut cmd = std::process::Command::new("/bin/sh");
-        cmd.arg("-c").arg("echo '  Google Chrome 150.0.0.0  '");
-
-        assert_eq!(
-            run_version_command(cmd, std::time::Duration::from_secs(5)).as_deref(),
-            Some("Google Chrome 150.0.0.0")
-        );
     }
 }

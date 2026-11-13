@@ -24,32 +24,32 @@ fn sandbox_exec_hands_every_argument_after_the_separator_to_the_guest() {
         "--",
         "snapshot",
         "--app",
-        "Finder",
+        "notepad.exe",
         "--verbose",
     ]);
 
     assert_eq!(exec.name, "dev");
-    assert_eq!(exec.args, ["snapshot", "--app", "Finder", "--verbose"]);
+    assert_eq!(exec.args, ["snapshot", "--app", "notepad.exe", "--verbose"]);
 }
 
 #[test]
 fn sandbox_install_takes_an_optional_provider_and_no_settings() {
-    let cli = Cli::try_parse_from(["agent-desktop", "sandbox", "install", "macos"])
+    let cli = Cli::try_parse_from(["agent-desktop", "sandbox", "install", "example"])
         .expect("sandbox install parses");
     assert!(matches!(
         cli.command,
         Some(Commands::Sandbox(super::SandboxArgs {
             action: SandboxActionCli::Install(ref args),
-        })) if args.provider.as_deref() == Some("macos")
+        })) if args.provider.as_deref() == Some("example")
     ));
 
     let error = Cli::try_parse_from([
         "agent-desktop",
         "sandbox",
         "install",
-        "macos",
+        "example",
         "--set",
-        "binary=/tmp/agent-desktop",
+        "binary=C:/agent-desktop.exe",
     ])
     .expect_err("install takes no provider settings");
     assert_eq!(error.exit_code(), 2);

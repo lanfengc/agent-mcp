@@ -213,7 +213,7 @@ fn gone() -> AdapterError {
 
 /// Whether a live window is the one the entry was captured from: the owner kind,
 /// pid and a recorded window id must agree, and process generations must agree
-/// when both sides carry one, since some macOS window records omit it.
+/// when both sides carry one, since some window records omit it.
 fn belongs_to_entry(window: &WindowInfo, entry: &RefEntry) -> bool {
     window.is_process_owner() == entry.source.is_process_owned()
         && window.pid == entry.process.pid

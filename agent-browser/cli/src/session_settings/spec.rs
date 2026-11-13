@@ -28,11 +28,11 @@ macro_rules! keys {
 
 keys! {
     // Connection target.
-    Cdp, CdpHeaders, AutoConnect, Provider, Device,
+    Cdp, CdpHeaders, AutoConnect, Provider,
     // Launch-shaping.
     Engine, Headed, Profile, Args, ExecutablePath, Extensions, Proxy, ProxyBypass,
     ProxyUsername, ProxyPassword, UserAgent, IgnoreHttpsErrors, AllowFileAccess,
-    HideScrollbars, Webgpu, Webmcp, NoXvfb, CaCert, ClearCaCert, InitScripts, Enable,
+    HideScrollbars, Webgpu, Webmcp, CaCert, ClearCaCert, InitScripts, Enable,
     Plugins, StorageState, ColorScheme, DownloadPath, Capture,
     // Security.
     AllowedDomains, ActionPolicy, ConfirmActions,
@@ -184,9 +184,6 @@ fn read_auto_connect(f: &Flags) -> Option<Requested> {
 fn read_provider(f: &Flags) -> Option<Requested> {
     string(&f.provider)
 }
-fn read_device(f: &Flags) -> Option<Requested> {
-    string(&f.device)
-}
 fn read_engine(f: &Flags) -> Option<Requested> {
     string(&f.engine)
 }
@@ -252,10 +249,6 @@ fn read_webgpu(f: &Flags) -> Option<Requested> {
 }
 fn read_webmcp(f: &Flags) -> Option<Requested> {
     (f.no_webmcp || f.cli_no_webmcp).then_some(Requested::Set(Value::Bool(!f.no_webmcp)))
-}
-fn read_no_xvfb(f: &Flags) -> Option<Requested> {
-    // An explicit off value has to reach a session that was started with it on.
-    (f.no_xvfb || f.no_xvfb_set).then_some(Requested::Set(Value::Bool(f.no_xvfb)))
 }
 fn read_ca_cert(f: &Flags) -> Option<Requested> {
     string(&f.ca_cert)
@@ -388,16 +381,6 @@ pub static SPECS: &[Spec] = &[
         false,
         Str,
         read_provider
-    ),
-    row!(
-        Device,
-        "device",
-        "--device",
-        Launch,
-        Memory,
-        false,
-        Str,
-        read_device
     ),
     row!(
         Engine,
@@ -540,16 +523,6 @@ pub static SPECS: &[Spec] = &[
         false,
         Bool,
         read_webmcp
-    ),
-    row!(
-        NoXvfb,
-        "no-xvfb",
-        "",
-        Launch,
-        Memory,
-        false,
-        Bool,
-        read_no_xvfb
     ),
     row!(
         CaCert,

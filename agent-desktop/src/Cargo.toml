@@ -15,17 +15,8 @@ thiserror.workspace          = true
 tracing.workspace            = true
 tracing-subscriber.workspace = true
 
-[target.'cfg(target_os = "macos")'.dependencies]
-agent-desktop-macos = { path = "../crates/macos" }
-
-[target.'cfg(unix)'.dependencies]
-libc.workspace = true
-
 [target.'cfg(target_os = "windows")'.dependencies]
 agent-desktop-windows = { path = "../crates/windows" }
-
-[target.'cfg(target_os = "linux")'.dependencies]
-agent-desktop-linux = { path = "../crates/linux" }
 
 [target.'cfg(target_os = "windows")'.dev-dependencies]
 windows-sys = { version = "0.61", features = [
@@ -57,10 +48,6 @@ path = "tests/cli_stdin.rs"
 [[test]]
 name = "mcp_process"
 path = "tests/mcp_process.rs"
-
-[[test]]
-name = "command_host_absent"
-path = "tests/command_host_absent.rs"
 
 [[test]]
 name = "windows_private_file_install"

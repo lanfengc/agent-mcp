@@ -27,7 +27,7 @@ For a task the agent itself will repeat, `agent-browser flow start` and `flow sa
 ```bash
 agent-browser network har start          # embeds text response bodies by default
 # ... drive the site: search, open a detail page, paginate, etc. ...
-agent-browser network har stop /tmp/site.har
+agent-browser network har stop site.har
 ```
 
 - Exercise **every flow the client should support**, and run each one at least twice with different inputs (two search terms, two detail pages). Diffing the recorded URLs reveals which parts are parameters.
@@ -44,7 +44,7 @@ Query the HAR with `jq`:
 # All JSON API calls: method, URL, status
 jq -r '.log.entries[]
   | select(.response.content.mimeType | test("json"))
-  | "\(.request.method) \(.response.status) \(.request.url)"' /tmp/site.har
+  | "\(.request.method) \(.response.status) \(.request.url)"' site.har
 ```
 
 Ignore analytics and infrastructure noise: telemetry endpoints (`/collect`, `/track`, `/beacon`, `/log`), third-party domains (google-analytics, segment, sentry, datadog, intercom, hotjar), and static assets. The real API is usually first-party, JSON, and correlates with the actions you performed.
@@ -56,7 +56,7 @@ Ignore analytics and infrastructure noise: telemetry endpoints (`/collect`, `/tr
 jq '.log.entries[] | select(.request.url | test("api/search"))
   | {request: {method: .request.method, headers: .request.headers,
      postData: .request.postData.text},
-     response: .response.content.text}' /tmp/site.har
+     response: .response.content.text}' site.har
 ```
 
 - **Response schema**: read `.response.content.text` — this is the real payload, use it to derive types.

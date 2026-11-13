@@ -1,8 +1,7 @@
 use super::*;
 
-/// Mirrors macOS's `standalone_key_state_is_rejected_without_emission`,
-/// inverted against actually emitting anything: a held key edge has no
-/// daemon to own it, so it must fail closed with zero synthesis.
+/// A held key edge has no daemon to own it, so it must fail closed with zero
+/// synthesis.
 #[test]
 fn standalone_key_state_is_rejected_without_emission() {
     let error = reject_standalone_key_state(

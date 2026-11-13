@@ -63,7 +63,6 @@ impl Running {
             (Key::RestoreCheckText, "AGENT_BROWSER_RESTORE_CHECK_TEXT"),
             (Key::RestoreCheckFn, "AGENT_BROWSER_RESTORE_CHECK_FN"),
             (Key::ConfirmActions, "AGENT_BROWSER_CONFIRM_ACTIONS"),
-            (Key::Device, "AGENT_BROWSER_IOS_DEVICE"),
         ];
         for (key, name) in strings {
             if let Some(v) = lookup(name) {
@@ -95,7 +94,6 @@ impl Running {
             (Key::AllowFileAccess, "AGENT_BROWSER_ALLOW_FILE_ACCESS"),
             (Key::IgnoreHttpsErrors, "AGENT_BROWSER_IGNORE_HTTPS_ERRORS"),
             (Key::Webgpu, "AGENT_BROWSER_WEBGPU"),
-            (Key::NoXvfb, "AGENT_BROWSER_NO_XVFB"),
             (Key::Debug, "AGENT_BROWSER_DEBUG"),
         ];
         for (key, name) in flags {

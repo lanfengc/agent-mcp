@@ -1,8 +1,8 @@
 # Adapter reliability conformance
 
-Every platform adapter must meet the same ref and action contract. The tests are written against `PlatformAdapter` semantics, so macOS AX, Windows UIA and Linux AT-SPI share one set of expectations.
+The adapter must meet the same ref and action contract on every surface it reads. The tests are written against `PlatformAdapter` semantics, so window, menu and system surfaces share one set of expectations.
 
-The reusable command-path helper is `tests/conformance/ref_action_contract.rs`. `window_identity_contract.rs` covers window identity, and `macos_notification_contract.rs` covers notifications (macOS only). `src/tests/conformance.rs` mounts all three and runs the ref and action helper against a mock adapter. A fixture that drives a real adapter can call the same helper with adapter-provided refs.
+The reusable command-path helper is `tests/conformance/ref_action_contract.rs`. `window_identity_contract.rs` covers window identity. `src/tests/conformance.rs` mounts both and runs the ref and action helper against a mock adapter. A fixture that drives the real adapter can call the same helper with adapter-provided refs.
 
 ## Required gates
 
@@ -18,21 +18,21 @@ The reusable command-path helper is `tests/conformance/ref_action_contract.rs`. 
 | Session lifecycle | `session start/end/list/gc` manage manifests, the current-session pointer, and trace directories |
 | FFI parity | FFI ref actions use strict resolve and actionability checks before adapter dispatch |
 
-## Platform matrix
+## Surface matrix
 
-| Fixture | macOS AX | Windows UIA | Linux AT-SPI |
-|---------|:--------:|:-----------:|:------------:|
-| Two identical buttons produce ambiguity | Required | Required | Required |
-| Ref disappears after snapshot | Required | Required | Required |
-| Disabled button blocks click before dispatch | Required | Required | Required |
-| Text field supports value/type actionability | Required | Required | Required |
-| Session A latest refmap is invisible to Session B | Required | Required | Required |
-| Batch item session overrides inherited session | Required | Required | Required |
-| FFI `AdRefEntry` preserves full identity envelope | Required | Required | Required |
+| Fixture | Windows UIA |
+|---------|:-----------:|
+| Two identical buttons produce ambiguity | Required |
+| Ref disappears after snapshot | Required |
+| Disabled button blocks click before dispatch | Required |
+| Text field supports value/type actionability | Required |
+| Session A latest refmap is invisible to Session B | Required |
+| Batch item session overrides inherited session | Required |
+| FFI `AdRefEntry` preserves full identity envelope | Required |
 
-## Adding a platform
+## Adding a fixture
 
-Add adapter-specific integration fixtures, but keep expected errors and JSON shapes identical. Prefer semantic platform actions first (`AXPress`, UIA Invoke, Value and Selection patterns, AT-SPI actions). Coordinate input is a lower-confidence fallback, so it must stay explicit in policy or command choice.
+Add adapter-specific integration fixtures, but keep expected errors and JSON shapes identical. Prefer semantic UIA patterns first (Invoke, Value and Selection patterns). Coordinate input is a lower-confidence fallback, so it must stay explicit in policy or command choice.
 
 ## Windows private-storage gate
 

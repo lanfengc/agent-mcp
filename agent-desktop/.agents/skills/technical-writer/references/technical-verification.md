@@ -69,12 +69,12 @@ Show expected output when it helps readers verify success. Mark variable fields 
 
 ## agent-desktop commands and output
 
-Check each command against its source before documenting it. Commands are declared in `src/cli/` with arguments in `src/cli_args/`, and each command's behavior lives in `crates/core/src/commands/<name>.rs`. Platform behavior lives in `crates/macos`, `crates/windows`, and `crates/linux`.
+Check each command against its source before documenting it. Commands are declared in `src/cli/` with arguments in `src/cli_args/`, and each command's behavior lives in `crates/core/src/commands/<name>.rs`. Windows behavior lives in `crates/windows`.
 
 - Copy JSON examples from real output or from `docs/json-output.md`. Keep the envelope fields (`version`, `ok`, `command`, `data` or `error`) and the current contract version.
 - Use the documented error codes and exit codes, and name the `recovery` strategy only where the error carries one.
 - Write refs in their qualified form (`@s8f3k2p9:e1`). A bare `@e1` is rejected as input.
-- Check each platform claim against that platform's skill (`skills/agent-desktop-macos/`, `skills/agent-desktop-windows/`, `skills/agent-desktop-linux/`). A command name that exists on every platform can still fail closed on one.
+- Check each Windows claim against the platform skill (`skills/agent-desktop-windows/`) and shared behavior against `skills/agent-desktop/`.
 - For the C library, check signatures against the generated header `crates/ffi/include/agent_desktop.h` and the FFI skill in `skills/agent-desktop-ffi/`.
 
 ## SDK behavior

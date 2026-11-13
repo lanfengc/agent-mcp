@@ -2,10 +2,9 @@
 //!
 //! The PNG is decoded once per version of its file and kept premultiplied,
 //! in the surface's own BGRA layout, so a frame only composites it. Each draw
-//! checks the file's size and modification time, the way the macOS renderer
-//! re-checks its image, so a replaced PNG is decoded again and one that failed
-//! to decode is retried once it changes. It is drawn at the style's size, with
-//! its hotspot on the pose point, the way the macOS renderer draws it.
+//! checks the file's size and modification time, so a replaced PNG is decoded
+//! again and one that failed to decode is retried once it changes. It is drawn
+//! at the style's size, with its hotspot on the pose point.
 
 use std::cell::RefCell;
 use std::collections::HashMap;

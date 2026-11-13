@@ -1,25 +1,22 @@
 #!/usr/bin/env node
 
 /**
- * Copies the compiled Rust binary to bin/ with platform-specific naming
+ * Copies the compiled Rust binary to bin/ with the Windows target name.
  */
 
 import { copyFileSync, existsSync, mkdirSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { platform, arch } from 'os';
+import { arch } from 'os';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = join(__dirname, '..');
 
-const sourceExt = platform() === 'win32' ? '.exe' : '';
-const sourcePath = join(projectRoot, `cli/target/release/agent-browser${sourceExt}`);
+const sourcePath = join(projectRoot, 'cli/target/release/agent-browser.exe');
 const binDir = join(projectRoot, 'bin');
 
-// Determine platform suffix
-const platformKey = `${platform()}-${arch()}`;
-const ext = platform() === 'win32' ? '.exe' : '';
-const targetName = `agent-browser-${platformKey}${ext}`;
+const archKey = arch() === 'arm64' ? 'arm64' : 'x64';
+const targetName = `agent-browser-win32-${archKey}.exe`;
 const targetPath = join(binDir, targetName);
 
 if (!existsSync(sourcePath)) {

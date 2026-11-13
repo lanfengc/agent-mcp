@@ -28,32 +28,7 @@ pub(super) fn human_size(bytes: u64) -> String {
     }
 }
 
-#[cfg(unix)]
-pub(super) fn disk_free_bytes(path: &Path) -> Option<u64> {
-    use std::ffi::CString;
-    use std::os::unix::ffi::OsStrExt;
-    use std::path::PathBuf;
-
-    // Walk up to the first existing ancestor (for fresh installs where the
-    // state dir hasn't been created yet).
-    let mut probe: PathBuf = path.to_path_buf();
-    while !probe.exists() {
-        probe = probe.parent()?.to_path_buf();
-    }
-    let c_path = CString::new(probe.as_os_str().as_bytes()).ok()?;
-    let mut stat: libc::statvfs = unsafe { std::mem::zeroed() };
-    if unsafe { libc::statvfs(c_path.as_ptr(), &mut stat) } != 0 {
-        return None;
-    }
-    Some(stat.f_bavail as u64 * stat.f_frsize)
-}
-
 #[cfg(windows)]
-pub(super) fn disk_free_bytes(_path: &Path) -> Option<u64> {
-    None
-}
-
-#[cfg(not(any(unix, windows)))]
 pub(super) fn disk_free_bytes(_path: &Path) -> Option<u64> {
     None
 }
@@ -62,14 +37,9 @@ pub(super) fn which_exists(name: &str) -> bool {
     which_path(name).is_some()
 }
 
-/// Resolve `name` on PATH via `which` / `where`, returning the first match.
+/// Resolve `name` on PATH via `where`, returning the first match.
 pub(super) fn which_path(name: &str) -> Option<std::path::PathBuf> {
-    let probe = if cfg!(target_os = "windows") {
-        "where"
-    } else {
-        "which"
-    };
-    let output = std::process::Command::new(probe)
+    let output = std::process::Command::new("where")
         .arg(name)
         .stdin(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
@@ -127,11 +97,7 @@ mod tests {
     fn test_disk_free_walks_up_to_existing_ancestor() {
         let dir = TempDir::new().unwrap();
         let nested = dir.path().join("a/b/c/d");
-        let bytes = disk_free_bytes(&nested);
-        if cfg!(unix) {
-            assert!(bytes.is_some());
-            assert!(bytes.unwrap() > 0);
-        }
+        assert_eq!(disk_free_bytes(&nested), None);
     }
 
     #[test]
@@ -145,13 +111,7 @@ mod tests {
 
     #[test]
     fn test_which_exists_matches_common_binaries() {
-        // `sh` exists on every unix; `cmd` exists on windows.
-        let probe = if cfg!(target_os = "windows") {
-            "cmd"
-        } else {
-            "sh"
-        };
-        assert!(which_exists(probe));
+        assert!(which_exists("cmd"));
         assert!(!which_exists(
             "agent-browser-this-does-not-exist-please-dont-install-it"
         ));
@@ -159,12 +119,7 @@ mod tests {
 
     #[test]
     fn test_which_path_returns_an_existing_binary() {
-        let probe = if cfg!(target_os = "windows") {
-            "cmd"
-        } else {
-            "sh"
-        };
-        let path = which_path(probe).expect("probe binary should resolve");
+        let path = which_path("cmd").expect("probe binary should resolve");
         assert!(path.is_absolute(), "got {}", path.display());
         assert!(path.exists(), "got {}", path.display());
         assert!(which_path("agent-browser-this-does-not-exist-please-dont-install-it").is_none());

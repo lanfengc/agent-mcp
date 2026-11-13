@@ -13,10 +13,6 @@ mod ref_action_contract;
 #[path = "../../tests/conformance/window_identity_contract.rs"]
 mod window_identity_contract;
 
-#[cfg(target_os = "macos")]
-#[path = "../../tests/conformance/macos_notification_contract.rs"]
-mod macos_notification_contract;
-
 struct ContractAdapter {
     resolve: ResolveMode,
     live_bounds: Option<Rect>,

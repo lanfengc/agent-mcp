@@ -14,21 +14,14 @@ useDefault = true
 [[rules]]
 id = "ad-home-directory-path"
 description = "Absolute home-directory path exposing an operator account name"
-# The first character after the home root must not be a dot, so relative
-# fragments like "$suite_root/home/.cache" are not mistaken for "/home/<user>".
-regex = '''(?i)(/Users/|/home/|[A-Za-z]:\\Users\\)[A-Za-z0-9_-][A-Za-z0-9._-]{1,}'''
+regex = '''(?i)[A-Za-z]:\\Users\\[A-Za-z0-9_-][A-Za-z0-9._-]{1,}'''
 tags = ["privacy", "path", "identity"]
 
 [[rules.allowlists]]
 description = "Documented path examples and CI runner homes"
 regexTarget = "match"
 regexes = [
-  '''(?i)^/Users/(name|user|username|you|youruser|runner|me|someone)(/|$)''',
-  '''(?i)^/home/(name|user|username|you|youruser|runner|me|someone|example-user)(/|$)''',
   '''(?i)^[A-Za-z]:\\Users\\(name|user|username|you|youruser|runner|me|someone)(\\|$)''',
-  '''(?i)^/Users/(DevUser|BuildUser)$''',
-  '''(?i)^/home/alice(-other)?$''',
-  '''^/home/linuxbrew$''',
 ]
 
 [[rules]]
@@ -52,10 +45,6 @@ regexes = [
   '''(?i)^noreply@github\.com$''',
   '''^secret@router\.example$''',
   '''^fixture@example\.invalid$''',
-  '''^org\.gnome\.Shell@(x11|wayland)\.service$''',
-  '''^user@[0-9]+\.service$''',
-  '''^ubuntu-appindicators@ubuntu\.com$''',
-  '''^ubuntu-dock@ubuntu\.com$''',
 ]
 
 [[rules.allowlists]]

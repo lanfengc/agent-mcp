@@ -23,8 +23,7 @@ const PER_PROBE_CAP_MS: u64 = 500;
 
 /// Pure hang classification for a process already known to be alive.
 ///
-/// Kept free of platform APIs so the retry threshold is unit-testable on
-/// every host, matching the macOS `classify` shape.
+/// Kept free of platform APIs so the retry threshold is unit-testable.
 pub(crate) fn classify_hang(
     mut probe: impl FnMut() -> Result<HangProbeResult, AdapterError>,
 ) -> Result<ProcessState, AdapterError> {

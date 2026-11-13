@@ -1,6 +1,6 @@
 //! The control wire format and the single acknowledgement byte.
 //!
-//! Pure, and deliberately the same shape macOS uses: one JSON-encoded
+//! Pure: one JSON-encoded
 //! `CursorOverlayControl` per connection under a size cap, answered by one
 //! byte. The cap matters because the payload arrives from another process and
 //! a framing that grows with its input is a framing an unbounded write can
@@ -14,7 +14,7 @@
 
 use agent_desktop_core::{AdapterError, CursorOverlayControl, ErrorCode};
 
-/// Matches the macOS transport's cap. A control is coordinates, a short label
+/// The transport's control-size cap. A control is coordinates, a short label
 /// and a style; nothing legitimate approaches this.
 pub(crate) const MAX_CONTROL_BYTES: usize = 4096;
 
@@ -57,8 +57,7 @@ pub(crate) fn decode(bytes: &[u8]) -> Result<CursorOverlayControl, AdapterError>
 /// Whether the sender of this control waits for the byte the renderer sends
 /// back.
 ///
-/// An `Enable` is included and macOS's send path does not include it. That is
-/// a deliberate divergence: `data.rendered` is answered from this
+/// An `Enable` is included because `data.rendered` is answered from this
 /// acknowledgement, and the bootstrap that starts the child is a one-way
 /// stdin write with no return path of its own.
 pub(crate) fn is_acknowledged(control: &CursorOverlayControl) -> bool {

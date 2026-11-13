@@ -12,9 +12,6 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
-#[cfg(unix)]
-use std::os::unix::net::UnixStream;
-
 #[cfg(windows)]
 use windows_sys::Win32::Foundation::CloseHandle;
 #[cfg(windows)]
@@ -51,16 +48,12 @@ pub struct Response {
 
 #[allow(dead_code)]
 pub enum Connection {
-    #[cfg(unix)]
-    Unix(UnixStream),
     Tcp(TcpStream),
 }
 
 impl Read for Connection {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         match self {
-            #[cfg(unix)]
-            Connection::Unix(s) => s.read(buf),
             Connection::Tcp(s) => s.read(buf),
         }
     }
@@ -69,16 +62,12 @@ impl Read for Connection {
 impl Write for Connection {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         match self {
-            #[cfg(unix)]
-            Connection::Unix(s) => s.write(buf),
             Connection::Tcp(s) => s.write(buf),
         }
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
         match self {
-            #[cfg(unix)]
-            Connection::Unix(s) => s.flush(),
             Connection::Tcp(s) => s.flush(),
         }
     }
@@ -87,53 +76,29 @@ impl Write for Connection {
 impl Connection {
     pub fn set_read_timeout(&self, dur: Option<Duration>) -> std::io::Result<()> {
         match self {
-            #[cfg(unix)]
-            Connection::Unix(s) => s.set_read_timeout(dur),
             Connection::Tcp(s) => s.set_read_timeout(dur),
         }
     }
 
     pub fn set_write_timeout(&self, dur: Option<Duration>) -> std::io::Result<()> {
         match self {
-            #[cfg(unix)]
-            Connection::Unix(s) => s.set_write_timeout(dur),
             Connection::Tcp(s) => s.set_write_timeout(dur),
         }
     }
 }
 
 /// Get the base directory for socket/pid files.
-/// Priority: AGENT_BROWSER_SOCKET_DIR > XDG_RUNTIME_DIR > ~/.agent-browser > tmpdir
+/// Priority: AGENT_BROWSER_SOCKET_DIR > ~/.agent-browser > tmpdir
 pub fn get_socket_dir() -> PathBuf {
     // 1. Explicit override (ignore empty string)
     let base = if let Ok(dir) = env::var("AGENT_BROWSER_SOCKET_DIR") {
         if !dir.is_empty() {
             PathBuf::from(dir)
-        } else if let Ok(runtime_dir) = env::var("XDG_RUNTIME_DIR") {
-            if !runtime_dir.is_empty() {
-                PathBuf::from(runtime_dir).join("agent-browser")
-            } else if let Some(home) = std::env::home_dir() {
-                home.join(".agent-browser")
-            } else {
-                env::temp_dir().join("agent-browser")
-            }
-        } else if let Some(home) = std::env::home_dir() {
-            home.join(".agent-browser")
         } else {
-            env::temp_dir().join("agent-browser")
+            default_socket_dir()
         }
-    } else if let Ok(runtime_dir) = env::var("XDG_RUNTIME_DIR") {
-        if !runtime_dir.is_empty() {
-            PathBuf::from(runtime_dir).join("agent-browser")
-        } else if let Some(home) = std::env::home_dir() {
-            home.join(".agent-browser")
-        } else {
-            env::temp_dir().join("agent-browser")
-        }
-    } else if let Some(home) = std::env::home_dir() {
-        home.join(".agent-browser")
     } else {
-        env::temp_dir().join("agent-browser")
+        default_socket_dir()
     };
 
     if let Ok(namespace) = env::var("AGENT_BROWSER_NAMESPACE") {
@@ -146,9 +111,12 @@ pub fn get_socket_dir() -> PathBuf {
     base
 }
 
-#[cfg(unix)]
-fn get_socket_path(session: &str) -> PathBuf {
-    SessionFile::Socket.path(session)
+fn default_socket_dir() -> PathBuf {
+    if let Some(home) = std::env::home_dir() {
+        home.join(".agent-browser")
+    } else {
+        env::temp_dir().join("agent-browser")
+    }
 }
 
 fn get_pid_path(session: &str) -> PathBuf {
@@ -169,19 +137,7 @@ pub fn cleanup_stale_files(session: &str) {
 }
 
 /// Returns whether a process with the given PID is currently alive.
-///
-/// On unix, EPERM (process exists but we can't signal it) counts as alive
-/// so we don't mis-clean a live daemon owned by a different uid. Only ESRCH
-/// ("no such process") is treated as dead.
 pub fn is_pid_alive(pid: u32) -> bool {
-    #[cfg(unix)]
-    unsafe {
-        if libc::kill(pid as i32, 0) == 0 {
-            return true;
-        }
-        std::io::Error::last_os_error().raw_os_error() != Some(libc::ESRCH)
-    }
-    #[cfg(windows)]
     unsafe {
         // An exited process can still be opened while any handle to it is
         // open, so check that it has not exited.
@@ -199,49 +155,23 @@ pub fn is_pid_alive(pid: u32) -> bool {
 /// Returns true only when the process image name starts with "agent-browser" (case-insensitive), and false when it cannot be determined.
 /// Another agent-browser process that reuses the PID still passes.
 pub fn is_agent_browser_process(pid: u32) -> bool {
-    let path: Option<String>;
-    #[cfg(target_os = "linux")]
-    {
-        path = fs::read_link(format!("/proc/{}/exe", pid))
-            .ok()
-            .map(|p| p.to_string_lossy().into_owned());
-    }
-    #[cfg(target_os = "macos")]
-    {
-        let mut buf = vec![0u8; 4096];
-        let n =
-            unsafe { libc::proc_pidpath(pid as i32, buf.as_mut_ptr() as *mut libc::c_void, 4096) };
-        path = if n > 0 {
-            Some(String::from_utf8_lossy(&buf[..n as usize]).into_owned())
-        } else {
+    use windows_sys::Win32::System::Threading::QueryFullProcessImageNameW;
+    let path: Option<String> = unsafe {
+        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        if handle == 0 {
             None
-        };
-    }
-    #[cfg(windows)]
-    {
-        use windows_sys::Win32::System::Threading::QueryFullProcessImageNameW;
-        path = unsafe {
-            let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
-            if handle == 0 {
-                None
+        } else {
+            let mut buf = [0u16; 1024];
+            let mut len = buf.len() as u32;
+            let ok = QueryFullProcessImageNameW(handle, 0, buf.as_mut_ptr(), &mut len);
+            CloseHandle(handle);
+            if ok != 0 {
+                Some(String::from_utf16_lossy(&buf[..len as usize]))
             } else {
-                let mut buf = [0u16; 1024];
-                let mut len = buf.len() as u32;
-                let ok = QueryFullProcessImageNameW(handle, 0, buf.as_mut_ptr(), &mut len);
-                CloseHandle(handle);
-                if ok != 0 {
-                    Some(String::from_utf16_lossy(&buf[..len as usize]))
-                } else {
-                    None
-                }
+                None
             }
-        };
-    }
-    #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
-    {
-        let _ = pid;
-        path = None;
-    }
+        }
+    };
     path.and_then(|p| {
         p.rsplit(['/', '\\'])
             .next()
@@ -266,8 +196,6 @@ pub enum CleanReason {
     ProcessGone,
     /// The `.pid` file could not be parsed as a PID.
     UnreadablePidFile,
-    /// A `.sock` file had no corresponding `.pid` file (unix only).
-    OrphanedSocket,
     /// The `dashboard.pid` referenced a process that no longer exists.
     DashboardGone,
 }
@@ -304,11 +232,11 @@ pub fn read_session_version(session: &str) -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
-/// Walk the socket directory and classify each `.pid` / `.sock` entry.
+/// Walk the socket directory and classify each `.pid` entry.
 ///
 /// - Live daemons go into `sessions` with their `.version` file contents.
-/// - Stale entries (process gone, unreadable pid, orphaned `.sock`) are
-///   cleaned via [`cleanup_stale_files`] and recorded in `cleaned`.
+/// - Stale entries (process gone, unreadable pid) are cleaned via
+///   [`cleanup_stale_files`] and recorded in `cleaned`.
 /// - `dashboard.pid` lands in `dashboard` with liveness info; if the
 ///   process is gone, the pid file is removed and a `DashboardGone` entry
 ///   is added to `cleaned`.
@@ -382,27 +310,6 @@ pub fn walk_daemons() -> DaemonInventory {
         });
     }
 
-    // Orphaned .sock files without a corresponding .pid (unix only).
-    #[cfg(unix)]
-    if let Ok(entries) = fs::read_dir(&socket_dir) {
-        for entry in entries.flatten() {
-            let name = entry.file_name().to_string_lossy().to_string();
-            if let Some(session_name) = name.strip_suffix(".sock") {
-                if session_name.is_empty() {
-                    continue;
-                }
-                let pid_path = SessionFile::Pid.path_in(&socket_dir, session_name);
-                if !pid_path.exists() {
-                    cleanup_stale_files(session_name);
-                    inventory.cleaned.push(CleanedSession {
-                        name: session_name.to_string(),
-                        reason: CleanReason::OrphanedSocket,
-                    });
-                }
-            }
-        }
-    }
-
     inventory
 }
 
@@ -430,7 +337,7 @@ pub fn get_port_for_session(session: &str) -> u16 {
     }
     // Correct logic: first take absolute modulo, then cast to u16
     // Using unsigned_abs() to safely handle i32::MIN
-    49152 + ((hash.unsigned_abs() as u32 % 16383) as u16)
+    49152 + ((hash.unsigned_abs() % 16383) as u16)
 }
 
 /// Read the actual daemon port from the `.port` file written by the daemon.
@@ -445,21 +352,13 @@ pub fn resolve_port(session: &str) -> Option<u16> {
 }
 
 pub fn daemon_ready(session: &str) -> bool {
-    #[cfg(unix)]
-    {
-        let socket_path = get_socket_path(session);
-        UnixStream::connect(&socket_path).is_ok()
-    }
-    #[cfg(windows)]
-    {
-        resolve_port(session).is_some_and(|port| {
-            TcpStream::connect_timeout(
-                &format!("127.0.0.1:{}", port).parse().unwrap(),
-                Duration::from_millis(50),
-            )
-            .is_ok()
-        })
-    }
+    resolve_port(session).is_some_and(|port| {
+        TcpStream::connect_timeout(
+            &format!("127.0.0.1:{}", port).parse().unwrap(),
+            Duration::from_millis(50),
+        )
+        .is_ok()
+    })
 }
 
 /// Result of ensure_daemon indicating whether a new daemon was started
@@ -495,7 +394,6 @@ pub struct DaemonOptions<'a> {
     pub profile: Option<&'a str>,
     pub state: Option<&'a str>,
     pub provider: Option<&'a str>,
-    pub device: Option<&'a str>,
     pub session_name: Option<&'a str>,
     pub restore_save: Option<&'a str>,
     pub restore_check_url: Option<&'a str>,
@@ -539,7 +437,6 @@ impl DaemonOptions<'static> {
             profile: None,
             state: None,
             provider: None,
-            device: None,
             session_name: None,
             restore_save: None,
             restore_check_url: None,
@@ -623,9 +520,6 @@ fn apply_daemon_env(cmd: &mut Command, session: &str, opts: &DaemonOptions) {
     }
     if let Some(p) = opts.provider {
         cmd.env("AGENT_BROWSER_PROVIDER", p);
-    }
-    if let Some(d) = opts.device {
-        cmd.env("AGENT_BROWSER_IOS_DEVICE", d);
     }
     if let Some(sn) = opts.session_name {
         cmd.env("AGENT_BROWSER_SESSION_NAME", sn);
@@ -859,15 +753,8 @@ fn daemon_version_matches(session: &str) -> bool {
     }
 }
 
-/// Kill a running daemon by reading its PID file and sending a kill signal.
+/// Kill a running daemon by reading its PID file and terminating it.
 fn kill_stale_daemon(session: &str) {
-    // Remove the socket first so no new connections reach the old daemon
-    #[cfg(unix)]
-    {
-        let socket_path = get_socket_path(session);
-        let _ = fs::remove_file(&socket_path);
-    }
-
     let pid_path = get_pid_path(session);
     if let Ok(pid_str) = fs::read_to_string(&pid_path) {
         if let Some(pid) = pid_str
@@ -876,35 +763,12 @@ fn kill_stale_daemon(session: &str) {
             .ok()
             .filter(|p| is_agent_browser_process(*p))
         {
-            #[cfg(unix)]
-            {
-                unsafe {
-                    libc::kill(pid as i32, libc::SIGTERM);
-                }
-                // Wait up to 1s for graceful shutdown, then force-kill
-                for _ in 0..10 {
-                    thread::sleep(Duration::from_millis(100));
-                    if unsafe { libc::kill(pid as i32, 0) } != 0 {
-                        break;
-                    }
-                }
-                // Force-kill if still alive
-                if unsafe { libc::kill(pid as i32, 0) } == 0 {
-                    unsafe {
-                        libc::kill(pid as i32, libc::SIGKILL);
-                    }
-                    thread::sleep(Duration::from_millis(100));
-                }
-            }
-            #[cfg(windows)]
-            {
-                let _ = Command::new("taskkill")
-                    .args(["/PID", &pid.to_string(), "/F"])
-                    .stdout(Stdio::null())
-                    .stderr(Stdio::null())
-                    .status();
-                thread::sleep(Duration::from_millis(500));
-            }
+            let _ = Command::new("taskkill")
+                .args(["/PID", &pid.to_string(), "/F"])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+            thread::sleep(Duration::from_millis(500));
         }
     }
 
@@ -997,7 +861,7 @@ pub fn ensure_daemon(session: &str, opts: &DaemonOptions) -> Result<DaemonResult
         }
     }
 
-    // Clean up any stale socket/pid files before starting fresh
+    // Clean up any stale sidecar files before starting fresh
     cleanup_stale_files(session);
 
     // Ensure socket directory exists
@@ -1005,20 +869,6 @@ pub fn ensure_daemon(session: &str, opts: &DaemonOptions) -> Result<DaemonResult
     if !socket_dir.exists() {
         fs::create_dir_all(&socket_dir)
             .map_err(|e| format!("Failed to create socket directory: {}", e))?;
-    }
-
-    // Pre-flight check: Validate socket path length (Unix limit is 104 bytes including null terminator)
-    #[cfg(unix)]
-    {
-        let socket_path = get_socket_path(session);
-        let path_len = socket_path.as_os_str().len();
-        if path_len > 103 {
-            return Err(format!(
-                "Session name '{}' is too long. Socket path would be {} bytes (max 103).\n\
-                 Use a shorter session name or set AGENT_BROWSER_SOCKET_DIR to a shorter path.",
-                session, path_len
-            ));
-        }
     }
 
     // Pre-flight check: Verify socket directory is writable
@@ -1044,31 +894,6 @@ pub fn ensure_daemon(session: &str, opts: &DaemonOptions) -> Result<DaemonResult
     #[allow(unused_assignments)]
     let mut daemon_child: Option<std::process::Child> = None;
 
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-
-        let mut cmd = Command::new(&exe_path);
-        cmd.env("AGENT_BROWSER_DAEMON", "1");
-        apply_daemon_env(&mut cmd, session, opts);
-
-        unsafe {
-            cmd.pre_exec(|| {
-                libc::setsid();
-                Ok(())
-            });
-        }
-
-        daemon_child = Some(
-            cmd.stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::piped())
-                .spawn()
-                .map_err(|e| format!("Failed to start daemon: {}", e))?,
-        );
-    }
-
-    #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
 
@@ -1158,9 +983,6 @@ pub fn ensure_daemon(session: &str, opts: &DaemonOptions) -> Result<DaemonResult
         thread::sleep(Duration::from_millis(100));
     }
 
-    #[cfg(unix)]
-    let endpoint_info = format!("socket: {}", SessionFile::Socket.path(session).display());
-    #[cfg(windows)]
     let endpoint_info = match resolve_port(session) {
         Some(port) => format!("port: 127.0.0.1:{}", port),
         None => format!("no port file in {}", get_socket_dir().display()),
@@ -1170,21 +992,11 @@ pub fn ensure_daemon(session: &str, opts: &DaemonOptions) -> Result<DaemonResult
 }
 
 fn connect(session: &str) -> Result<Connection, String> {
-    #[cfg(unix)]
-    {
-        let socket_path = get_socket_path(session);
-        UnixStream::connect(&socket_path)
-            .map(Connection::Unix)
-            .map_err(|e| format!("Failed to connect: {}", e))
-    }
-    #[cfg(windows)]
-    {
-        let port = resolve_port(session)
-            .ok_or_else(|| "Failed to connect: daemon has not written its port".to_string())?;
-        TcpStream::connect(format!("127.0.0.1:{}", port))
-            .map(Connection::Tcp)
-            .map_err(|e| format!("Failed to connect: {}", e))
-    }
+    let port = resolve_port(session)
+        .ok_or_else(|| "Failed to connect: daemon has not written its port".to_string())?;
+    TcpStream::connect(format!("127.0.0.1:{}", port))
+        .map(Connection::Tcp)
+        .map_err(|e| format!("Failed to connect: {}", e))
 }
 
 /// Failure of a single request attempt, split by whether the daemon may have
@@ -1279,7 +1091,7 @@ fn send_with_retry(
 
 /// Check if an error is transient and worth retrying against the SAME daemon.
 /// Transient errors include:
-/// - EAGAIN/EWOULDBLOCK (os error 35 on macOS, 11 on Linux)
+/// - WouldBlock (the socket is momentarily busy)
 /// - EOF errors (daemon closed connection before responding)
 /// - Connection reset/broken pipe (daemon crashed or restarting)
 ///
@@ -1287,16 +1099,12 @@ fn send_with_retry(
 /// listening, so backing off cannot help. Callers use daemon_unreachable()
 /// to respawn via ensure_daemon and retry once instead.
 fn is_transient_error(error: &str) -> bool {
-    has_os_error(error, 35) // EAGAIN on macOS
-        || has_os_error(error, 11) // EAGAIN on Linux
-        || error.contains("WouldBlock")
+    error.contains("WouldBlock")
         || error.contains("Resource temporarily unavailable")
         || error.contains("EOF")
         || error.contains("line 1 column 0") // Empty JSON response
         || error.contains("Connection reset")
         || error.contains("Broken pipe")
-        || has_os_error(error, 54) // Connection reset by peer (macOS)
-        || has_os_error(error, 104) // Connection reset by peer (Linux)
         || has_os_error(error, 10054) // Connection reset by peer (Windows)
 }
 
@@ -1304,15 +1112,11 @@ fn is_transient_error(error: &str) -> bool {
 /// (exited or never started), as opposed to a live-but-busy daemon. The
 /// remedy is a respawn through ensure_daemon, not a retry.
 pub fn daemon_unreachable(error: &str) -> bool {
-    error.contains("Failed to connect")
-        || has_os_error(error, 2) // No such file or directory (socket gone)
-        || has_os_error(error, 61) // Connection refused (macOS)
-        || has_os_error(error, 111) // Connection refused (Linux)
-        || has_os_error(error, 10061) // Connection refused (Windows)
+    error.contains("Failed to connect") || has_os_error(error, 10061) // Connection refused (Windows)
 }
 
 /// Exact `(os error N)` match. Bare substring checks like "os error 11"
-/// also matched "os error 111" (connection refused on Linux), which made
+/// also matched "os error 111", which made
 /// EAGAIN handling swallow refused connections.
 fn has_os_error(error: &str, code: u32) -> bool {
     error.contains(&format!("(os error {})", code))
@@ -1388,66 +1192,6 @@ fn exchange<S: Read + Write>(mut stream: S, request: &[u8]) -> Result<Response, 
 mod tests {
     use super::*;
     use crate::test_utils::EnvGuard;
-
-    #[cfg(unix)]
-    #[test]
-    fn unrelated_process_is_not_agent_browser() {
-        let mut child = Command::new("sleep").arg("30").spawn().unwrap();
-        let unrelated = is_agent_browser_process(child.id());
-        let _ = child.kill();
-        let _ = child.wait();
-        assert!(!unrelated);
-        assert!(!is_agent_browser_process(0));
-        assert!(!is_agent_browser_process(u32::MAX));
-    }
-
-    /// Repro for #2032: a daemon that reads the request and closes without
-    /// replying must see the request once.
-    #[test]
-    #[cfg(unix)]
-    fn send_command_does_not_resend_when_response_is_lost() {
-        use std::os::unix::net::UnixListener;
-        use std::sync::atomic::{AtomicUsize, Ordering};
-        use std::sync::Arc;
-
-        let dir = std::env::temp_dir().join(format!("ab-lost-resp-{}", std::process::id()));
-        let _ = fs::create_dir_all(&dir);
-        let _guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR", "XDG_RUNTIME_DIR"]);
-        _guard.set("AGENT_BROWSER_SOCKET_DIR", dir.to_str().unwrap());
-
-        let session = "lost-resp";
-        let socket_path = get_socket_path(session);
-        let _ = fs::remove_file(&socket_path);
-        let listener = UnixListener::bind(&socket_path).unwrap();
-        listener.set_nonblocking(true).unwrap();
-
-        let requests = Arc::new(AtomicUsize::new(0));
-        let seen = requests.clone();
-        let daemon = thread::spawn(move || {
-            let deadline = Instant::now() + Duration::from_millis(2500);
-            while Instant::now() < deadline {
-                match listener.accept() {
-                    Ok((stream, _)) => {
-                        stream.set_nonblocking(false).unwrap();
-                        let mut line = String::new();
-                        BufReader::new(&stream).read_line(&mut line).unwrap();
-                        seen.fetch_add(1, Ordering::SeqCst);
-                    }
-                    Err(_) => thread::sleep(Duration::from_millis(10)),
-                }
-            }
-        });
-
-        let resp = send_command(json!({"id": "1", "action": "click"}), session)
-            .expect("outcome_unknown is a failed response, not a send error");
-        daemon.join().unwrap();
-        let _ = fs::remove_file(&socket_path);
-        let _ = fs::remove_dir(&dir);
-
-        assert_eq!(requests.load(Ordering::SeqCst), 1, "request was re-sent");
-        assert!(!resp.success);
-        assert_eq!(resp.code.as_deref(), Some("outcome_unknown"));
-    }
 
     /// In-memory stream: accepts at most `accept` bytes, then fails writes
     /// with `write_err`; reads return `response`.
@@ -1604,45 +1348,18 @@ mod tests {
 
     #[test]
     fn test_get_socket_dir_explicit_override() {
-        let _guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR", "XDG_RUNTIME_DIR"]);
+        let _guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR"]);
 
         _guard.set("AGENT_BROWSER_SOCKET_DIR", "/custom/socket/path");
-        _guard.remove("XDG_RUNTIME_DIR");
 
         assert_eq!(get_socket_dir(), PathBuf::from("/custom/socket/path"));
     }
 
     #[test]
     fn test_get_socket_dir_ignores_empty_socket_dir() {
-        let _guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR", "XDG_RUNTIME_DIR"]);
+        let _guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR"]);
 
         _guard.set("AGENT_BROWSER_SOCKET_DIR", "");
-        _guard.remove("XDG_RUNTIME_DIR");
-
-        assert!(get_socket_dir()
-            .to_string_lossy()
-            .ends_with(".agent-browser"));
-    }
-
-    #[test]
-    fn test_get_socket_dir_xdg_runtime() {
-        let _guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR", "XDG_RUNTIME_DIR"]);
-
-        _guard.remove("AGENT_BROWSER_SOCKET_DIR");
-        _guard.set("XDG_RUNTIME_DIR", "/run/user/1000");
-
-        assert_eq!(
-            get_socket_dir(),
-            PathBuf::from("/run/user/1000/agent-browser")
-        );
-    }
-
-    #[test]
-    fn test_get_socket_dir_ignores_empty_xdg_runtime() {
-        let _guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR", "XDG_RUNTIME_DIR"]);
-
-        _guard.set("AGENT_BROWSER_SOCKET_DIR", "");
-        _guard.set("XDG_RUNTIME_DIR", "");
 
         assert!(get_socket_dir()
             .to_string_lossy()
@@ -1651,10 +1368,9 @@ mod tests {
 
     #[test]
     fn test_get_socket_dir_home_fallback() {
-        let _guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR", "XDG_RUNTIME_DIR"]);
+        let _guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR"]);
 
         _guard.remove("AGENT_BROWSER_SOCKET_DIR");
-        _guard.remove("XDG_RUNTIME_DIR");
 
         let result = get_socket_dir();
         assert!(result.to_string_lossy().ends_with(".agent-browser"));
@@ -1665,17 +1381,12 @@ mod tests {
 
     #[test]
     fn test_get_socket_dir_namespace_scopes_base_directory() {
-        let _guard = EnvGuard::new(&[
-            "AGENT_BROWSER_SOCKET_DIR",
-            "XDG_RUNTIME_DIR",
-            "AGENT_BROWSER_NAMESPACE",
-        ]);
+        let _guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR", "AGENT_BROWSER_NAMESPACE"]);
 
         _guard.set(
             "AGENT_BROWSER_SOCKET_DIR",
             "/tmp/agent-browser-test-sockets",
         );
-        _guard.remove("XDG_RUNTIME_DIR");
         _guard.set("AGENT_BROWSER_NAMESPACE", "Worktree: One");
 
         assert_eq!(
@@ -1689,14 +1400,9 @@ mod tests {
 
     #[test]
     fn test_walk_daemons_only_lists_current_namespace() {
-        let _guard = EnvGuard::new(&[
-            "AGENT_BROWSER_SOCKET_DIR",
-            "XDG_RUNTIME_DIR",
-            "AGENT_BROWSER_NAMESPACE",
-        ]);
+        let _guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR", "AGENT_BROWSER_NAMESPACE"]);
         let dir = tempfile::tempdir().unwrap();
         _guard.set("AGENT_BROWSER_SOCKET_DIR", dir.path().to_str().unwrap());
-        _guard.remove("XDG_RUNTIME_DIR");
 
         let ns_one = dir.path().join("namespaces").join("one").join("run");
         let ns_two = dir.path().join("namespaces").join("two").join("run");
@@ -1738,7 +1444,6 @@ mod tests {
             profile: None,
             state: None,
             provider: None,
-            device: None,
             session_name: None,
             restore_save: None,
             restore_check_url: None,
@@ -1942,20 +1647,6 @@ mod tests {
     // === Transient Error Detection Tests ===
 
     #[test]
-    fn test_is_transient_error_eagain_macos() {
-        assert!(is_transient_error(
-            "Failed to read: Resource temporarily unavailable (os error 35)"
-        ));
-    }
-
-    #[test]
-    fn test_is_transient_error_eagain_linux() {
-        assert!(is_transient_error(
-            "Failed to read: Resource temporarily unavailable (os error 11)"
-        ));
-    }
-
-    #[test]
     fn test_is_transient_error_would_block() {
         assert!(is_transient_error("operation WouldBlock"));
     }
@@ -1987,44 +1678,6 @@ mod tests {
     #[test]
     fn test_is_transient_error_broken_pipe() {
         assert!(is_transient_error("Broken pipe"));
-    }
-
-    #[test]
-    fn test_is_transient_error_connection_reset_macos() {
-        assert!(is_transient_error(
-            "Failed to send: Connection reset by peer (os error 54)"
-        ));
-    }
-
-    #[test]
-    fn test_is_transient_error_connection_reset_linux() {
-        assert!(is_transient_error(
-            "Failed to send: Connection reset by peer (os error 104)"
-        ));
-    }
-
-    // Connection refused / missing socket mean no daemon is listening:
-    // not transient (retry can't help), handled by respawn via
-    // daemon_unreachable instead.
-    #[test]
-    fn test_socket_not_found_is_unreachable_not_transient() {
-        let error = "Failed to connect: No such file or directory (os error 2)";
-        assert!(!is_transient_error(error));
-        assert!(daemon_unreachable(error));
-    }
-
-    #[test]
-    fn test_connection_refused_macos_is_unreachable_not_transient() {
-        let error = "Failed to connect: Connection refused (os error 61)";
-        assert!(!is_transient_error(error));
-        assert!(daemon_unreachable(error));
-    }
-
-    #[test]
-    fn test_connection_refused_linux_is_unreachable_not_transient() {
-        let error = "Failed to connect: Connection refused (os error 111)";
-        assert!(!is_transient_error(error));
-        assert!(daemon_unreachable(error));
     }
 
     #[test]
@@ -2086,7 +1739,7 @@ mod tests {
     fn test_daemon_version_matches_same_version() {
         let dir = std::env::temp_dir().join("ab-test-version-match");
         let _ = fs::create_dir_all(&dir);
-        let _guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR", "XDG_RUNTIME_DIR"]);
+        let _guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR"]);
         _guard.set("AGENT_BROWSER_SOCKET_DIR", dir.to_str().unwrap());
 
         let version_path = dir.join("test-session.version");
@@ -2102,7 +1755,7 @@ mod tests {
     fn test_daemon_version_matches_different_version() {
         let dir = std::env::temp_dir().join("ab-test-version-mismatch");
         let _ = fs::create_dir_all(&dir);
-        let _guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR", "XDG_RUNTIME_DIR"]);
+        let _guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR"]);
         _guard.set("AGENT_BROWSER_SOCKET_DIR", dir.to_str().unwrap());
 
         let version_path = dir.join("test-session.version");
@@ -2118,7 +1771,7 @@ mod tests {
     fn test_daemon_version_matches_no_file() {
         let dir = std::env::temp_dir().join("ab-test-version-nofile");
         let _ = fs::create_dir_all(&dir);
-        let _guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR", "XDG_RUNTIME_DIR"]);
+        let _guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR"]);
         _guard.set("AGENT_BROWSER_SOCKET_DIR", dir.to_str().unwrap());
 
         // No version file: treated as mismatch so stale pre-version-tracking
@@ -2132,7 +1785,7 @@ mod tests {
     fn test_cleanup_stale_files_removes_version() {
         let dir = std::env::temp_dir().join("ab-test-cleanup-version");
         let _ = fs::create_dir_all(&dir);
-        let _guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR", "XDG_RUNTIME_DIR"]);
+        let _guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR"]);
         _guard.set("AGENT_BROWSER_SOCKET_DIR", dir.to_str().unwrap());
 
         let version_path = dir.join("test-session.version");

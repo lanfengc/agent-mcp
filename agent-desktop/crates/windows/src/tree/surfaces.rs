@@ -128,8 +128,7 @@ fn focused_hwnd_of(expected: &str) -> Result<isize, AdapterError> {
 }
 
 /// Whether a window is a modal sheet surface, tested from the window's own
-/// `WindowIsModal` property **before** any child is consulted (the macOS
-/// window-is-surface pattern from `crates/macos/src/tree/surfaces.rs`).
+/// `WindowIsModal` property **before** any child is consulted.
 ///
 /// This classifies a Chromium modal as a `Sheet` surface, making it reachable
 /// via the sheet surface.

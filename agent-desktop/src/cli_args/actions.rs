@@ -265,7 +265,7 @@ pub(crate) struct MouseClickArgs {
 pub(crate) struct BackgroundClickFlags {
     #[arg(
         long = "background",
-        help = "Post the click to --window-id as window messages without moving the cursor or focusing the window"
+        help = "Post the click to --window-id as window messages; the cursor and focus stay put unless --cursor-fallback or --restore-minimized is added"
     )]
     #[serde(default)]
     pub background: bool,
@@ -295,7 +295,7 @@ pub(crate) struct BackgroundClickFlags {
     pub cursor_fallback: bool,
     #[arg(
         long = "semantic",
-        help = "With --background, invoke the UI Automation element at the point instead of posting mouse messages; works with frameworks that ignore posted input"
+        help = "With --background, invoke the UI Automation element at the point instead of posting mouse messages, for frameworks that ignore posted input; left button only, and falls back to posted messages when nothing there can be invoked"
     )]
     #[serde(default)]
     pub semantic: bool,

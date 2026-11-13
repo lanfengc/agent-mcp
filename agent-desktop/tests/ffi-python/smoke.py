@@ -2,10 +2,10 @@
 FFI smoke harness: proves the C ABI works from a non-Rust host (Python ctypes).
 
 Usage:
-    python3 tests/ffi-python/smoke.py <dylib_path> <header_path>
+    python tests/ffi-python/smoke.py <dll_path> <header_path>
 
 Environment variables (override positional args):
-    AD_DYLIB_PATH    path to libagent_desktop_ffi.{dylib,so,dll}
+    AD_DYLIB_PATH    path to agent_desktop_ffi.dll
     AD_HEADER_PATH   path to crates/ffi/include/agent_desktop.h
 
 Exit codes:
@@ -270,7 +270,7 @@ def main() -> None:
 
     if os.environ.get("AD_EXPECT_REAL") == "1":
         print("\nLeg 5 — real adapter snapshots a named app on the main and a worker thread")
-        app = os.environ.get("AD_APP", "gnome-calculator").encode()
+        app = os.environ.get("AD_APP", "notepad.exe").encode()
         adapter = ad_adapter_create()
         if not adapter:
             fail("ad_adapter_create() returned null for the real-adapter leg")
@@ -318,42 +318,6 @@ def main() -> None:
         if not passed:
             fail(f"real adapter snapshot on a worker thread failed: {message}")
         ok(f"worker thread: {app.decode()} snapshot ok:true {message}")
-
-    if os.environ.get("AD_EXPECT_LINUX_HELPER") == "1":
-        from linux_helper import verify
-        try:
-            verify(lib, os.environ["AD_HELPER_EMPTY_PATH"])
-        except AssertionError as error:
-            fail(str(error))
-        ok("library-adjacent Linux owner set/read/clear with empty PATH")
-
-    if os.environ.get("AD_EXPECT_MACOS_HELPER") == "1":
-        print("\nLeg 6 — non-colocated Python host discovers the dylib-adjacent packaged helper")
-        adapter = ad_adapter_create()
-        if not adapter:
-            fail("ad_adapter_create() returned null for helper discovery leg")
-        clipboard = c_char_p()
-        rc = ad_get_clipboard(adapter, byref(clipboard))
-        if rc != 0:
-            message = ad_last_error_message()
-            helper_runtime_errors = {
-                b"System clipboard is unavailable",
-                b"System clipboard read access is denied",
-            }
-            if message in helper_runtime_errors:
-                ad_adapter_destroy(adapter)
-                ok(
-                    "ctypes host reached the authenticated packaged helper; "
-                    f"clipboard access was unavailable in this host ({message!r})"
-                )
-                print("\nAll legs passed.")
-                return
-            ad_adapter_destroy(adapter)
-            fail(f"dylib-adjacent helper discovery failed rc={rc}: {message!r}")
-        if clipboard.value is not None:
-            ad_free_string(clipboard)
-        ad_adapter_destroy(adapter)
-        ok("ctypes host read clipboard through the packaged helper")
 
     print("\nAll legs passed.")
 

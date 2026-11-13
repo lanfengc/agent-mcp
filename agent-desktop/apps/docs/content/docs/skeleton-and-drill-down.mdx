@@ -4,7 +4,7 @@ navTitle: Skeleton and drill-down
 description: Read a dense app in two passes. Take a shallow skeleton, drill into one region by ref, re-drill after a change, and scope searches the same way.
 ---
 
-A dense app, such as an Electron client or an IDE, can expose thousands of accessibility nodes. A full snapshot of it is slow, costs many tokens, and can run out of budget before it finishes. A skeleton snapshot reads only the top levels. You then drill into the one region you need with `snapshot --root`, so the refs you read and act on cover that region instead of the whole window. Only macOS makes the drill read less of the window. Off macOS a drill re-identifies its root over a complete read of the window, as [Drill into a region](#drill-into-a-region) explains.
+A dense app, such as an Electron client or an IDE, can expose thousands of accessibility nodes. A full snapshot of it is slow, costs many tokens, and can run out of budget before it finishes. A skeleton snapshot reads only the top levels. You then drill into the one region you need with `snapshot --root`, so the refs you read and act on cover that region instead of the whole window. A drill re-identifies its root over a complete read of the window, as [Drill into a region](#drill-into-a-region) explains.
 
 ## The loop
 
@@ -14,7 +14,7 @@ A dense app, such as an Electron client or an IDE, can expose thousands of acces
 2. Pick a node that has both `children_count` and `ref_id`.
 3. `snapshot --root <ref> -i --compact` reads that region and adds its refs to the same snapshot.
 4. Act with a ref from the drill, such as `click` or `set-value`. See the [interaction commands](/desktop/commands/interaction).
-5. Verify with `wait` or `get` on a ref from the drill, or re-read the region with the same `snapshot --root`. If the action result lists a menu, sheet, or alert in `data.surfaces`, read that [surface](/desktop/surfaces) next.
+5. Verify with `wait` or `get` on a ref from the drill, or re-read the region with the same `snapshot --root`. If the action result lists a menu or sheet in `data.surfaces`, read that [surface](/desktop/surfaces) next.
 6. If another region matters, drill it. If the layout changed, or the root ref itself is `STALE_REF`, take a new skeleton.
 
 `-i` keeps only interactive nodes, so a row's static text is dropped. To tell which row a repeated button belongs to, drill that row's container with `--root` and leave out `-i`, then match the button to the label beside it.
@@ -24,7 +24,7 @@ Two shortcuts skip the loop: a small app needs only `snapshot -i`, and a known t
 ## Take a skeleton
 
 ```bash
-agent-desktop snapshot --app gnome-calculator --skeleton -i --compact
+agent-desktop snapshot --app notepad.exe --skeleton -i --compact
 ```
 
 ```json
@@ -33,29 +33,29 @@ agent-desktop snapshot --app gnome-calculator --skeleton -i --compact
   "ok": true,
   "command": "snapshot",
   "data": {
-    "app": "gnome-calculator",
+    "app": "notepad.exe",
     "complete": true,
-    "ref_count": 2,
-    "snapshot_id": "s2txcl95uvubmn",
+    "ref_count": 17,
+    "snapshot_id": "s1cxg9h3ma7qps",
     "window": {
-      "id": "w-1.11-org-gnome-Calculator-a11y-948fd89a_9bda_453b_9c10_4a9e9eed3feb",
-      "title": "Calculator"
+      "id": "w-24972942",
+      "title": "Untitled - Notepad"
     },
     "tree": {
       "role": "window",
-      "name": "Calculator",
-      "native_id": { "kind": "ax_identifier", "value": "MathWindow" },
+      "name": "Untitled - Notepad",
       "children": [
         {
           "children_count": 2,
-          "native_id": { "kind": "ax_identifier", "value": "___object_3___" },
-          "ref_id": "@s2txcl95uvubmn:e1",
-          "role": "group"
+          "name": "Text editor",
+          "native_id": { "kind": "automation_id", "value": "15" },
+          "ref_id": "@s1cxg9h3ma7qps:e1",
+          "role": "textfield"
         },
         {
-          "children_count": 1,
-          "native_id": { "kind": "ax_identifier", "value": "headerbar" },
-          "ref_id": "@s2txcl95uvubmn:e2",
+          "children_count": 4,
+          "native_id": { "kind": "automation_id", "value": "TitleBar" },
+          "ref_id": "@s1cxg9h3ma7qps:e8",
           "role": "group"
         }
       ]
@@ -64,11 +64,11 @@ agent-desktop snapshot --app gnome-calculator --skeleton -i --compact
 }
 ```
 
-The tree above omits the unnamed wrapper groups between the window and the two drill targets. The calculator's main area is `e1`, and its header bar is `e2`.
+The tree above omits the menu bar, whose items carry refs. The editor is `e1`, and the title bar is `e8`.
 
 `--skeleton` changes two things:
 
-- **Depth is clamped to 3.** The effective depth is the smaller of `--max-depth` and 3, so a bare `--skeleton` reads three levels. Depth counts semantic levels: GTK and web wrappers can make the output nest deeper than three JSON levels.
+- **Depth is clamped to 3.** The effective depth is the smaller of `--max-depth` and 3, so a bare `--skeleton` reads three levels. Depth counts semantic levels, so native wrappers can make the output nest deeper than three JSON levels.
 - **Cut containers carry `children_count`.** A container at the depth boundary lists no children. It reports how many direct children it did not expand.
 
 Interactive elements inside the first three levels get ordinary refs. `children_count` appears on any node a depth limit cuts, not only under `--skeleton`, and with `-i` agent-desktop keeps a cut container in the output even when it has no ref.
@@ -87,7 +87,7 @@ In practice, drill a node that has both `children_count` and `ref_id`. A cut con
 ## Drill into a region
 
 ```bash
-agent-desktop snapshot --root @s2txcl95uvubmn:e1 -i --compact
+agent-desktop snapshot --root @s1cxg9h3ma7qps:e1 -i --compact
 ```
 
 ```json
@@ -96,34 +96,28 @@ agent-desktop snapshot --root @s2txcl95uvubmn:e1 -i --compact
   "ok": true,
   "command": "snapshot",
   "data": {
-    "app": "gnome-calculator",
+    "app": "notepad.exe",
     "complete": true,
-    "ref_count": 33,
-    "snapshot_id": "s2txcl95uvubmn",
+    "ref_count": 18,
+    "snapshot_id": "s1cxg9h3ma7qps",
     "tree": {
-      "role": "group",
-      "native_id": { "kind": "ax_identifier", "value": "___object_3___" },
+      "available_actions": ["SetValue", "Scroll", "SetFocus"],
+      "name": "Text editor",
+      "native_id": { "kind": "automation_id", "value": "15" },
+      "ref_id": "@s1cxg9h3ma7qps:e18",
+      "role": "textfield",
       "children": [
         {
-          "available_actions": ["RightClick", "SetValue", "TypeText", "SetFocus"],
-          "native_id": { "kind": "ax_identifier", "value": "source_view" },
-          "ref_id": "@s2txcl95uvubmn:e6",
-          "role": "textfield"
+          "name": "Vertical scrollbar",
+          "native_id": { "kind": "automation_id", "value": "NonClientVerticalScrollBar" },
+          "ref_id": "@s1cxg9h3ma7qps:e19",
+          "role": "scrollbar"
         },
         {
-          "available_actions": ["Click", "SetFocus"],
-          "description": "Clear Display [Escape]",
-          "name": "C",
-          "native_id": { "kind": "ax_identifier", "value": "calc_clear_button" },
-          "ref_id": "@s2txcl95uvubmn:e8",
-          "role": "button"
-        },
-        {
-          "available_actions": ["Click", "SetFocus"],
-          "name": "7",
-          "native_id": { "kind": "ax_identifier", "value": "calc_7_button" },
-          "ref_id": "@s2txcl95uvubmn:e11",
-          "role": "button"
+          "name": "Horizontal scrollbar",
+          "native_id": { "kind": "automation_id", "value": "NonClientHorizontalScrollBar" },
+          "ref_id": "@s1cxg9h3ma7qps:e22",
+          "role": "scrollbar"
         }
       ]
     }
@@ -131,16 +125,16 @@ agent-desktop snapshot --root @s2txcl95uvubmn:e1 -i --compact
 }
 ```
 
-The tree above is trimmed to the display and two of the 31 buttons and fields the drill found (`e3` to `e33`). `--root` takes a qualified ref from an earlier snapshot, `find`, or drill. The command then:
+The tree above is trimmed to the editor and its two scrollbars. `--root` takes a qualified ref from an earlier snapshot, `find`, or drill. The command then:
 
 1. Loads that ref's snapshot and its `RefEntry`.
 2. Resolves the entry strictly against the live UI, with the same rules as any [ref action](/desktop/snapshots-and-refs#how-a-ref-resolves).
 3. Reads the element's subtree to `--max-depth` (default 10). `--app` and `--window-id` are not used, because the ref already names its window, and `--skeleton` has no effect.
 4. Allocates refs for the subtree and writes them into the same snapshot, so `snapshot_id` does not change.
 
-Off macOS the drill re-identifies its root over a complete read of the window and counts its new refs against that same read, so a drill's refs resolve by exactly the rules the skeleton's do.
+The drill re-identifies its root over a complete read of the window and counts its new refs against that same read, so a drill's refs resolve by exactly the rules the skeleton's do.
 
-The result's root is the drilled element, and `ref_count` is the whole snapshot's count: 2 skeleton refs plus 31 drill refs. New refs continue the snapshot's counter, which is why this drill starts at `e3`. The ref you drilled stays valid.
+The result's root is the drilled element with its own new ref, `e18`. `ref_count` is the whole snapshot's count: 18 after this drill, because the editor's earlier refs `e2` to `e7` were replaced by `e19` to `e24`. New refs continue the snapshot's counter, which is why the drill starts at `e18`. The ref you drilled, `e1`, stays valid.
 
 ## Re-drill after a change
 
@@ -148,17 +142,17 @@ Run the same `--root` again to re-read the region after an action. The re-drill 
 
 <Diagram name="redrill-refs" title="A re-drill replaces one region's refs" aspectRatio="720 / 400" />
 
-1. Before: snapshot `s2txcl95uvubmn` holds the skeleton refs `e1` and `e2` and the refs `e3` to `e33` from the drill of `e1`.
-2. You click `e11` (the `7` button) and run `snapshot --root @s2txcl95uvubmn:e1` again.
-3. The re-drill removes the refs that the previous drill of `e1` created: `e3` to `e33`. It keeps `e1` itself and every ref outside its subtree, here `e2`.
-4. The new read allocates `e34` to `e64`. The counter continues, so a number is never reused.
-5. After: the old `e3` to `e33` return `STALE_REF`, and `e1`, `e2`, and refs from other drilled regions still resolve. `ref_count` stays 33.
+1. Before: snapshot `s1cxg9h3ma7qps` holds the skeleton refs `e1` to `e17` and the refs `e18` to `e24` from the drill of `e1`.
+2. You act on a ref inside the region, such as `set-value` on `e18`, and run `snapshot --root @s1cxg9h3ma7qps:e1` again.
+3. The re-drill removes the refs that the previous drill of `e1` created: `e18` to `e24`. It keeps `e1` itself and every ref outside its subtree, here `e8` to `e17`.
+4. The new read allocates `e25` onward. The counter continues, so a number is never reused.
+5. After: the old `e18` to `e24` return `STALE_REF`, and `e1` and `e8` to `e17` still resolve. `ref_count` stays 18.
 
 A re-drill removes refs created by earlier drills of that root, refs from a full snapshot that sit under the root in the same window, and refs from drills nested inside the region. Refs for other regions, other windows, and the drilled root itself survive.
 
 ```bash
-agent-desktop get @s2txcl95uvubmn:e2 --property role   # outside the region: still resolves
-agent-desktop get @s2txcl95uvubmn:e11                  # inside the region: replaced
+agent-desktop get '@s1cxg9h3ma7qps:e8' --property role   # outside the region: still resolves
+agent-desktop get '@s1cxg9h3ma7qps:e18'                  # inside the region: replaced
 ```
 
 ```json
@@ -166,7 +160,7 @@ agent-desktop get @s2txcl95uvubmn:e11                  # inside the region: repl
   "version": "2.6",
   "ok": true,
   "command": "get",
-  "data": { "property": "role", "ref": "@s2txcl95uvubmn:e2", "value": "group" }
+  "data": { "property": "role", "ref": "@s1cxg9h3ma7qps:e8", "value": "group" }
 }
 ```
 
@@ -177,7 +171,7 @@ agent-desktop get @s2txcl95uvubmn:e11                  # inside the region: repl
   "command": "get",
   "error": {
     "code": "STALE_REF",
-    "message": "@s2txcl95uvubmn:e11 not found in current RefMap",
+    "message": "@s1cxg9h3ma7qps:e18 not found in current RefMap",
     "recovery": {
       "strategy": "refresh_snapshot_then_retry_original",
       "retryable": true,
@@ -230,15 +224,15 @@ A drill is all or nothing. It replaces refs inside an existing snapshot, and a p
 }
 ```
 
-That is `snapshot --root @s2txcl95uvubmn:e1 --timeout-ms 1`. The completeness rule applies to the drill's own read of the region, so you can drill a ref that came from a partial snapshot.
+That is `snapshot --root @s1cxg9h3ma7qps:e1 --timeout-ms 1`. The completeness rule applies to the drill's own read of the region, so you can drill a ref that came from a partial snapshot.
 
 ## Scope a search
 
 `find` takes the same two scopes, so you can search a region without reading it:
 
 ```bash
-agent-desktop find --root @s2txcl95uvubmn:e1 --role button --name C --exact --first
-agent-desktop find --app gtk3-widget-factory --surface menu --name "Dark Theme" --exact --first
+agent-desktop find --root @s1cxg9h3ma7qps:e8 --role button --name Close --exact --first
+agent-desktop find --app notepad.exe --surface menu --name "Save" --exact --first
 ```
 
 - `find --root <ref>` resolves the ref strictly, then searches only that element's subtree. It needs no `--app`.
@@ -256,14 +250,14 @@ A `find` that returns matches saves its own new snapshot, and its refs are quali
   "data": {
     "match": {
       "interactive": true,
-      "name": "C",
-      "path": ["group", "group", "group", "group", "group", "group"],
-      "ref_id": "@s3ufwq4n1uswjj:e1",
+      "name": "Close",
+      "path": ["window:Untitled - Notepad", "group:Untitled - Notepad"],
+      "ref_id": "@s2k9lzcpfj0cs1:e1",
       "role": "button",
       "states": [],
       "value": null
     },
-    "snapshot_id": "s3ufwq4n1uswjj"
+    "snapshot_id": "s2k9lzcpfj0cs1"
   }
 }
 ```
@@ -286,16 +280,16 @@ Depth counts meaningful levels. Under `--skeleton` the depth is the smaller of `
 
 ## When to skip the skeleton
 
-- **A small app.** With fewer than about 50 interactive elements, a full `snapshot -i --compact` is cheaper than two passes. GNOME Calculator, with 40 refs, is in this range; it appears above because its tree is small enough to show.
+- **A small app.** With fewer than about 50 interactive elements, a full `snapshot -i --compact` is cheaper than two passes. Notepad, with 17 refs, is in this range; it appears above because its tree is small enough to show.
 - **A known target.** If you know the role or the exact name, `find --role --name --exact` returns the ref in one command.
-- **A surface.** Do not use `--skeleton` with `--surface menu`, `sheet`, `alert`, or `popover`. A surface is already a small, focused tree. The command does not reject the combination, but it only adds a second pass.
+- **A surface.** Do not use `--skeleton` with `--surface menu` or `sheet`. A surface is already a small, focused tree. The command does not reject the combination, but it only adds a second pass.
 
 ## Partial observations
 
 A full snapshot that runs out of budget still succeeds, and returns what it saw:
 
 ```bash
-agent-desktop snapshot --app gtk3-widget-factory -i --compact --timeout-ms 50
+agent-desktop snapshot --app notepad.exe -i --compact --timeout-ms 50
 ```
 
 ```json
@@ -304,18 +298,18 @@ agent-desktop snapshot --app gtk3-widget-factory -i --compact --timeout-ms 50
   "ok": true,
   "command": "snapshot",
   "data": {
-    "app": "gtk3-widget-factory",
+    "app": "notepad.exe",
     "complete": false,
     "truncated": true,
-    "nodes_observed": 73,
-    "ref_count": 27,
-    "snapshot_id": "s2ck1chz8ypcwk",
-    "tree": { "role": "window", "subtree_truncated": true, "children": [] }
+    "nodes_observed": 1,
+    "ref_count": 0,
+    "snapshot_id": "s37633q1l3wcjx",
+    "tree": { "role": "window", "name": "Untitled - Notepad", "subtree_truncated": true }
   }
 }
 ```
 
-The `tree` above is emptied for space; the real one holds the nodes that were read, with `subtree_truncated` on every node whose descendants were cut.
+The `tree` above is all that was read: the budget ran out at the root, which carries `subtree_truncated`. A larger budget yields more nodes, each cut node marked the same way.
 
 <table>
   <thead>

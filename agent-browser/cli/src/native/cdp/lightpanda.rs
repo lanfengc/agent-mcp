@@ -99,18 +99,6 @@ fn push_bounded(buffer: &Mutex<VecDeque<String>>, line: String) {
 }
 
 pub fn find_lightpanda() -> Option<PathBuf> {
-    #[cfg(unix)]
-    {
-        if let Ok(output) = Command::new("which").arg("lightpanda").output() {
-            if output.status.success() {
-                let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                if !path.is_empty() {
-                    return Some(PathBuf::from(path));
-                }
-            }
-        }
-    }
-
     #[cfg(windows)]
     {
         if let Ok(output) = Command::new("where").arg("lightpanda").output() {
@@ -129,10 +117,7 @@ pub fn find_lightpanda() -> Option<PathBuf> {
     }
 
     if let Some(home) = std::env::home_dir() {
-        let candidates = [
-            home.join(".lightpanda/lightpanda"),
-            home.join(".local/bin/lightpanda"),
-        ];
+        let candidates = [home.join(".lightpanda/lightpanda.exe")];
         for c in &candidates {
             if c.exists() {
                 return Some(c.clone());
@@ -339,86 +324,6 @@ mod tests {
             body
         );
         socket.write_all(response.as_bytes()).await.unwrap();
-    }
-
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn waits_for_ready_without_logs() {
-        let port = unused_port();
-        tokio::spawn(serve_json_version_once_after_delay(
-            port,
-            150,
-            r#"{"webSocketDebuggerUrl":"ws://127.0.0.1:9222/"}"#,
-        ));
-
-        let mut child = Command::new("/bin/sh")
-            .args(["-c", "sleep 30"])
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .unwrap();
-
-        let (logs, _drainers) = start_log_drainers(&mut child).unwrap();
-        let ws_url = wait_for_lightpanda_ready(&mut child, port, &logs, LIGHTPANDA_STARTUP_TIMEOUT)
-            .await
-            .unwrap();
-
-        assert_eq!(ws_url, format!("ws://127.0.0.1:{}/", port));
-        let _ = child.kill();
-        let _ = child.wait();
-    }
-
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn child_exit_surfaces_logs() {
-        let port = unused_port();
-        let mut child = Command::new("/bin/sh")
-            .args(["-c", "echo boom >&2; sleep 0.1; exit 23"])
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .unwrap();
-
-        let (logs, _drainers) = start_log_drainers(&mut child).unwrap();
-        let err = wait_for_lightpanda_ready(&mut child, port, &logs, LIGHTPANDA_STARTUP_TIMEOUT)
-            .await
-            .unwrap_err();
-
-        assert!(err.contains("Lightpanda exited before CDP became ready"));
-        assert!(err.contains("boom"));
-    }
-
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn timeout_reports_last_probe_error() {
-        let port = unused_port();
-        let mut child = Command::new("/bin/sh")
-            .args(["-c", "sleep 30"])
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .unwrap();
-
-        let timeout = Duration::from_millis(300);
-        let (logs, _drainers) = start_log_drainers(&mut child).unwrap();
-        let err = tokio::time::timeout(
-            Duration::from_secs(2),
-            wait_for_lightpanda_ready(&mut child, port, &logs, timeout),
-        )
-        .await
-        .expect("ready wait should return before outer timeout")
-        .unwrap_err();
-
-        assert!(err.contains("Timed out after 300ms waiting for Lightpanda CDP endpoint"));
-        assert!(
-            err.contains("Failed to connect to CDP") || err.contains("Timeout connecting to CDP")
-        );
-
-        let _ = child.kill();
-        let _ = child.wait();
     }
 
     #[test]

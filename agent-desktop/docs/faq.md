@@ -2,7 +2,7 @@
 
 ## What is agent-desktop?
 
-agent-desktop is a CLI and C library. It reads the accessibility tree of desktop apps on macOS, Windows, and Linux and returns it as JSON. Each element an agent can act on gets a ref. The calling agent runs the observe, act, and verify loop, because agent-desktop has no model inside. It does not automate web pages. Use [agent-browser](https://agent-browser.dev) for those. The [introduction](https://agent-browser.dev/desktop) covers the rest.
+agent-desktop is a CLI and C library for Windows. It reads the UI Automation tree of desktop apps and returns it as JSON. Each element an agent can act on gets a ref. The calling agent runs the observe, act, and verify loop, because agent-desktop has no model inside. It does not automate web pages. Use [agent-browser](https://agent-browser.dev) for those. The [introduction](https://agent-browser.dev/desktop) covers the rest.
 
 ## Does agent-desktop require screenshots or pixel matching?
 
@@ -14,7 +14,7 @@ No. Commands that take a ref find the element in the accessibility tree, not by 
 
 ## Which platforms are supported?
 
-macOS, Windows, and Linux. The [platform table in the README](../README.md#platform-support) lists each requirement. `agent-desktop skills get platform` prints the platform guide for the OS the binary runs on.
+Windows, on x64 and ARM64. The [platform table in the README](../README.md#platform-support) lists each requirement. `agent-desktop skills get platform` prints the Windows platform guide.
 
 ## How do I install agent-desktop?
 
@@ -30,7 +30,7 @@ npm install -g agent-desktop
 cargo build --profile release-ffi -p agent-desktop-ffi
 ```
 
-The library is written to `target/release-ffi/`: `libagent_desktop_ffi.dylib` or `.so` on macOS and Linux, `agent_desktop_ffi.dll` on Windows. Only the `release-ffi` profile traps panics at the boundary and returns them as `AD_RESULT_ERR_INTERNAL`. A plain `--release` build does not. A source build also needs the platform helper beside the library. See [Build and link](https://agent-browser.dev/desktop/ffi/build-and-link).
+The library is written to `target/release-ffi/` as `agent_desktop_ffi.dll`. Only the `release-ffi` profile traps panics at the boundary and returns them as `AD_RESULT_ERR_INTERNAL`. A plain `--release` build does not. See [Build and link](https://agent-browser.dev/desktop/ffi/build-and-link).
 
 ## What is the ref system?
 
@@ -44,7 +44,7 @@ Snapshot lookup stays inside the selected session. A ref from a session needs th
 
 ## How does an agent learn the tool?
 
-Run `agent-desktop skills get desktop` for the core guide. Run `agent-desktop skills get platform` for the guide for the OS the binary runs on. Run `agent-desktop <command> --help` for a command's flags.
+Run `agent-desktop skills get desktop` for the core guide. Run `agent-desktop skills get platform` for the Windows platform guide. Run `agent-desktop <command> --help` for a command's flags.
 
 ## Is agent-desktop free and open source?
 

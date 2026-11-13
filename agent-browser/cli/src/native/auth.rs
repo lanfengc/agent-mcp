@@ -123,21 +123,9 @@ fn ensure_encryption_key() -> Result<Vec<u8>, String> {
 
     let dir = get_agent_browser_dir();
     fs::create_dir_all(&dir).map_err(|e| format!("Failed to create directory: {}", e))?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = fs::set_permissions(&dir, fs::Permissions::from_mode(0o700));
-    }
-
     let key_file = get_key_file_path();
     fs::write(&key_file, format!("{}\n", key_hex))
         .map_err(|e| format!("Failed to write encryption key: {}", e))?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = fs::set_permissions(&key_file, fs::Permissions::from_mode(0o600));
-    }
-
     let _ = writeln!(
         std::io::stderr(),
         "[agent-browser] Auto-generated encryption key at {} -- back up this file or set {}",
@@ -236,20 +224,9 @@ fn decrypt_profile(data: &[u8]) -> Result<AuthProfile, String> {
 fn save_profile(profile: &AuthProfile) -> Result<(), String> {
     let dir = get_auth_dir();
     fs::create_dir_all(&dir).map_err(|e| format!("Failed to create auth dir: {}", e))?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = fs::set_permissions(&dir, fs::Permissions::from_mode(0o700));
-    }
-
     let encrypted_json = encrypt_profile(profile)?;
     let path = get_profile_path(&profile.name);
     fs::write(&path, &encrypted_json).map_err(|e| format!("Failed to write profile: {}", e))?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = fs::set_permissions(&path, fs::Permissions::from_mode(0o600));
-    }
     Ok(())
 }
 

@@ -55,8 +55,8 @@ agent-browser get url
 agent-browser snapshot -i
 
 # Optional: Capture evidence
-agent-browser screenshot /tmp/form-result.png
-echo "Screenshot saved: /tmp/form-result.png"
+agent-browser screenshot ./form-result.png
+echo "Screenshot saved: ./form-result.png"
 
 # Cleanup
 agent-browser close

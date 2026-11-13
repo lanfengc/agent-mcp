@@ -106,25 +106,8 @@ fn build_adapter() -> Result<Box<dyn PlatformAdapter>, AdapterError> {
 
 #[cfg(not(feature = "stub-adapter"))]
 fn build_adapter() -> Result<Box<dyn PlatformAdapter>, AdapterError> {
-    #[cfg(target_os = "macos")]
-    {
-        agent_desktop_macos::ensure_cocoa_multithreaded()?;
-        Ok(Box::new(agent_desktop_macos::MacOSAdapter::new()))
-    }
-
-    #[cfg(target_os = "windows")]
-    {
-        agent_desktop_windows::bootstrap_hosted_library()?;
-        Ok(Box::new(agent_desktop_windows::WindowsAdapter::new()))
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        Ok(Box::new(agent_desktop_linux::LinuxAdapter::new()))
-    }
-
-    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
-    compile_error!("Unsupported platform")
+    agent_desktop_windows::bootstrap_hosted_library()?;
+    Ok(Box::new(agent_desktop_windows::WindowsAdapter::new()))
 }
 
 fn create_adapter(session_id: Option<String>) -> *mut AdAdapter {

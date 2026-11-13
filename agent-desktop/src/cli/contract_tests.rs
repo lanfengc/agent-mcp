@@ -211,7 +211,7 @@ fn curated_help_exposes_new_surfaces_and_current_ref_contract() {
 }
 
 #[test]
-fn permissions_help_names_the_isolated_request_boundary() {
+fn permissions_help_names_the_windows_boundary() {
     let mut command = Cli::command();
     let help = command
         .find_subcommand_mut("permissions")
@@ -219,7 +219,8 @@ fn permissions_help_names_the_isolated_request_boundary() {
         .render_long_help()
         .to_string();
 
-    assert!(help.contains("Request missing permissions in the bounded isolated helper"));
+    assert!(help.contains("Windows grants no accessibility permission"));
+    assert!(help.contains("not supported on Windows"));
 }
 
 #[test]

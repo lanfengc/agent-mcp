@@ -1,8 +1,5 @@
 use std::process::Command;
 
-#[path = "cli_process_support.rs"]
-mod support;
-
 #[path = "cli_parse_error_tests.rs"]
 mod parse_error_tests;
 
@@ -172,43 +169,6 @@ fn invalid_state_root_env_fails_batch_as_single_envelope() {
     );
 }
 
-#[cfg(target_os = "macos")]
-#[test]
-fn malformed_permission_helper_invocation_bypasses_clap_and_tracing() {
-    const HELPER_ENV: [&str; 6] = [
-        "AGENT_DESKTOP_PERMISSION_HELPER",
-        "AGENT_DESKTOP_PERMISSION_OPERATION",
-        "AGENT_DESKTOP_PERMISSION_TOKEN",
-        "AGENT_DESKTOP_PERMISSION_PARENT_PID",
-        "AGENT_DESKTOP_PERMISSION_PARENT_INSTANCE",
-        "AGENT_DESKTOP_PERMISSION_EXECUTABLE",
-    ];
-
-    let mut command = binary();
-    command.arg("--definitely-not-a-real-flag");
-    for name in HELPER_ENV {
-        command.env_remove(name);
-    }
-    let output = command
-        .env("AGENT_DESKTOP_PERMISSION_HELPER", "invalid")
-        .env("RUST_LOG", "trace")
-        .output()
-        .expect("binary starts");
-
-    assert_eq!(output.status.code(), Some(2));
-    assert!(output.stderr.is_empty());
-    assert_eq!(
-        output.stdout.iter().filter(|byte| **byte == b'\n').count(),
-        1
-    );
-    assert_eq!(output.stdout.last(), Some(&b'\n'));
-    let response: serde_json::Value =
-        serde_json::from_slice(&output.stdout).expect("stdout is one JSON line");
-    assert_eq!(response["version"], 1);
-    assert_eq!(response["ok"], false);
-    assert_eq!(response["error"], "invalid_helper_invocation");
-}
-
 #[test]
 fn agent_identity_flag_overrides_environment_and_rejects_invalid_ids() {
     let output = binary()
@@ -232,17 +192,6 @@ fn agent_identity_flag_overrides_environment_and_rejects_invalid_ids() {
     assert_eq!(response["error"]["code"], "INVALID_ARGS");
 }
 
-#[cfg(unix)]
-fn create_private_dir(dir: &std::path::Path) {
-    use std::os::unix::fs::DirBuilderExt;
-    std::fs::DirBuilder::new()
-        .recursive(true)
-        .mode(0o700)
-        .create(dir)
-        .expect("create state root");
-}
-
-#[cfg(not(unix))]
 fn create_private_dir(dir: &std::path::Path) {
     std::fs::create_dir_all(dir).expect("create state root");
 }
@@ -286,9 +235,6 @@ fn run_batch(dir: &std::path::Path, cmds: serde_json::Value, extra: &[&str]) -> 
 
 #[test]
 fn batch_entry_after_mid_batch_session_end_is_skipped_without_aborting_batch() {
-    if support::run_in_private_session() {
-        return;
-    }
     let dir = unique_temp_dir("cli-batch-session-end");
     let session_id = start_session_in_dir(&dir);
     let data = run_batch(
@@ -343,9 +289,6 @@ fn batch_entry_after_mid_batch_session_end_is_skipped_without_aborting_batch() {
 
 #[test]
 fn batch_session_ended_skip_leaves_a_following_entry_of_another_session_running() {
-    if support::run_in_private_session() {
-        return;
-    }
     let dir = unique_temp_dir("cli-batch-session-end-wait-cross");
     let sid_a = start_session_in_dir(&dir);
     let sid_b = start_session_in_dir(&dir);
@@ -372,9 +315,6 @@ fn batch_session_ended_skip_leaves_a_following_entry_of_another_session_running(
 
 #[test]
 fn batch_session_ended_skip_covers_a_following_entry_of_the_same_session() {
-    if support::run_in_private_session() {
-        return;
-    }
     let dir = unique_temp_dir("cli-batch-session-end-wait-same");
     let sid_a = start_session_in_dir(&dir);
     let env = run_batch(

@@ -84,7 +84,7 @@ Pick the icon for what the node is, and keep the same icon for the same thing ac
 | An error outcome | `cross` |
 | A refresh, re-read, or retry | `refresh-counter-clockwise` |
 
-For operating systems, use the brand marks instead of a Geist icon: Apple and Linux (Tux) from [Simple Icons](https://simpleicons.org) (CC0, `viewBox="0 0 24 24"`), and the four-square Windows mark (`M0 0h7.5v7.5H0zM8.5 0H16v7.5H8.5zM0 8.5h7.5V16H0zM8.5 8.5H16V16H8.5z` in a 16 x 16 box). Color them like any node icon.
+For operating systems, use the brand mark instead of a Geist icon: the four-square Windows mark (`M0 0h7.5v7.5H0zM8.5 0H16v7.5H8.5zM0 8.5h7.5V16H0zM8.5 8.5H16V16H8.5z` in a 16 x 16 box). Color it like any node icon.
 
 When a node needs an icon this table does not cover, choose the closest Geist icon by meaning and add it to the table in the same change.
 

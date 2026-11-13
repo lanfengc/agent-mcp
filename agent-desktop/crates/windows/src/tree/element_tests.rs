@@ -10,7 +10,7 @@ fn a_foreign_payload_never_masquerades_as_a_uia_element() {
     let foreign = NativeHandle::new(String::from("ax-token"));
 
     let Err(error) = uia_element(&foreign) else {
-        panic!("a macOS-shaped payload must be rejected");
+        panic!("a non-Windows payload must be rejected");
     };
 
     assert_eq!(error.code, ErrorCode::InvalidArgs);

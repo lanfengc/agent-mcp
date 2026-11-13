@@ -1634,43 +1634,10 @@ pub fn flow_path(origin: &str, name: &str) -> Result<PathBuf, String> {
     Ok(flows_dir().join(origin).join(format!("{}.json", name)))
 }
 
-/// Flow files hold recorded URLs and form values, so only the owner can read
-/// them, from the moment they are created.
-#[cfg(unix)]
-fn create_private_dirs(dir: &std::path::Path) -> std::io::Result<()> {
-    use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
-    std::fs::DirBuilder::new()
-        .recursive(true)
-        .mode(0o700)
-        .create(dir)?;
-    for d in [dir, flows_dir().as_path()] {
-        if d.starts_with(flows_dir()) && d.exists() {
-            std::fs::set_permissions(d, std::fs::Permissions::from_mode(0o700))?;
-        }
-    }
-    Ok(())
-}
-
-#[cfg(not(unix))]
 fn create_private_dirs(dir: &std::path::Path) -> std::io::Result<()> {
     std::fs::create_dir_all(dir)
 }
 
-#[cfg(unix)]
-fn write_private(path: &std::path::Path, text: &str) -> std::io::Result<()> {
-    use std::io::Write;
-    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
-    let mut file = std::fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .mode(0o600)
-        .open(path)?;
-    file.set_permissions(std::fs::Permissions::from_mode(0o600))?;
-    file.write_all(text.as_bytes())
-}
-
-#[cfg(not(unix))]
 fn write_private(path: &std::path::Path, text: &str) -> std::io::Result<()> {
     std::fs::write(path, text)
 }
@@ -3958,25 +3925,6 @@ mod tests {
                 p.id
             );
         }
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn flow_files_are_private() {
-        use std::os::unix::fs::PermissionsExt;
-        let dir = std::env::temp_dir().join(format!("abflow-perm-{}", std::process::id()));
-        let path = dir.join("site.example").join("f.json");
-        create_private_dirs(path.parent().unwrap()).unwrap();
-        write_private(&path, "{}").unwrap();
-        let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
-        assert_eq!(mode, 0o600);
-        let dir_mode = std::fs::metadata(path.parent().unwrap())
-            .unwrap()
-            .permissions()
-            .mode()
-            & 0o777;
-        assert_eq!(dir_mode, 0o700);
-        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]

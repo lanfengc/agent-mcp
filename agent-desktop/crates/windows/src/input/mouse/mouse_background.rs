@@ -59,13 +59,13 @@ pub(crate) fn post_background_click(
     } else {
         None
     };
-    let (target, client) = target_and_client_point(parent, point)?;
+    let (receiver, client) = target_and_client_point(parent, point)?;
     let (down, up, down_state) = button_messages(&options.button);
     for click_index in 0..options.count {
         deadline.ensure_remaining()?;
-        post_message(target, WM_MOUSEMOVE, 0, pack_point(client))?;
-        post_message(target, down, down_state, pack_point(client))?;
-        post_message(target, up, 0, pack_point(client))?;
+        post_message(receiver, WM_MOUSEMOVE, 0, pack_point(client))?;
+        post_message(receiver, down, down_state, pack_point(client))?;
+        post_message(receiver, up, 0, pack_point(client))?;
         if click_index + 1 < options.count {
             crate::input::mouse::sleep_bounded(deadline, CLICK_GAP)?;
         }
@@ -81,7 +81,7 @@ pub(crate) fn post_background_click(
             .with_details(serde_json::json!({
                 "method": if options.cursor_fallback { "PostMessage+cursor" } else { "PostMessage" },
                 "background": true,
-                "target_hwnd": verified.id,
+                "target_hwnd": crate::system::window::window_ops::window_id(receiver),
                 "client_x": client.x,
                 "client_y": client.y,
                 "window_was_minimized": was_minimized,
@@ -262,7 +262,7 @@ fn minimized_refusal() -> AdapterError {
         "Cannot post a click to a minimized window",
     )
     .with_suggestion(
-        "Pass --restore-minimized to restore the window for the click and minimize it again, or restore it first with window-op",
+        "Pass --restore-minimized to restore the window for the click and minimize it again, or restore it first with the restore command",
     )
     .with_disposition(DeliverySemantics::not_delivered())
 }

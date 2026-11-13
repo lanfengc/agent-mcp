@@ -134,7 +134,6 @@ const TOOL_STATE_CLEAN: &str = "agent_browser_state_clean";
 const TOOL_STATE_RENAME: &str = "agent_browser_state_rename";
 const TOOL_TAP: &str = "agent_browser_tap";
 const TOOL_SWIPE: &str = "agent_browser_swipe";
-const TOOL_DEVICE: &str = "agent_browser_device";
 const TOOL_DIFF_SNAPSHOT: &str = "agent_browser_diff_snapshot";
 const TOOL_DIFF_SCREENSHOT: &str = "agent_browser_diff_screenshot";
 const TOOL_DIFF_URL: &str = "agent_browser_diff_url";
@@ -244,7 +243,7 @@ impl ToolProfile {
             "debug" | "diagnostics" => Some(Self::Debug),
             "tabs" | "frames" => Some(Self::Tabs),
             "react" | "web" => Some(Self::React),
-            "mobile" | "ios" => Some(Self::Mobile),
+            "mobile" => Some(Self::Mobile),
             "webmcp" => Some(Self::Webmcp),
             "all" | "full" => Some(Self::All),
             _ => None,
@@ -511,7 +510,6 @@ const MOBILE_PROFILE_TOOLS: &[&str] = &[
     TOOL_SET_MEDIA,
     TOOL_TAP,
     TOOL_SWIPE,
-    TOOL_DEVICE,
 ];
 
 /// Run one MCP tool call without the stdio session, print its `tools/call`
@@ -850,11 +848,11 @@ fn tools() -> Vec<Value> {
         tool(
             TOOL_OPEN,
             "Open page",
-            "Launch the browser and optionally navigate to a URL. Local Chrome launches without a profile reuse a persistent per-session profile, so cookies and cache survive restarts. On macOS, installed browsers are searched in /Applications, then ~/Applications. Set the proxy in the server environment or config; percent-encoded proxy URL credentials are decoded before authentication. On Windows, owned headless Chrome uses a private desktop and its process tree closes with the daemon, including forced termination. Headed browsers use the interactive desktop. Successful navigation responses include WebMCP availability metadata when the page exposes allowed tools. Browser-provider and launch-mutation errors omit response error text and unsupported protocol values.",
+            "Launch the browser and optionally navigate to a URL. Local Chrome launches without a profile reuse a persistent per-session profile, so cookies and cache survive restarts. Set the proxy in the server environment or config; percent-encoded proxy URL credentials are decoded before authentication. Owned headless Chrome uses a private desktop and its process tree closes with the daemon, including forced termination. Headed browsers use the interactive desktop. Successful navigation responses include WebMCP availability metadata when the page exposes allowed tools. Browser-provider and launch-mutation errors omit response error text and unsupported protocol values.",
             json!({
                 "url": { "type": "string", "description": "URL to open. Omit to launch about:blank." },
                 "headed": { "type": "boolean", "description": "Show the browser window. Explicit true/false overrides AGENT_BROWSER_HEADED and config; omit to use those defaults." },
-                "webgpu": { "type": "boolean", "description": "Enable WebGPU (SwiftShader software Vulkan on Linux; no GPU required). Explicit true/false overrides AGENT_BROWSER_WEBGPU and config; omit to use those defaults." }
+                "webgpu": { "type": "boolean", "description": "Enable WebGPU (software rendering when no GPU is available). Explicit true/false overrides AGENT_BROWSER_WEBGPU and config; omit to use those defaults." }
                 ,"webmcp": { "type": "boolean", "description": "Enable experimental WebMCP support. Defaults to true for locally launched Chrome; set false to pass --no-webmcp." }
             }),
             &[],
@@ -1733,7 +1731,7 @@ fn parity_tools() -> Vec<Value> {
         tool(
             TOOL_TAP,
             "Tap",
-            "Tap an element on iOS/touch backends.",
+            "Tap an element on touch backends.",
             json!({ "selector": selector_schema() }),
             &["selector"],
         ),
@@ -1743,13 +1741,6 @@ fn parity_tools() -> Vec<Value> {
             "Swipe in a direction.",
             json!({ "direction": { "type": "string", "enum": ["up", "down", "left", "right"] }, "amount": { "type": "integer" } }),
             &["direction"],
-        ),
-        tool(
-            TOOL_DEVICE,
-            "Device",
-            "List available iOS simulators.",
-            json!({ "action": { "type": "string", "enum": ["list"], "default": "list" } }),
-            &[],
         ),
         tool(
             TOOL_DIFF_SNAPSHOT,
@@ -1993,7 +1984,7 @@ fn parity_tools() -> Vec<Value> {
             TOOL_DOCTOR,
             "Doctor",
             "Diagnose the installation.",
-            json!({ "offline": { "type": "boolean" }, "quick": { "type": "boolean" }, "fix": { "type": "boolean" }, "webgpu": { "type": "boolean", "description": "Also run a live WebGPU render probe (launches a second Chrome)." }, "headed": { "type": "boolean", "description": "Run the WebGPU probe headed to validate the capture path (auto-Xvfb on displayless Linux). Explicit true/false overrides AGENT_BROWSER_HEADED/config." }, "debug": { "type": "boolean", "description": "Verbose diagnostics from the probes' scratch daemons." } }),
+            json!({ "offline": { "type": "boolean" }, "quick": { "type": "boolean" }, "fix": { "type": "boolean" }, "webgpu": { "type": "boolean", "description": "Also run a live WebGPU render probe (launches a second Chrome)." }, "headed": { "type": "boolean", "description": "Run the WebGPU probe headed to validate the capture path on a logged-in desktop. Explicit true/false overrides AGENT_BROWSER_HEADED/config." }, "debug": { "type": "boolean", "description": "Verbose diagnostics from the probes' scratch daemons." } }),
             &[],
         ),
         tool(
@@ -2020,8 +2011,8 @@ fn parity_tools() -> Vec<Value> {
         tool(
             TOOL_INSTALL,
             "Install",
-            "Install browser binaries. On macOS versions below 13, the command stops before downloading Chrome for Testing and prints instructions to update macOS or install Chrome manually. If `sw_vers -productVersion` is unavailable, exits with an error, returns no version, or returns a malformed version, the command reports a detection error and stops before making a network request.",
-            json!({ "withDeps": { "type": "boolean", "description": "Install Linux system dependencies. The package manager runs directly as root; non-root uses sudo." } }),
+            "Install browser binaries. Downloads Chrome for Testing for Windows.",
+            json!({}),
             &[],
         ),
         tool(
@@ -2195,7 +2186,7 @@ fn shared_property(key: &str) -> Value {
     }
 }
 
-const SHARED_ARGUMENTS_INSTRUCTIONS: &str = "Every tool accepts these optional arguments even when its schema does not list them: session (isolated browser session name), restore (true or a key; restores and auto-saves browser state when the call launches the browser), allowedDomains (domain patterns that restrict browser and read traffic when the call launches the browser; also disables RTCPeerConnection in Chromium sessions, and is rejected when the server environment or config already sets allowed domains), capture (set to flow to record the session so flow steps and flow save can turn it into a reusable flow, when the call launches the browser), extraArgs (extra CLI arguments such as --engine; global flags that change network, file, policy, or host access, such as --allowed-domains, --executable-path, --args, and --config, are rejected, so set those in the MCP server environment or config), timeoutMs (positive integer, maximum milliseconds to wait for the tool call), namespace (isolates daemon sockets and restore-state directories), restoreSave (auto, always, or never), restoreCheckUrl, restoreCheckText, and restoreCheckFn (conditions restored state must satisfy), caCert (path to a CA certificate or PEM bundle for the CLI's HTTPS requests and locally launched Chromium on Linux), useSystemCa (boolean, use the OS trust store for the CLI's HTTPS requests), clearCaCert (boolean, clear CA trust retained by the session; cannot be combined with caCert), idleTimeout (such as 30s, 5m, 1h, or milliseconds; defaults to 1h, 0 disables idle shutdown), and relaunch (boolean, relaunch the session's browser even when no setting changed).";
+const SHARED_ARGUMENTS_INSTRUCTIONS: &str = "Every tool accepts these optional arguments even when its schema does not list them: session (isolated browser session name), restore (true or a key; restores and auto-saves browser state when the call launches the browser), allowedDomains (domain patterns that restrict browser and read traffic when the call launches the browser; also disables RTCPeerConnection in Chromium sessions, and is rejected when the server environment or config already sets allowed domains), capture (set to flow to record the session so flow steps and flow save can turn it into a reusable flow, when the call launches the browser), extraArgs (extra CLI arguments such as --engine; global flags that change network, file, policy, or host access, such as --allowed-domains, --executable-path, --args, and --config, are rejected, so set those in the MCP server environment or config), timeoutMs (positive integer, maximum milliseconds to wait for the tool call), namespace (isolates daemon sockets and restore-state directories), restoreSave (auto, always, or never), restoreCheckUrl, restoreCheckText, and restoreCheckFn (conditions restored state must satisfy), caCert (path to a CA certificate or PEM bundle for the CLI's HTTPS requests), useSystemCa (boolean, use the OS trust store for the CLI's HTTPS requests), clearCaCert (boolean, clear CA trust retained by the session; cannot be combined with caCert), idleTimeout (such as 30s, 5m, 1h, or milliseconds; defaults to 1h, 0 disables idle shutdown), and relaunch (boolean, relaunch the session's browser even when no setting changed).";
 
 /// Levenshtein distance, for suggesting a close argument name.
 fn edit_distance(a: &str, b: &str) -> usize {
@@ -2279,7 +2270,6 @@ fn is_read_only_tool(name: &str) -> bool {
             | TOOL_AUTH_SHOW
             | TOOL_STATE_LIST
             | TOOL_STATE_SHOW
-            | TOOL_DEVICE
             | TOOL_REACT_TREE
             | TOOL_REACT_INSPECT
             | TOOL_REACT_SUSPENSE
@@ -2575,7 +2565,6 @@ fn call_tool(params: Option<&Value>, config: &McpConfig) -> Result<Value, Protoc
         TOOL_STATE_RENAME => call_state_rename(arguments),
         TOOL_TAP => call_simple_selector(arguments, "tap"),
         TOOL_SWIPE => call_swipe(arguments),
-        TOOL_DEVICE => call_device(arguments),
         TOOL_DIFF_SNAPSHOT => call_diff_snapshot(arguments),
         TOOL_DIFF_SCREENSHOT => call_diff_screenshot(arguments),
         TOOL_DIFF_URL => call_diff_url(arguments),
@@ -2727,7 +2716,6 @@ const MCP_EXTRA_ARGS_GLOBALS: &[&str] = &[
     "--restore-check-url",
     "--restore-check-text",
     "--restore-check-fn",
-    "--device",
     "--user-agent",
     "--color-scheme",
     "--engine",
@@ -3782,12 +3770,6 @@ fn call_swipe(arguments: &Value) -> Result<Value, ProtocolError> {
     call_cli_tool(arguments, args, None)
 }
 
-fn call_device(arguments: &Value) -> Result<Value, ProtocolError> {
-    let action = optional_string(arguments, "action")?.unwrap_or_else(|| "list".to_string());
-    let args = vec!["device".to_string(), action];
-    call_cli_tool(arguments, args, None)
-}
-
 fn call_diff_snapshot(arguments: &Value) -> Result<Value, ProtocolError> {
     let mut args = vec!["diff".to_string(), "snapshot".to_string()];
     if let Some(baseline) = optional_string(arguments, "baseline")? {
@@ -4100,12 +4082,8 @@ fn call_dashboard_start(arguments: &Value) -> Result<Value, ProtocolError> {
     call_cli_tool(arguments, dashboard_start_args(arguments)?, None)
 }
 
-fn install_args(arguments: &Value) -> Result<Vec<String>, ProtocolError> {
-    let mut args = vec!["install".to_string()];
-    if optional_bool(arguments, "withDeps")?.unwrap_or(false) {
-        args.push("--with-deps".to_string());
-    }
-    Ok(args)
+fn install_args(_arguments: &Value) -> Result<Vec<String>, ProtocolError> {
+    Ok(vec!["install".to_string()])
 }
 
 fn call_install(arguments: &Value) -> Result<Value, ProtocolError> {
@@ -4929,17 +4907,6 @@ mod tests {
             .contains("Bare integer selectors are rejected"));
     }
 
-    #[cfg(unix)]
-    #[test]
-    fn run_command_returns_when_a_grandchild_holds_the_pipe() {
-        let mut command = Command::new("sh");
-        command.arg("-c").arg("sleep 30 & echo ready");
-        let started = Instant::now();
-        let run = run_command(command, None, 25_000).expect("run_command should succeed");
-        assert!(run.stdout.contains("ready"), "stdout: {:?}", run.stdout);
-        assert!(started.elapsed() < Duration::from_secs(15));
-    }
-
     #[test]
     fn tools_list_contains_typed_tools() {
         let tools = tools();
@@ -5220,14 +5187,6 @@ mod tests {
     }
 
     #[test]
-    fn install_args_maps_with_deps_to_cli_flag() {
-        assert_eq!(
-            install_args(&json!({ "withDeps": true })).unwrap(),
-            vec!["install", "--with-deps"]
-        );
-    }
-
-    #[test]
     fn tools_list_uses_unique_names() {
         let tools = tools();
         let mut names: Vec<&str> = tools.iter().filter_map(|t| t["name"].as_str()).collect();
@@ -5316,50 +5275,6 @@ mod tests {
         assert!(config.allows(TOOL_READ));
         assert!(config.allows(TOOL_NETWORK_HAR_START));
         assert!(config.allows(TOOL_REACT_TREE));
-    }
-
-    /// Every tool with its startup profiles, in the shape `tools/list` returns, for clients that ship the catalog.
-    fn tool_catalog() -> Value {
-        let profiles = [
-            ToolProfile::Core,
-            ToolProfile::Network,
-            ToolProfile::State,
-            ToolProfile::Debug,
-            ToolProfile::Tabs,
-            ToolProfile::React,
-            ToolProfile::Mobile,
-            ToolProfile::Webmcp,
-        ];
-        let mut tools = tools();
-        tools.sort_by(|a, b| a["name"].as_str().cmp(&b["name"].as_str()));
-        for tool in &mut tools {
-            let name = tool["name"].as_str().unwrap_or_default().to_string();
-            tool["profiles"] = json!(profiles
-                .iter()
-                .filter(|profile| profile.tools().contains(&name.as_str()))
-                .map(|profile| profile.name())
-                .collect::<Vec<_>>());
-        }
-        json!({ "protocolVersion": PROTOCOL_VERSION, "tools": tools })
-    }
-
-    #[test]
-    fn mcp_tool_catalog_snapshot_is_current() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../packages/@agent-browser/sandbox/mcp-tools.json");
-        let expected = format!(
-            "{}\n",
-            serde_json::to_string_pretty(&tool_catalog()).unwrap()
-        );
-        if std::env::var_os("AGENT_BROWSER_UPDATE_MCP_TOOLS").is_some() {
-            std::fs::write(&path, &expected).unwrap();
-        }
-        let actual = std::fs::read_to_string(&path).unwrap_or_default();
-        assert!(
-            actual == expected,
-            "{} is out of date. Run `pnpm mcp-tools:sync`.",
-            path.display()
-        );
     }
 
     #[test]

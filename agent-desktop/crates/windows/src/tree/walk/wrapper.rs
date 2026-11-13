@@ -10,8 +10,7 @@ use crate::tree::properties::property_outcome::{PropertyOutcome, PropertyValue};
 /// per node. A node is a transparent wrapper only when its control type is
 /// `Group` (50026), `Custom` (50025), or `Pane` (50033) **and** its name,
 /// value and `AutomationId` are all empty **and** it advertises no action.
-/// This mirrors macOS's rule that a named or actionable generic element
-/// consumes depth (`crates/macos/src/tree/query/node_evidence.rs:6-38`).
+/// A named or actionable generic element consumes depth.
 /// `Pane` belongs here because Chromium builds its pass-through chain from
 /// unnamed panes (six of them sit above Obsidian's document); native
 /// stacks are full of the same anonymous panes, so the call-site

@@ -2,7 +2,7 @@
 //!
 //! Each daemon session can be bound to a single CDP target (tab). The binding
 //! is written to `{session}.target` in the daemon socket directory as a small
-//! JSON document and, unlike the other per-session files (`.pid`, `.sock`,
+//! JSON document and, unlike the other per-session files (`.pid`,
 //! `.stream`, ...), it intentionally survives daemon restarts. On the next
 //! attach over CDP the daemon re-selects the bound target by `targetId`
 //! instead of adopting whatever tab happens to be first in
@@ -113,11 +113,6 @@ pub fn save(session: &str, binding: &TabBinding) -> Result<(), String> {
     let write_result = (|| -> Result<(), String> {
         let mut options = fs::OpenOptions::new();
         options.write(true).create(true).truncate(true);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::OpenOptionsExt;
-            options.mode(0o600);
-        }
         let mut file = options
             .open(&tmp)
             .map_err(|e| format!("cannot create tab binding file {}: {}", tmp.display(), e))?;
@@ -199,12 +194,10 @@ mod tests {
     fn with_socket_dir<F: FnOnce()>(f: F) {
         let guard = crate::test_utils::EnvGuard::new(&[
             "AGENT_BROWSER_SOCKET_DIR",
-            "XDG_RUNTIME_DIR",
             "AGENT_BROWSER_NAMESPACE",
         ]);
         let dir = tempfile::tempdir().unwrap();
         guard.set("AGENT_BROWSER_SOCKET_DIR", dir.path().to_str().unwrap());
-        guard.remove("XDG_RUNTIME_DIR");
         guard.remove("AGENT_BROWSER_NAMESPACE");
         f();
     }
@@ -279,7 +272,6 @@ mod tests {
     fn test_save_unwritable_dir_returns_error() {
         let guard = crate::test_utils::EnvGuard::new(&[
             "AGENT_BROWSER_SOCKET_DIR",
-            "XDG_RUNTIME_DIR",
             "AGENT_BROWSER_NAMESPACE",
         ]);
         let dir = tempfile::tempdir().unwrap();
@@ -290,7 +282,6 @@ mod tests {
             "AGENT_BROWSER_SOCKET_DIR",
             blocker.join("sub").to_str().unwrap(),
         );
-        guard.remove("XDG_RUNTIME_DIR");
         guard.remove("AGENT_BROWSER_NAMESPACE");
         let binding = TabBinding {
             target_id: "AAAA".to_string(),
@@ -298,25 +289,6 @@ mod tests {
             pinned: true,
         };
         assert!(save("blocked", &binding).is_err());
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn test_save_sets_owner_only_permissions() {
-        use std::os::unix::fs::PermissionsExt;
-        with_socket_dir(|| {
-            let binding = TabBinding {
-                target_id: "AAAA".to_string(),
-                url: String::new(),
-                pinned: false,
-            };
-            save("perms", &binding).unwrap();
-            let mode = fs::metadata(binding_path("perms"))
-                .unwrap()
-                .permissions()
-                .mode();
-            assert_eq!(mode & 0o777, 0o600);
-        });
     }
 
     #[test]
@@ -454,7 +426,7 @@ mod tests {
             assert!(!released.pinned);
             assert_eq!(released.target_id, "TARGET1");
             assert_eq!(pinned_owner("TARGET1", "b"), None);
-            assert_eq!(load("a").unwrap().unwrap().pinned, false);
+            assert!(!load("a").unwrap().unwrap().pinned);
             assert_eq!(release_pin("a"), Ok(None));
             assert_eq!(release_pin("missing"), Ok(None));
         });

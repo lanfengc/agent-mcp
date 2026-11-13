@@ -95,8 +95,7 @@ mod imp {
 
     /// Roles the fixture is required to expose in one snapshot so every
     /// ref-able action this map produces has a regression-testable target -
-    /// a closed list derived from this map rather than copied from macOS.
-    /// Declared beside [`control_type_role`], alongside
+    /// a closed list derived from this map alone. Declared beside [`control_type_role`], alongside
     /// [`FIXTURE_UNCOVERED_ROLES`], so a `ControlType` arm added later that
     /// yields a role in neither set fails `roles_fixture_coverage_tests.rs`'s
     /// union test instead of silently going uncovered. That union test's own
@@ -250,12 +249,10 @@ mod imp {
 
     use super::ElementProperties;
 
-    /// Exists only so `agent-desktop-windows` compiles on the Linux
-    /// cross-check target used to prove this crate carries no unconditional
-    /// platform leakage. The control-type map's own assertions - the
-    /// exhaustive match, the ARIA containment table, the refinement gates -
-    /// all run on the Windows lane, where `uiautomation::types::ControlType`
-    /// exists to exercise them against.
+    /// Compiles where `uiautomation::types::ControlType` is absent. The
+    /// control-type map's own assertions - the exhaustive match, the ARIA
+    /// containment table, the refinement gates - run on Windows, where that
+    /// type exists to exercise them against.
     pub(crate) fn control_type_role(_id: i32, _properties: &ElementProperties) -> Role {
         Role::Unknown
     }

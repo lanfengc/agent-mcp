@@ -56,8 +56,7 @@ impl WalkBudget {
 /// What the cycle guard compares.
 ///
 /// UI Automation hands back a *new* `IUIAutomationElement` proxy for every
-/// query, so pointer identity says nothing at all — the macOS guard's key does
-/// not transfer even though its ancestor-path semantics do. The runtime id is
+/// query, so pointer identity says nothing at all. The runtime id is
 /// the identity UI Automation itself publishes; when a provider will not supply
 /// one, the guard falls back to asking the client to compare two elements.
 #[derive(Debug, Clone, PartialEq, Eq)]

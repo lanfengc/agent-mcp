@@ -243,7 +243,7 @@ pub(crate) struct ScreenshotArgs {
     pub screen: Option<usize>,
     #[arg(
         long,
-        help = "Recognize text in the captured image and return lines with image-pixel rectangles"
+        help = "Recognize text in the captured image and add lines and words with image-pixel rectangles (Windows)"
     )]
     #[serde(default)]
     pub ocr: bool,
@@ -255,7 +255,7 @@ pub(crate) struct ScreenshotArgs {
     pub ocr_language: Option<String>,
     #[arg(
         long = "ocr-query",
-        help = "With --ocr, return the best-matching word or line and its center point"
+        help = "With --ocr, add ocr_match: the word, phrase or line that matches the text, with its rectangle and center point"
     )]
     #[serde(default)]
     pub ocr_query: Option<String>,
