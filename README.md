@@ -60,15 +60,15 @@ All three binaries serve stdio MCP:
 {
   "mcpServers": {
     "agent-desktop": {
-      "command": "C:\\path\\to\\winuse\\bin\\agent-desktop.exe",
+      "command": "C:\\path\\to\\agent-mcp\\bin\\agent-desktop.exe",
       "args": ["mcp"]
     },
     "agent-browser": {
-      "command": "C:\\path\\to\\winuse\\bin\\agent-browser.exe",
+      "command": "C:\\path\\to\\agent-mcp\\bin\\agent-browser.exe",
       "args": ["mcp"]
     },
     "agent-android": {
-      "command": "C:\\path\\to\\winuse\\bin\\agent-android.exe",
+      "command": "C:\\path\\to\\agent-mcp\\bin\\agent-android.exe",
       "args": ["mcp"]
     }
   }

@@ -74,7 +74,7 @@ Snapshots are stored under `%USERPROFILE%\.agent-android\snapshots\`, and only t
 {
   "mcpServers": {
     "agent-android": {
-      "command": "C:\\path\\to\\winuse\\bin\\agent-android.exe",
+      "command": "C:\\path\\to\\agent-mcp\\bin\\agent-android.exe",
       "args": ["mcp"]
     }
   }
@@ -87,7 +87,7 @@ Use one server per device and pass `--serial` (or set `ANDROID_SERIAL`) when mor
 {
   "mcpServers": {
     "agent-android-pixel": {
-      "command": "C:\\path\\to\\winuse\\bin\\agent-android.exe",
+      "command": "C:\\path\\to\\agent-mcp\\bin\\agent-android.exe",
       "args": ["--serial", "R58M12345", "mcp"],
       "env": { "AGENT_ANDROID_READ_ONLY": "1" }
     }
