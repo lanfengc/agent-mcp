@@ -260,6 +260,7 @@ These environment variables configure additional daemon and runtime behavior:
     <tr><td><code>AGENT_BROWSER_ALLOW_FILE_ACCESS</code></td><td>Allow <code>file://</code> URLs to access local files.</td><td>(disabled)</td></tr>
     <tr><td><code>AGENT_BROWSER_EXECUTABLE_PATH</code></td><td>Custom browser executable path.</td><td>(auto-discover)</td></tr>
     <tr><td><code>AGENT_BROWSER_PROFILE</code></td><td>Chrome profile name or persistent profile directory. Local Chrome launches without a profile use a persistent per-session directory instead.</td><td>(none)</td></tr>
+    <tr><td><code>AGENT_BROWSER_EPHEMERAL_PROFILE</code></td><td>Set to <code>1</code> in the CLI or MCP server environment to require a temporary profile for local Chromium. Existing browser attachment, explicit profiles, storage-state replay and restore keys are refused in this mode.</td><td>(unset)</td></tr>
     <tr><td><code>AGENT_BROWSER_STATE</code></td><td>Storage state file to load at launch.</td><td>(none)</td></tr>
     <tr><td><code>AGENT_BROWSER_PROXY</code></td><td>Proxy URL. Takes precedence over standard proxy variables.</td><td>(none)</td></tr>
     <tr><td><code>AGENT_BROWSER_PROXY_BYPASS</code></td><td>Proxy bypass host list.</td><td>(none)</td></tr>

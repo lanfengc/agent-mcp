@@ -4687,6 +4687,7 @@ Environment:
   AGENT_BROWSER_JSON             JSON output
   AGENT_BROWSER_ANNOTATE         Annotated screenshot with numbered labels and legend
   AGENT_BROWSER_DEBUG            Debug output
+  AGENT_BROWSER_EPHEMERAL_PROFILE=1  Require a fresh temporary local Chromium profile
   AGENT_BROWSER_IGNORE_HTTPS_ERRORS Ignore HTTPS certificate errors
   AGENT_BROWSER_CA_CERT          Path to CA certificate to trust (HTTPS interception proxies)
   AGENT_BROWSER_CLEAR_CA_CERT    Clear CA trust retained by the running browser session

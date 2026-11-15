@@ -125,7 +125,7 @@ fn grow_and_retry_wide_buffer(
 /// Windows, so a loud refusal in a world-writable root is the safer failure.
 pub(super) fn ensure_private(directory: &Path) -> Result<(), AdapterError> {
     let freshly_created = create_if_absent(directory)?;
-    let handle = open_backup_semantics(directory)?;
+    let handle = open_backup_semantics(directory, freshly_created)?;
     validate_is_directory(&handle)?;
     validate_final_path(&handle, directory)?;
     validate_owner(&handle)?;
@@ -150,13 +150,17 @@ fn create_if_absent(directory: &Path) -> Result<bool, AdapterError> {
     let parent = directory
         .parent()
         .ok_or_else(|| untrusted("lock directory path has no parent"))?;
-    std::fs::create_dir_all(parent).map_err(io_untrusted)?;
+    std::fs::create_dir_all(parent).map_err(|error| {
+        io_untrusted(error).with_platform_detail("create interaction lock parent")
+    })?;
     #[cfg(test)]
     inject_create_race(directory);
     match std::fs::create_dir(directory) {
         Ok(()) => Ok(true),
         Err(error) if error.kind() == ErrorKind::AlreadyExists => Ok(false),
-        Err(error) => Err(io_untrusted(error)),
+        Err(error) => {
+            Err(io_untrusted(error).with_platform_detail("create interaction lock directory"))
+        }
     }
 }
 
@@ -186,16 +190,18 @@ fn inject_create_race(directory: &Path) {
     }
 }
 
-fn open_backup_semantics(directory: &Path) -> Result<File, AdapterError> {
+fn open_backup_semantics(directory: &Path, freshly_created: bool) -> Result<File, AdapterError> {
+    let mut access = FILE_GENERIC_READ | windows_sys::Win32::Storage::FileSystem::READ_CONTROL;
+    if freshly_created {
+        access |= windows_sys::Win32::Storage::FileSystem::WRITE_DAC;
+    }
     OpenOptions::new()
         .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
-        .access_mode(
-            FILE_GENERIC_READ
-                | windows_sys::Win32::Storage::FileSystem::READ_CONTROL
-                | windows_sys::Win32::Storage::FileSystem::WRITE_DAC,
-        )
+        .access_mode(access)
         .open(directory)
-        .map_err(io_untrusted)
+        .map_err(|error| {
+            io_untrusted(error).with_platform_detail("open interaction lock directory")
+        })
 }
 
 fn validate(handle: &File, directory: &Path) -> Result<(), AdapterError> {

@@ -3178,6 +3178,14 @@ async fn execute_command_inner(cmd: &Value, state: &mut DaemonState) -> Value {
     } else {
         false
     };
+    if needs_launch && ephemeral_profile_enabled() && action != "navigate" {
+        let mut response = error_response(
+            &id,
+            "The isolated browser is unavailable. Open a fresh browser and verify its page before retrying.",
+        );
+        response["code"] = json!("browser_rebind_required");
+        return response;
+    }
     let mut lifecycle_reused = false;
     let mut lifecycle_launched = false;
     let mut lifecycle_relaunched_browser = false;
@@ -4707,6 +4715,31 @@ fn args_name_user_data_dir(args: &[String]) -> bool {
         })
 }
 
+fn validate_ephemeral_profile(
+    connection: &Connection,
+    engine: Option<&str>,
+    options: &LaunchOptions,
+    restore: Option<&str>,
+) -> Result<(), String> {
+    if !matches!(connection, Connection::Local) || !matches!(engine, None | Some("chrome")) {
+        return Err("Ephemeral profiles require a locally launched Chromium browser".into());
+    }
+    if options.profile.is_some()
+        || options.storage_state.is_some()
+        || args_name_user_data_dir(&options.args)
+        || restore.is_some()
+    {
+        return Err(
+            "Ephemeral profiles cannot reuse a profile, storage state, or restore key".into(),
+        );
+    }
+    Ok(())
+}
+
+fn ephemeral_profile_enabled() -> bool {
+    env::var("AGENT_BROWSER_EPHEMERAL_PROFILE").as_deref() == Ok("1")
+}
+
 async fn auto_launch(
     state: &mut DaemonState,
     plugins: Vec<crate::plugins::PluginConfig>,
@@ -4800,6 +4833,15 @@ async fn auto_launch_inner(
     // Extract storage_state before options is moved into BrowserManager::launch.
     let storage_state_path = options.storage_state.clone();
     let restore_key = state.session_name.clone();
+    let ephemeral_profile = ephemeral_profile_enabled();
+    if ephemeral_profile {
+        validate_ephemeral_profile(
+            &connection,
+            engine.as_deref(),
+            &options,
+            restore_key.as_deref(),
+        )?;
+    }
 
     // Store proxy credentials for Fetch.authRequired handling
     // Only a browser agent-browser launches itself gets them: an external
@@ -4972,6 +5014,14 @@ async fn auto_launch_inner(
     })?;
 
     apply_launch_mutator_plugins(state, &mut options, plugins).await?;
+    if ephemeral_profile {
+        validate_ephemeral_profile(
+            &connection,
+            engine.as_deref(),
+            &options,
+            restore_key.as_deref(),
+        )?;
+    }
     validate_ca_cert_launch_mode(&options, engine.as_deref(), false)?;
     ensure_allowed_domains_supported_for_launch(AllowedDomainsLaunchSupport {
         allowed_domains: &allowed_domains,
@@ -4987,7 +5037,8 @@ async fn auto_launch_inner(
     // Persist cookies, storage, and cache for local Chrome launches that named
     // no profile. Tests construct the daemon in-process, where a shared profile
     // would leak state between runs, so only a real daemon process opts in.
-    if !cfg!(test)
+    if !ephemeral_profile
+        && !cfg!(test)
         && should_use_default_profile(&connection, engine.as_deref(), &options, &allowed_domains)
     {
         let profile_dir = state::get_default_profile_dir(&state.session_id);
@@ -19500,6 +19551,21 @@ mod tests {
             &directory,
             no_domains
         ));
+    }
+
+    #[test]
+    fn ephemeral_profile_requires_an_owned_launch_without_restored_state() {
+        let clean = LaunchOptions::default();
+        assert!(validate_ephemeral_profile(&Connection::Local, None, &clean, None).is_ok());
+        assert!(validate_ephemeral_profile(&Connection::AutoConnect, None, &clean, None).is_err());
+        assert!(
+            validate_ephemeral_profile(&Connection::Local, None, &clean, Some("saved")).is_err()
+        );
+        let named = LaunchOptions {
+            args: vec!["--user-data-dir=C:\\profile".to_string()],
+            ..clean
+        };
+        assert!(validate_ephemeral_profile(&Connection::Local, None, &named, None).is_err());
     }
 
     #[tokio::test]

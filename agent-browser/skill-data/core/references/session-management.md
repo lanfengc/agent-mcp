@@ -82,6 +82,8 @@ Security settings (`--allowed-domains`, `--action-policy`, `--confirm-actions`) 
 
 ## Session State Persistence
 
+Set `AGENT_BROWSER_EPHEMERAL_PROFILE=1` before starting the CLI or MCP server when each local Chromium launch needs an empty temporary profile. Use a dedicated session and close it when finished. The mode refuses an explicit profile, a storage-state input, a restore key, or an external browser connection. If an interaction returns `browser_rebind_required`, open a fresh browser and verify the page and any previous operation before continuing.
+
 ### Automatic Restore
 
 ```bash

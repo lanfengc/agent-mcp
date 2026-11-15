@@ -607,6 +607,7 @@ const LIGHTPANDA_CDP_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const LIGHTPANDA_CDP_CONNECT_POLL_INTERVAL: Duration = Duration::from_millis(100);
 const LIGHTPANDA_TARGET_INIT_TIMEOUT: Duration = Duration::from_secs(10);
 const FAILED_INITIALIZATION_CLOSE_TIMEOUT: Duration = Duration::from_secs(1);
+const OWNED_BROWSER_CLOSE_TIMEOUT: Duration = Duration::from_secs(3);
 
 const OBSCURA_CDP_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const OBSCURA_CDP_CONNECT_POLL_INTERVAL: Duration = Duration::from_millis(100);
@@ -1643,7 +1644,8 @@ impl BrowserManager {
     }
 
     pub async fn close(&mut self) -> Result<(), String> {
-        self.close_with_timeout(None).await
+        self.close_with_timeout(Some(OWNED_BROWSER_CLOSE_TIMEOUT))
+            .await
     }
 
     async fn close_with_timeout(
