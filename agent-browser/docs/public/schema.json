@@ -104,10 +104,6 @@
       "type": "string",
       "description": "Provider to use, such as 'browserbase'."
     },
-    "device": {
-      "type": "string",
-      "description": "Device name or identifier for emulation or providers (e.g., 'iPhone 16 Pro')."
-    },
     "hideScrollbars": {
       "type": "boolean",
       "description": "Hide native scrollbars in headless Chromium screenshots. Defaults to true."
@@ -142,7 +138,11 @@
     },
     "cdp": {
       "type": "string",
-      "description": "Chrome DevTools Protocol endpoint URL."
+      "description": "Chrome DevTools Protocol or Firefox WebDriver BiDi endpoint URL."
+    },
+    "cdpHeaders": {
+      "type": "string",
+      "description": "WebSocket discovery and handshake headers supplied as a JSON-formatted string. Headers follow their CDP endpoint."
     },
     "autoConnect": {
       "type": "boolean",
@@ -176,10 +176,19 @@
     },
     "allowedDomains": {
       "type": "array",
+      "minItems": 1,
       "items": {
         "type": "string"
       },
       "description": "Allowed domain patterns (e.g., ['example.com', '*.example.com']). Requires a fresh controllable browser context, so CDP, auto-connect, Chrome profiles, restore/state replay, and direct-page provider plugins are not supported."
+    },
+    "capture": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["flow"]
+      },
+      "description": "Record the session so `flow save` can turn it into a replayable flow. Applies when the session opens."
     },
     "actionPolicy": {
       "type": "string",
@@ -195,7 +204,7 @@
     },
     "engine": {
       "type": "string",
-      "enum": ["chrome", "lightpanda", "obscura"],
+      "enum": ["chrome", "lightpanda", "firefox", "obscura"],
       "default": "chrome",
       "description": "Browser engine to use. Obscura is experimental and does not support proxy bypass rules."
     },
@@ -216,7 +225,7 @@
     },
     "idleTimeout": {
       "type": "string",
-      "description": "Auto-shutdown the daemon after inactivity (e.g., '30s', '5m', '1h', or raw milliseconds like '60000')."
+      "description": "Auto-shutdown the daemon after inactivity (e.g., '30s', '5m', '1h', or raw milliseconds like '60000'). Defaults to '1h'; '0' disables idle shutdown. Dashboard input resets the timer. The default never closes headed or attached browsers; an explicit value applies to all browsers."
     },
     "model": {
       "type": "string",

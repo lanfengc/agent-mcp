@@ -6,11 +6,13 @@ Desktop, browser and Android automation for AI agents, in one repository.
 
 | Directory | Tool | Upstream snapshot | Local changes |
 |-----------|------|-------------------|---------------|
-| `agent-desktop/` | Native desktop apps through the OS accessibility tree, plus background window capture and posted clicks on Windows | [`vercel-labs/agent-desktop`](https://github.com/vercel-labs/agent-desktop) at `54855b6225aec00da4ac65e2d0362fd41cd9fcb3` (`main`, 2026-11-12) | Background click options, OCR, minimized-window capture, session recovery, capture metadata, execution policy |
-| `agent-browser/` | Web pages through Chrome DevTools Protocol, driven one command at a time | [`vercel-labs/agent-browser`](https://github.com/vercel-labs/agent-browser) at `2f1649cefb82f417abbb2712f5397439d010698e` (`main`, 2026-11-12) | Persistent per-session Chrome profile for local launches that name no profile |
+| `agent-desktop/` | Native desktop apps through the OS accessibility tree, plus background window capture and posted clicks on Windows | [v1.3.1](https://github.com/vercel-labs/agent-desktop/releases/tag/v1.3.1) at `b0b7277bea09b770ef9d1fb45aad667bc432cd57` | Background click options, OCR, minimized-window capture, session recovery, capture metadata, execution policy |
+| `agent-browser/` | Web pages through Chromium CDP or Firefox BiDi, driven one command at a time | [v0.45.0](https://github.com/vercel-labs/agent-browser/releases/tag/v0.45.0) at `f0a98351ec920bd826b22c98dacf8414f04b9832` | Windows launcher, persistent per-session Chromium profiles and opt-in ephemeral profiles |
 | `agent-android/` | Android phones and emulators through `adb`, with UI snapshots, refs and an MCP server | — (original code in this repository) | — |
 
 All three are tools, not agents. The observe, act and verify loop runs in the calling model.
+
+The [Codex skill](skills/agent-mcp/SKILL.md) routes web pages to an owned external browser, native Windows controls to the desktop service, and Android devices to the ADB service. Register the executables from `bin/` so the running tools use this checkout's Windows changes.
 
 ## Why they live together
 

@@ -67,7 +67,7 @@
       },
       {
         "from": "Run an embedded axe-core audit against the current page or navigate to a URL first. The vendored engine works without a CDN request and runs under strict page CSP. It runs private partial audits across the page's frame tree and merges serialized results without page messaging, so page-provided `window.axe` values remain intact and iframe violations retain their frame selector paths. Accessibility audits require a CDP browser and are not available with Safari or iOS WebDriver sessions.",
-        "to": "Run an embedded axe-core audit against the current page or navigate to a URL first. The vendored engine works without a CDN request and runs under strict page CSP. It runs private partial audits across the page's frame tree and merges serialized results without page messaging, so page-provided `window.axe` values remain intact and iframe violations retain their frame selector paths. Accessibility audits require a CDP browser."
+        "to": "Run an embedded axe-core audit against the current page or navigate to a URL first. The vendored engine works without a CDN request and runs under strict page CSP. It runs private partial audits across the page's frame tree and merges serialized results without page messaging, so page-provided `window.axe` values remain intact and iframe violations retain their frame selector paths. Accessibility audits require a CDP browser and are unavailable in Firefox BiDi sessions."
       },
       {
         "from": "--device <name>          # iOS device name (e.g., \"iPhone 15 Pro\")",
@@ -80,6 +80,50 @@
       {
         "from": "state, iOS, diff",
         "to": "state, diff"
+      },
+      {
+        "from": "--engine <name>          # Browser engine: chrome (default), lightpanda, obscura (experimental)",
+        "to": "--engine <name>          # Browser engine: chrome (default), lightpanda, obscura, firefox"
+      },
+      {
+        "from": "agent-browser type <sel> <text>       # Type into element",
+        "to": "agent-browser type <sel> <text>       # Type without clearing"
+      },
+      {
+        "from": "agent-browser connect <port|url>      # Connect to browser via CDP",
+        "to": "agent-browser connect <port|url>      # Connect to a browser via CDP or Firefox BiDi"
+      },
+      {
+        "from": "--cdp <port|url>         # Connect via CDP; root WebSocket query slash is optional",
+        "to": "--cdp <port|url>         # Connect via CDP or Firefox WebDriver BiDi; Firefox accepts ?devtools=<port>"
+      },
+      {
+        "from": "agent-browser click <sel> # Click element (--new-tab to open in new tab) agent-browser dblclick <sel> # Double-click",
+        "to": "agent-browser click <sel> # Click element (--new-tab to open in new tab) agent-browser click <sel> --button right # Right-click (fires contextmenu) agent-browser click <sel> --modifiers control,shift # Hold keys during the click agent-browser dblclick <sel> # Double-click agent-browser dblclick <sel> --modifiers shift # Double-click with Shift held"
+      },
+      {
+        "from": "agent-browser select <sel> <val>      # Select dropdown by value or visible label",
+        "to": "agent-browser select <sel> <val> [--by value|label]  # Select dropdown by value or visible label"
+      },
+      {
+        "from": "Summaries contain only names, brief descriptions, origins, and frame IDs. Choose a relevant tool, then fetch its full schema with `agent-browser webmcp list <tool> --frame <frame-id> --json` before invoking it. Schemas and annotations are never included proactively. Unchanged catalogs and pages without tools add no context.",
+        "to": "The announcement lists each tool's name, frame ID, and description, and tells you to use one when it fits, before driving the DOM. When every tool is listed and all share one frame, the call examples carry that frame ID; when the catalog is too large to show any tool, the announcement points to `agent-browser webmcp list --json`. If a description does not show the arguments, fetch the schema with `agent-browser webmcp list <tool> --frame <frame-id> --json` before invoking. Schemas and annotations are never included proactively. Unchanged catalogs and pages without tools add no context."
+      },
+      {
+        "from": "Summaries contain only names, brief descriptions, origins, and frame IDs. Choose a relevant tool, then fetch its full schema with agent-browser webmcp list <tool> --frame <frame-id> --json before invoking it. Schemas and annotations are never included proactively. Unchanged catalogs and pages without tools add no context.",
+        "to": "The announcement lists each tool's name, frame ID, and description, and tells you to use one when it fits, before driving the DOM. When every tool is listed and all share one frame, the call examples carry that frame ID; when the catalog is too large to show any tool, the announcement points to agent-browser webmcp list --json. If a description does not show the arguments, fetch the schema with agent-browser webmcp list <tool> --frame <frame-id> --json before invoking. Schemas and annotations are never included proactively. Unchanged catalogs and pages without tools add no context."
+      },
+      {
+        "from": "agent-browser set viewport <w> <h> [scale]  # Set viewport size (scale for retina, e.g. 2)",
+        "to": "agent-browser set viewport <w> <h> [scale]  # Set viewport size (scale for retina, e.g. 2); kept across relaunches and new tabs"
+      },
+      {
+        "from": "agent-browser set device <name>       # Emulate device (\"iPhone 14\")",
+        "to": "agent-browser set device <name>       # Emulate a device (\"iPhone 14\"): viewport, user agent and touch input (touch events exist after the next navigation)"
+      },
+      {
+        "from": "not available with Safari or iOS WebDriver sessions",
+        "to": "unavailable in Firefox BiDi sessions"
       }
     ],
     "/configuration": [
@@ -226,6 +270,104 @@
       {
         "from": "    <tr><td><code>AGENT_BROWSER_IOS_DEVICE</code></td><td>Default iOS device name for the <code>ios</code> provider.</td><td>(none)</td></tr>\n    <tr><td><code>AGENT_BROWSER_IOS_UDID</code></td><td>Default iOS device UDID for the <code>ios</code> provider.</td><td>(none)</td></tr>",
         "to": ""
+      },
+      {
+        "from": "Browser engine to use: chrome (default), lightpanda, obscura (experimental).",
+        "to": "Browser engine to use: chrome (default), lightpanda, firefox, obscura (experimental)."
+      },
+      {
+        "from": "<code>chrome</code> (default), <code>lightpanda</code>, <code>obscura</code> (experimental)",
+        "to": "<code>chrome</code> (default), <code>lightpanda</code>, <code>firefox</code>, <code>obscura</code> (experimental)"
+      },
+      {
+        "from": "<tr><td><code>engine</code></td><td><code>--engine</code></td><td>string (<code>chrome</code>, <code>lightpanda</code>, <code>obscura</code>)</td></tr>",
+        "to": "<tr><td><code>engine</code></td><td><code>--engine</code></td><td>string (<code>chrome</code>, <code>lightpanda</code>, <code>firefox</code>, <code>obscura</code>)</td></tr>"
+      },
+      {
+        "from": "string (chrome, lightpanda, obscura)",
+        "to": "string (chrome, lightpanda, firefox, obscura)"
+      },
+      {
+        "from": "string[]; also disables WebRTC",
+        "to": "string[]; must list at least one domain (an empty array is rejected); also disables WebRTC"
+      },
+      {
+        "from": "Comma-separated allowed domain patterns (e.g., <code>example.com,*.example.com</code>). Requires",
+        "to": "Comma-separated allowed domain patterns (e.g., <code>example.com,*.example.com</code>). An empty value is rejected; unset the variable to run unrestricted. Requires"
+      },
+      {
+        "from": "Comma-separated allowed domain patterns (e.g., example.com,*.example.com). Requires",
+        "to": "Comma-separated allowed domain patterns (e.g., example.com,*.example.com). An empty value is rejected; unset the variable to run unrestricted. Requires"
+      },
+      {
+        "from": "device",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "--device",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "caCert imports the supplied CA certificate or PEM bundle into an isolated NSS database for locally launched Chromium on Linux. Hostname, validity period, and unrelated CA verification remain enabled. The CA remains active when later commands omit it. Setting different certificate content or clearCaCert: true relaunches Chromium without restarting the daemon. agent-browser install --with-deps installs the required certutil; otherwise install libnss3-tools on Debian/Ubuntu or nss-tools on RPM Linux. This initial implementation does not support Chrome profiles, CDP attach, providers, Lightpanda, macOS, or Windows.",
+        "to": "caCert and useSystemCa apply to the CLI's own HTTPS requests. read, install, upgrade, and doctor make their own HTTPS requests and trust the built-in Mozilla roots by default. --ca-cert adds the CA to those requests, and --use-system-ca switches them to the operating system trust store, which already holds a CA deployed by MDM or an enterprise image. CA trust for a locally launched Chromium is not supported on Windows, so browser launch commands reject --ca-cert. SSL_CERT_FILE is used as a fallback CA file and is ignored with a warning when unusable. Neither option disables certificate or hostname verification. For read, a selection given on the command line stays in effect for the session until close, including across daemon restarts; --no-ca-cert or --use-system-ca false turns it off. read never launches or relaunches a browser because of these options. They do not yet change how agent-browser connects to a remote browser over --cdp, --auto-connect, or a provider.",
+        "only": "content"
+      },
+      {
+        "from": "{ \"provider\": \"ios\", \"device\": \"iPhone 16 Pro\" }",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "Browser provider such as ios, browserbase, kernel, browseruse, browserless, agentcore, or a configured browser.provider plugin name.",
+        "to": "Browser provider such as browserbase, kernel, browseruse, browserless, agentcore, or a configured browser.provider plugin name.",
+        "only": "content"
+      },
+      {
+        "from": "Enable WebGPU; SwiftShader software Vulkan on Linux, no GPU required (1 to enable).",
+        "to": "Enable WebGPU; software rendering when no GPU is available (1 to enable).",
+        "only": "content"
+      },
+      {
+        "from": "AGENT_BROWSER_NO_XVFB",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "Disable automatic Xvfb virtual display for headed mode on displayless Linux hosts (1 to disable).",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "(auto-Xvfb enabled)",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "Auto-shutdown the daemon after N ms without commands or dashboard input. Set 0 to disable. Headed browsers, Safari and iOS WebDriver sessions, and user-attached browsers are exempt from the default. Provider-owned cloud browsers are eligible for cleanup, and an explicit value applies to every browser.",
+        "to": "Auto-shutdown the daemon after N ms without commands or dashboard input. Set 0 to disable. Headed and user-attached browsers are exempt from the default. Provider-owned cloud browsers are eligible for cleanup, and an explicit value applies to every browser.",
+        "only": "content"
+      },
+      {
+        "from": "AGENT_BROWSER_IOS_DEVICE",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "Default iOS device name for the ios provider.",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "AGENT_BROWSER_IOS_UDID",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "Default iOS device UDID for the ios provider.",
+        "to": "",
+        "only": "content"
       }
     ],
     "/plugins": [
@@ -262,6 +404,15 @@
       {
         "from": "open startup pages, iOS, and Safari reject this option",
         "to": "open startup pages reject this option"
+      },
+      {
+        "from": "iOS, Safari, and direct-page provider plugins",
+        "to": "Direct-page provider plugins"
+      },
+      {
+        "from": "File permissions are enforced on both Unix (chmod 600/700) and Windows (icacls restricted to the current user) to prevent other users from reading encryption keys or auth profiles.",
+        "to": "Encryption keys and auth profiles are stored under the user profile and inherit its per-user access rules; agent-browser does not set an explicit ACL.",
+        "only": "content"
       }
     ],
     "/init-scripts": [
@@ -330,6 +481,18 @@
       {
         "from": "<tr><td><code>--profile &lt;path&gt;</code></td><td>Persistent browser profile directory</td></tr>",
         "to": "<tr><td><code>--profile &lt;path&gt;</code></td><td>Persistent browser profile directory. Local Chrome launches without it use a per-session profile under the agent-browser state directory.</td></tr>"
+      },
+      {
+        "from": "    <tr><td><code>{\"--cdp <port|url>\"}</code></td><td>CDP connection (port or WebSocket URL)</td></tr>",
+        "to": "    <tr><td><code>--cdp &lt;port|url&gt;</code></td><td>CDP or Firefox WebDriver BiDi connection (port or WebSocket URL; Firefox accepts <code>?devtools=&lt;port&gt;</code>)</td></tr>"
+      },
+      {
+        "from": "CDP connection (port or WebSocket URL)",
+        "to": "CDP or Firefox WebDriver BiDi connection (port or WebSocket URL; Firefox accepts ?devtools=<port>)"
+      },
+      {
+        "from": "Pin the session to its bound tab (strict tab binding)",
+        "to": "Pin the session to its bound tab (CDP only; Firefox attach rejects it)"
       }
     ],
     "/engines/chrome": [
@@ -348,6 +511,71 @@
       {
         "from": "/Applications/Google Chrome.app, /Applications/Google Chrome Canary.app, /Applications/Chromium.app, /Applications/Brave Browser.app, Puppeteer cache (~/.cache/puppeteer/chrome/ or PUPPETEER_CACHE_DIR), Chrome for Testing cache",
         "to": "/Applications/Google Chrome.app, /Applications/Google Chrome Canary.app, /Applications/Chromium.app, /Applications/Brave Browser.app, the same apps in ~/Applications, Puppeteer cache (~/.cache/puppeteer/chrome/ or PUPPETEER_CACHE_DIR), Playwright cache (~/.cache/ms-playwright or PLAYWRIGHT_BROWSERS_PATH)"
+      },
+      {
+        "from": "    <tr>\n      <td>macOS</td>\n      <td>\n        <code>/Applications/Google Chrome.app</code>,\n        <code>/Applications/Google Chrome Canary.app</code>,\n        <code>/Applications/Chromium.app</code>,\n        <code>/Applications/Brave Browser.app</code>,\n        the same apps in <code>~/Applications</code>,\n        Puppeteer cache (<code>~/.cache/puppeteer/chrome/</code> or <code>PUPPETEER_CACHE_DIR</code>),\n        Playwright cache (<code>~/.cache/ms-playwright</code> or <code>PLAYWRIGHT_BROWSERS_PATH</code>)\n      </td>\n    </tr>\n    <tr>\n      <td>Linux</td>\n      <td>\n        <code>google-chrome</code>,\n        <code>google-chrome-stable</code>,\n        <code>chromium-browser</code>,\n        <code>chromium</code> in PATH,\n        Puppeteer cache (<code>~/.cache/puppeteer/chrome/</code> or <code>PUPPETEER_CACHE_DIR</code>),\n        Chrome for Testing cache\n      </td>\n    </tr>",
+        "to": "",
+        "only": "markdown"
+      },
+      {
+        "from": "agent-browser --executable-path /path/to/chromium open example.com",
+        "to": "agent-browser --executable-path \"C:\\Program Files\\Chromium\\Application\\chrome.exe\" open example.com",
+        "only": "markdown"
+      },
+      {
+        "from": "export AGENT_BROWSER_EXECUTABLE_PATH=/path/to/chromium",
+        "to": "$env:AGENT_BROWSER_EXECUTABLE_PATH = 'C:\\Program Files\\Chromium\\Application\\chrome.exe'",
+        "only": "markdown"
+      },
+      {
+        "from": "## Containers and CI\n\nIn Docker, CI runners, or other sandboxed environments, Chrome's user namespace sandbox may need to be disabled:",
+        "to": "## Sandboxed environments\n\nIn a VM or another sandboxed environment, Chrome's sandbox may need to be disabled:",
+        "only": "markdown"
+      },
+      {
+        "from": "agent-browser automatically adds `--no-sandbox` when it detects a container environment (Docker, Podman, running as root).",
+        "to": "Separate args with newlines, or with commas before another flag. Commas inside a value stay with that flag, so list-valued Chrome flags work:\n\n```bash\nagent-browser --args \"--disable-features=Translate,HttpsUpgrades,--no-sandbox\" open example.com\n```",
+        "only": "markdown"
+      },
+      {
+        "from": "macOS",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "/Applications/Google Chrome.app, /Applications/Google Chrome Canary.app, /Applications/Chromium.app, /Applications/Brave Browser.app, the same apps in ~/Applications, Puppeteer cache (~/.cache/puppeteer/chrome/ or PUPPETEER_CACHE_DIR), Playwright cache (~/.cache/ms-playwright or PLAYWRIGHT_BROWSERS_PATH)",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "Linux",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "google-chrome, google-chrome-stable, chromium-browser, chromium in PATH, Puppeteer cache (~/.cache/puppeteer/chrome/ or PUPPETEER_CACHE_DIR), Chrome for Testing cache",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "agent-browser --executable-path /path/to/chromium open example.com",
+        "to": "agent-browser --executable-path \"C:\\Program Files\\Chromium\\Application\\chrome.exe\" open example.com",
+        "only": "content"
+      },
+      {
+        "from": "export AGENT_BROWSER_EXECUTABLE_PATH=/path/to/chromium agent-browser open example.com",
+        "to": "$env:AGENT_BROWSER_EXECUTABLE_PATH = 'C:\\Program Files\\Chromium\\Application\\chrome.exe' agent-browser open example.com",
+        "only": "content"
+      },
+      {
+        "from": "In Docker, CI runners, or other sandboxed environments, Chrome's user namespace sandbox may need to be disabled:",
+        "to": "In a VM or another sandboxed environment, Chrome's sandbox may need to be disabled:",
+        "only": "content"
+      },
+      {
+        "from": "agent-browser automatically adds --no-sandbox when it detects a container environment (Docker, Podman, running as root).",
+        "to": "",
+        "only": "content"
       }
     ],
     "/engines/obscura": [
@@ -366,16 +594,132 @@
       {
         "from": "Or in your agent-browser.json config:",
         "to": "Or in ~/.agent-browser/config.json or a file loaded with --config:"
+      },
+      {
+        "from": "Use the `--engine` flag to select Obscura:",
+        "to": "Set `--engine` on the command that launches the browser. Later commands in the same session use Obscura without the flag:"
+      },
+      {
+        "from": "Use the --engine flag to select Obscura:",
+        "to": "Set --engine on the command that launches the browser. Later commands in the same session use Obscura without the flag:"
+      },
+      {
+        "from": "agent-browser --engine obscura snapshot",
+        "to": "agent-browser snapshot"
+      },
+      {
+        "from": "agent-browser --engine obscura screenshot",
+        "to": "agent-browser screenshot"
+      },
+      {
+        "from": "Install the Obscura binary before using it with agent-browser:\n\n<table>\n  <thead>\n    <tr><th>Platform</th><th>Command</th></tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td>Linux (x86_64)</td>\n      <td><code>curl -LO https://github.com/h4ckf0r0day/obscura/releases/latest/download/obscura-x86_64-linux.tar.gz && tar xzf obscura-x86_64-linux.tar.gz</code></td>\n    </tr>\n    <tr>\n      <td>macOS (Apple Silicon)</td>\n      <td><code>curl -LO https://github.com/h4ckf0r0day/obscura/releases/latest/download/obscura-aarch64-macos.tar.gz && tar xzf obscura-aarch64-macos.tar.gz</code></td>\n    </tr>\n  </tbody>\n</table>\n\nMove the binary somewhere in your `PATH` (e.g. `/usr/local/bin/obscura` or `~/.local/bin/obscura`).\n\nSee the [Obscura README](https://github.com/h4ckf0r0day/obscura) for more install options, including Docker and building from source.",
+        "to": "Install the Obscura binary before using it with agent-browser and put `obscura.exe` on your `PATH` (or in `%USERPROFILE%\\.obscura\\obscura.exe`).\n\nSee the [Obscura README](https://github.com/h4ckf0r0day/obscura) for the available builds and source-build instructions.",
+        "only": "markdown"
+      },
+      {
+        "from": "Set `--engine` on the command that launches the browser. Later commands in the same session use Obscura without the flag:\n\n```bash",
+        "to": "Set `--engine` on the command that launches the browser. Later commands in the same session use Obscura without the flag:\n\n```powershell",
+        "only": "markdown"
+      },
+      {
+        "from": "```bash\nexport AGENT_BROWSER_ENGINE=obscura",
+        "to": "```powershell\n$env:AGENT_BROWSER_ENGINE = \"obscura\"",
+        "only": "markdown"
+      },
+      {
+        "from": "```bash\nagent-browser --engine obscura --executable-path /path/to/obscura open example.com",
+        "to": "```powershell\nagent-browser --engine obscura --executable-path \"C:\\Tools\\obscura\\obscura.exe\" open example.com",
+        "only": "markdown"
+      },
+      {
+        "from": "```bash\nAGENT_BROWSER_OBSCURA_STEALTH=1 agent-browser --engine obscura open example.com",
+        "to": "```powershell\n$env:AGENT_BROWSER_OBSCURA_STEALTH = \"1\"\nagent-browser --engine obscura open example.com",
+        "only": "markdown"
+      },
+      {
+        "from": "Select `--engine obscura --executable-path /path/to/obscura` to launch a local Obscura binary. This provider is experimental. Obscura v0.2.2 has known accessibility naming, hidden-element, iframe and screenshot fidelity gaps; successful CDP connection does not establish Chrome parity. Use Chrome for workflows that depend on these features until validated against your target pages.",
+        "to": "Select `--engine obscura --executable-path \"C:\\Tools\\obscura\\obscura.exe\"` to launch a local Obscura binary. This provider is experimental. Obscura v0.2.2 has known accessibility naming, hidden-element, iframe and screenshot fidelity gaps; successful CDP connection does not establish Chrome parity. Use Chrome for workflows that depend on these features until validated against your target pages.",
+        "only": "markdown"
+      },
+      {
+        "from": "```bash",
+        "to": "```powershell\n$env:AGENT_BROWSER_ENGINE = \"obscura\"",
+        "only": "markdown"
+      },
+      {
+        "from": "Install the Obscura binary before using it with agent-browser:",
+        "to": "Install the Obscura binary before using it with agent-browser and put obscura.exe on your PATH (or in %USERPROFILE%\\.obscura\\obscura.exe).",
+        "only": "content"
+      },
+      {
+        "from": "Platform",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "Command",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "Linux (x86_64)",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "curl -LO https://github.com/h4ckf0r0day/obscura/releases/latest/download/obscura-x86_64-linux.tar.gz && tar xzf obscura-x86_64-linux.tar.gz",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "macOS (Apple Silicon)",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "curl -LO https://github.com/h4ckf0r0day/obscura/releases/latest/download/obscura-aarch64-macos.tar.gz && tar xzf obscura-aarch64-macos.tar.gz",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "Move the binary somewhere in your PATH (e.g. /usr/local/bin/obscura or ~/.local/bin/obscura).",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "See the Obscura README for more install options, including Docker and building from source.",
+        "to": "See the Obscura README for the available builds and source-build instructions.",
+        "only": "content"
+      },
+      {
+        "from": "export AGENT_BROWSER_ENGINE=obscura agent-browser open example.com",
+        "to": "$env:AGENT_BROWSER_ENGINE = \"obscura\" agent-browser open example.com",
+        "only": "content"
+      },
+      {
+        "from": "agent-browser --engine obscura --executable-path /path/to/obscura open example.com",
+        "to": "agent-browser --engine obscura --executable-path \"C:\\Tools\\obscura\\obscura.exe\" open example.com",
+        "only": "content"
+      },
+      {
+        "from": "AGENT_BROWSER_OBSCURA_STEALTH=1 agent-browser --engine obscura open example.com",
+        "to": "$env:AGENT_BROWSER_OBSCURA_STEALTH = \"1\" agent-browser --engine obscura open example.com",
+        "only": "content"
+      },
+      {
+        "from": "Select --engine obscura --executable-path /path/to/obscura to launch a local Obscura binary. This provider is experimental. Obscura v0.2.2 has known accessibility naming, hidden-element, iframe and screenshot fidelity gaps; successful CDP connection does not establish Chrome parity. Use Chrome for workflows that depend on these features until validated against your target pages.",
+        "to": "Select --engine obscura --executable-path \"C:\\Tools\\obscura\\obscura.exe\" to launch a local Obscura binary. This provider is experimental. Obscura v0.2.2 has known accessibility naming, hidden-element, iframe and screenshot fidelity gaps; successful CDP connection does not establish Chrome parity. Use Chrome for workflows that depend on these features until validated against your target pages.",
+        "only": "content"
       }
     ],
     "/sessions": [
       {
         "from": "Session and restore names must contain only alphanumeric characters, hyphens, and underscores. Use `agent-browser session id` to generate a valid key:",
-        "to": "Session and restore names accept Unicode letters and numbers, hyphens, and underscores only. For example, `caf\u00e9-\u6771\u4eac_7` is valid, while `my session` is rejected because it contains a space.\n\nUse `agent-browser session id` to generate a valid key:"
+        "to": "Session and restore names accept Unicode letters and numbers, hyphens, and underscores only. For example, `café-東京_7` is valid, while `my session` is rejected because it contains a space.\n\nUse `agent-browser session id` to generate a valid key:"
       },
       {
         "from": "Session and restore names must contain only alphanumeric characters, hyphens, and underscores. Use agent-browser session id to generate a valid key:",
-        "to": "Session and restore names accept Unicode letters and numbers, hyphens, and underscores only. For example, caf\u00e9-\u6771\u4eac_7 is valid, while my session is rejected because it contains a space.\n\nUse agent-browser session id to generate a valid key:"
+        "to": "Session and restore names accept Unicode letters and numbers, hyphens, and underscores only. For example, café-東京_7 is valid, while my session is rejected because it contains a space.\n\nUse agent-browser session id to generate a valid key:"
       },
       {
         "from": "A session ID by itself only isolates the daemon and does not enable persistence; without a restore key, shutdown discards transient browser state and open tabs.",
@@ -388,11 +732,26 @@
       {
         "from": "Headed, Safari/iOS WebDriver, and user-attached browsers are exempt",
         "to": "Headed and user-attached browsers are exempt"
+      },
+      {
+        "from": "When `--restore` or another restore key is configured, state is saved when the browser closes (explicit `close`, idle timeout, or daemon shutdown) and also periodically while the browser is open, so a browser window you close by hand still leaves a recent save behind. A session ID by itself does not enable state saving; without a restore key, shutdown discards open tabs and any browser state that a persistent profile does not hold. Periodic autosave waits for commands to settle, then saves at most once per `AGENT_BROWSER_AUTOSAVE_INTERVAL_MS` (default 30000; set to `0` to save only on close). Idle sessions with configured persistence keep saving on the same interval, so changes the page makes on its own (token refreshes, background requests) are captured too. The daemon exits after one hour without commands or dashboard input by default; `--idle-timeout <time>` or `AGENT_BROWSER_IDLE_TIMEOUT_MS` tunes this, and `0` disables it. Headed and user-attached browsers are exempt from the default timeout; provider-owned cloud browsers are not. State saving respects the `--restore-save` policy.",
+        "to": "When `--restore` or another restore key is configured, state is saved when the browser closes (explicit `close`, idle timeout, or daemon shutdown) and also periodically while the browser is open, so a browser window you close by hand still leaves a recent save behind. A session ID by itself does not enable state saving; without a restore key, shutdown discards open tabs and any browser state that a persistent profile does not hold. Local Chrome launches use a persistent profile per session by default. Periodic autosave waits for commands to settle, then saves at most once per `AGENT_BROWSER_AUTOSAVE_INTERVAL_MS` (default 30000; set to `0` to save only on close). Idle sessions with configured persistence keep saving on the same interval, so changes the page makes on its own (token refreshes, background requests) are captured too. The daemon exits after one hour without commands or dashboard input by default; `--idle-timeout <time>` or `AGENT_BROWSER_IDLE_TIMEOUT_MS` tunes this, and `0` disables it. Headed and user-attached browsers are exempt from the default timeout; provider-owned cloud browsers are not. State saving respects the `--restore-save` policy. A changed restore key saves the running browser under the key it ran with before the relaunch. `close` saves under the key currently in force, and a failed launch puts the previous key, save policy and checks back together. Firefox auto-saves include active iframe origins and retain earlier saved origins they cannot read. Explicit `state save` overwrites its target.\n\nFirefox state saves include local storage from visited origins and previously saved session storage from closed origins; session storage that was never saved cannot be recovered.",
+        "only": "markdown"
+      },
+      {
+        "from": "# macOS \"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\" --remote-debugging-port=9222 # Linux google-chrome --remote-debugging-port=9222",
+        "to": "& \"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" --remote-debugging-port=9222",
+        "only": "content"
+      },
+      {
+        "from": "When --restore or another restore key is configured, state is saved when the browser closes (explicit close, idle timeout, or daemon shutdown) and also periodically while the browser is open, so a browser window you close by hand still leaves a recent save behind. A session ID by itself does not enable state saving; without a restore key, shutdown discards open tabs and any browser state that a persistent profile does not hold. Periodic autosave waits for commands to settle, then saves at most once per AGENT_BROWSER_AUTOSAVE_INTERVAL_MS (default 30000; set to 0 to save only on close). Idle sessions with configured persistence keep saving on the same interval, so changes the page makes on its own (token refreshes, background requests) are captured too. The daemon exits after one hour without commands or dashboard input by default; --idle-timeout <time> or AGENT_BROWSER_IDLE_TIMEOUT_MS tunes this, and 0 disables it. Headed and user-attached browsers are exempt from the default timeout; provider-owned cloud browsers are not. State saving respects the --restore-save policy.",
+        "to": "When --restore or another restore key is configured, state is saved when the browser closes (explicit close, idle timeout, or daemon shutdown) and also periodically while the browser is open, so a browser window you close by hand still leaves a recent save behind. A session ID by itself does not enable state saving; without a restore key, shutdown discards open tabs and any browser state that a persistent profile does not hold. Local Chrome launches use a persistent profile per session by default. Periodic autosave waits for commands to settle, then saves at most once per AGENT_BROWSER_AUTOSAVE_INTERVAL_MS (default 30000; set to 0 to save only on close). Idle sessions with configured persistence keep saving on the same interval, so changes the page makes on its own (token refreshes, background requests) are captured too. The daemon exits after one hour without commands or dashboard input by default; --idle-timeout <time> or AGENT_BROWSER_IDLE_TIMEOUT_MS tunes this, and 0 disables it. Headed and user-attached browsers are exempt from the default timeout; provider-owned cloud browsers are not. State saving respects the --restore-save policy. A changed restore key saves the running browser under the key it ran with before the relaunch. close saves under the key currently in force, and a failed launch puts the previous key, save policy and checks back together. Firefox auto-saves include active iframe origins and retain earlier saved origins they cannot read. Explicit state save overwrites its target.",
+        "only": "content"
       }
     ],
     "/skills": [
       {
-        "from": " \u2014 ",
+        "from": " — ",
         "to": ": "
       },
       {
@@ -418,6 +777,21 @@
       {
         "from": "protected-vercel-deployments: Access and test Vercel deployments behind Vercel Authentication, SSO, or Deployment Protection with short-lived Trusted Sources OIDC tokens.",
         "to": "vercel: Access and test Vercel deployments behind Vercel Authentication, SSO, or Deployment Protection with short-lived Trusted Sources OIDC tokens, and view them at a different feature flag variant with a per-browser override cookie."
+      },
+      {
+        "from": "vercel-sandbox: Run agent-browser + headless Chrome inside ephemeral Vercel Sandbox microVMs.",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "For eve agents, mount the @agent-browser/eve extension instead of writing browser tools by hand. It gives the agent namespaced browser tools backed by agent-browser inside the eve sandbox.",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "/eve",
+        "to": "",
+        "only": "links"
       }
     ],
     "/webgpu": [
@@ -428,6 +802,151 @@
       {
         "from": "Also available as the AGENT_BROWSER_WEBGPU environment variable or \"webgpu\": true in agent-browser.json.",
         "to": "Also available as the AGENT_BROWSER_WEBGPU environment variable, or as \"webgpu\": true in ~/.agent-browser/config.json or a file loaded with --config."
+      },
+      {
+        "from": "Headless Chrome does not expose WebGPU by default. Without setup this fails silently: the page loads, the screenshot command succeeds, and the canvas is black. The `--webgpu` flag enables a launch preset that makes WebGPU work, including in GPU-less containers and CI.",
+        "to": "Headless Chrome does not expose WebGPU by default. Without setup this fails silently: the page loads, the screenshot command succeeds, and the canvas is black. The `--webgpu` flag enables a launch preset that makes WebGPU work, including when no usable GPU is available.",
+        "only": "markdown"
+      },
+      {
+        "from": "    <tr><td>All</td><td><code>--enable-unsafe-webgpu</code> (WebGPU is hidden in headless and GPU-blocklisted environments by default)</td></tr>\n    <tr><td>Linux</td><td><code>--enable-features=Vulkan --use-angle=vulkan --use-vulkan=swiftshader --use-webgpu-adapter=swiftshader --disable-vulkan-surface</code> — WebGPU through SwiftShader's software Vulkan; no GPU required</td></tr>",
+        "to": "    <tr><td>Windows</td><td><code>--enable-unsafe-webgpu</code> (WebGPU is hidden in headless and GPU-blocklisted environments by default) and the hardware D3D backend</td></tr>",
+        "only": "markdown"
+      },
+      {
+        "from": "macOS uses the hardware Metal backend and Windows uses D3D — nothing extra to install on either.",
+        "to": "",
+        "only": "markdown"
+      },
+      {
+        "from": "    <tr><td>macOS</td><td>works</td><td>works headless</td></tr>",
+        "to": "",
+        "only": "markdown"
+      },
+      {
+        "from": "    <tr><td>Linux</td><td>works (SwiftShader Vulkan)</td><td>headless capture not supported upstream — add <code>--headed</code> (virtual display starts automatically)</td></tr>",
+        "to": "",
+        "only": "markdown"
+      },
+      {
+        "from": "The Windows/Linux screenshot gap is an upstream headless-Chrome limitation: WebGPU canvas *presentation* never reaches the headless compositor even though rendering works (verifiable by pixel readback). No flag combination is known to fix it.\n\nOn Linux, `--headed` is all you need even on displayless servers and containers: when no `DISPLAY` is set and Xvfb is installed (`apt-get install -y xvfb`), agent-browser starts a private virtual display for the browser and tears it down with it (`AGENT_BROWSER_NO_XVFB=1` opts out):\n\n```bash\nagent-browser --webgpu --headed open https://my-webgpu-app.example.com\nagent-browser screenshot app.png   # real WebGPU pixels, no display hardware\n```\n\nOn Windows, the headed session must run in a logged-in desktop session — launching from an ssh/service context is not enough (schedule the launch on the interactive desktop with `schtasks /IT`, then drive the session from anywhere).",
+        "to": "The headless screenshot gap is an upstream Chrome limitation: WebGPU canvas *presentation* never reaches the headless compositor even though rendering works (verifiable by pixel readback). No flag combination is known to fix it.\n\nA headed session must run in a logged-in desktop session — launching from an ssh/service context is not enough (schedule the launch on the interactive desktop with `schtasks /IT`, then drive the session from anywhere).",
+        "only": "markdown"
+      },
+      {
+        "from": "On macOS both checks pass headless; on Windows/Linux the second check tells you when the platform needs `--headed` for capture. Run `agent-browser doctor --webgpu --headed` to validate that path itself — on displayless Linux the probe starts its own Xvfb, so both checks should pass.\n\n## Linux, containers, and CI\n\nThe SwiftShader Vulkan path needs the system Vulkan loader and Mesa ICD. Without them `requestAdapter()` returns `null`:\n\n```bash\napt-get install -y libvulkan1 mesa-vulkan-drivers\n```\n\nContainer recipe (xvfb only needed for the screenshot path):\n\n```dockerfile\nFROM node:22-bookworm-slim\nRUN apt-get update && apt-get install -y \\\n    ca-certificates libvulkan1 mesa-vulkan-drivers xvfb xauth \\\n    && rm -rf /var/lib/apt/lists/*\nRUN npm install -g agent-browser \\\n    && agent-browser install\n```\n\nNo real GPU or `/dev/dri` is required. To prefer hardware Vulkan on a Linux machine that has working drivers, override both the Vulkan driver and the adapter — the preset pins `--use-vulkan=swiftshader`, so overriding only the adapter still enumerates SwiftShader (user args win over the preset):\n\n```bash\nagent-browser --webgpu --args \"--use-vulkan=native,--use-webgpu-adapter=default\" open ...\n```",
+        "to": "On Windows the second check tells you when the platform needs `--headed` for capture. Run `agent-browser doctor --webgpu --headed` to validate that path itself on a logged-in desktop.",
+        "only": "markdown"
+      },
+      {
+        "from": "**SwiftShader is a CPU rasterizer.** Simple scenes render fine; heavy scenes run at single-digit FPS. That rarely matters for screenshots, but for smooth video of complex scenes use hardware (macOS/Windows, or Linux with real Vulkan drivers and `--use-vulkan=native,--use-webgpu-adapter=default`).",
+        "to": "**Software rendering is a CPU rasterizer.** Simple scenes render fine; heavy scenes run at single-digit FPS. That rarely matters for screenshots, but for smooth video of complex scenes use a machine with working D3D hardware.",
+        "only": "markdown"
+      },
+      {
+        "from": "Headless Chrome does not expose WebGPU by default. Without setup this fails silently: the page loads, the screenshot command succeeds, and the canvas is black. The --webgpu flag enables a launch preset that makes WebGPU work, including in GPU-less containers and CI.",
+        "to": "Headless Chrome does not expose WebGPU by default. Without setup this fails silently: the page loads, the screenshot command succeeds, and the canvas is black. The --webgpu flag enables a launch preset that makes WebGPU work, including when no usable GPU is available.",
+        "only": "content"
+      },
+      {
+        "from": "All",
+        "to": "Windows",
+        "only": "content"
+      },
+      {
+        "from": "Linux",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "--enable-features=Vulkan --use-angle=vulkan --use-vulkan=swiftshader --use-webgpu-adapter=swiftshader --disable-vulkan-surface — WebGPU through SwiftShader's software Vulkan; no GPU required",
+        "to": "--enable-unsafe-webgpu (WebGPU is hidden in headless and GPU-blocklisted environments by default) and the hardware D3D backend",
+        "only": "content"
+      },
+      {
+        "from": "macOS uses the hardware Metal backend and Windows uses D3D — nothing extra to install on either.",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "macOS",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "works headless",
+        "to": "works (hardware D3D)",
+        "only": "content"
+      },
+      {
+        "from": "works (SwiftShader Vulkan)",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "headless capture not supported upstream — add --headed (virtual display starts automatically)",
+        "to": "headless captures black — use --headed on a logged-in desktop",
+        "only": "content"
+      },
+      {
+        "from": "The Windows/Linux screenshot gap is an upstream headless-Chrome limitation: WebGPU canvas presentation never reaches the headless compositor even though rendering works (verifiable by pixel readback). No flag combination is known to fix it.",
+        "to": "The headless screenshot gap is an upstream Chrome limitation: WebGPU canvas presentation never reaches the headless compositor even though rendering works (verifiable by pixel readback). No flag combination is known to fix it.",
+        "only": "content"
+      },
+      {
+        "from": "On Linux, --headed is all you need even on displayless servers and containers: when no DISPLAY is set and Xvfb is installed (apt-get install -y xvfb), agent-browser starts a private virtual display for the browser and tears it down with it (AGENT_BROWSER_NO_XVFB=1 opts out):",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "agent-browser --webgpu --headed open https://my-webgpu-app.example.com agent-browser screenshot app.png # real WebGPU pixels, no display hardware",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "On Windows, the headed session must run in a logged-in desktop session — launching from an ssh/service context is not enough (schedule the launch on the interactive desktop with schtasks /IT, then drive the session from anywhere).",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "On macOS both checks pass headless; on Windows/Linux the second check tells you when the platform needs --headed for capture. Run agent-browser doctor --webgpu --headed to validate that path itself — on displayless Linux the probe starts its own Xvfb, so both checks should pass.",
+        "to": "On Windows the second check tells you when the platform needs --headed for capture. Run agent-browser doctor --webgpu --headed to validate that path itself on a logged-in desktop.",
+        "only": "content"
+      },
+      {
+        "from": "The SwiftShader Vulkan path needs the system Vulkan loader and Mesa ICD. Without them requestAdapter() returns null:",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "apt-get install -y libvulkan1 mesa-vulkan-drivers",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "Container recipe (xvfb only needed for the screenshot path):",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "FROM node:22-bookworm-slim RUN apt-get update && apt-get install -y \\ ca-certificates libvulkan1 mesa-vulkan-drivers xvfb xauth \\ && rm -rf /var/lib/apt/lists/* RUN npm install -g agent-browser \\ && agent-browser install",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "No real GPU or /dev/dri is required. To prefer hardware Vulkan on a Linux machine that has working drivers, override both the Vulkan driver and the adapter — the preset pins --use-vulkan=swiftshader, so overriding only the adapter still enumerates SwiftShader (user args win over the preset):",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "agent-browser --webgpu --args \"--use-vulkan=native,--use-webgpu-adapter=default\" open ...",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "SwiftShader is a CPU rasterizer. Simple scenes render fine; heavy scenes run at single-digit FPS. That rarely matters for screenshots, but for smooth video of complex scenes use hardware (macOS/Windows, or Linux with real Vulkan drivers and --use-vulkan=native,--use-webgpu-adapter=default).",
+        "to": "Software rendering is a CPU rasterizer. Simple scenes render fine; heavy scenes run at single-digit FPS. That rarely matters for screenshots, but for smooth video of complex scenes use a machine with working D3D hardware.",
+        "only": "content"
       }
     ],
     "/engines/lightpanda": [
@@ -438,6 +957,66 @@
       {
         "from": "Or in your agent-browser.json config:",
         "to": "Or in ~/.agent-browser/config.json or a file loaded with --config:"
+      },
+      {
+        "from": "Install the Lightpanda binary before using it with agent-browser:\n\n<table>\n  <thead>\n    <tr><th>Platform</th><th>Command</th></tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td>macOS (Apple Silicon)</td>\n      <td><code>curl -L -o lightpanda https://github.com/lightpanda-io/browser/releases/download/nightly/lightpanda-aarch64-macos && chmod a+x ./lightpanda</code></td>\n    </tr>\n    <tr>\n      <td>Linux (x86_64)</td>\n      <td><code>curl -L -o lightpanda https://github.com/lightpanda-io/browser/releases/download/nightly/lightpanda-x86_64-linux && chmod a+x ./lightpanda</code></td>\n    </tr>\n  </tbody>\n</table>\n\nMove the binary somewhere in your `PATH` (e.g. `/usr/local/bin/lightpanda` or `~/.local/bin/lightpanda`).\n\nSee the [Lightpanda installation docs](https://lightpanda.io/docs/open-source/installation) for more options.",
+        "to": "Install the Lightpanda binary before using it with agent-browser and put `lightpanda.exe` on your `PATH` (or in `%USERPROFILE%\\.lightpanda\\lightpanda.exe`).\n\nSee the [Lightpanda installation docs](https://lightpanda.io/docs/open-source/installation) for the available builds.",
+        "only": "markdown"
+      },
+      {
+        "from": "agent-browser --engine lightpanda --executable-path /path/to/lightpanda open example.com",
+        "to": "agent-browser --engine lightpanda --executable-path \"C:\\Tools\\lightpanda\\lightpanda.exe\" open example.com",
+        "only": "markdown"
+      },
+      {
+        "from": "Install the Lightpanda binary before using it with agent-browser:",
+        "to": "Install the Lightpanda binary before using it with agent-browser and put lightpanda.exe on your PATH (or in %USERPROFILE%\\.lightpanda\\lightpanda.exe).",
+        "only": "content"
+      },
+      {
+        "from": "Platform",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "Command",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "macOS (Apple Silicon)",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "curl -L -o lightpanda https://github.com/lightpanda-io/browser/releases/download/nightly/lightpanda-aarch64-macos && chmod a+x ./lightpanda",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "Linux (x86_64)",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "curl -L -o lightpanda https://github.com/lightpanda-io/browser/releases/download/nightly/lightpanda-x86_64-linux && chmod a+x ./lightpanda",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "Move the binary somewhere in your PATH (e.g. /usr/local/bin/lightpanda or ~/.local/bin/lightpanda).",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "See the Lightpanda installation docs for more options.",
+        "to": "See the Lightpanda installation docs for the available builds.",
+        "only": "content"
+      },
+      {
+        "from": "agent-browser --engine lightpanda --executable-path /path/to/lightpanda open example.com",
+        "to": "agent-browser --engine lightpanda --executable-path \"C:\\Tools\\lightpanda\\lightpanda.exe\" open example.com",
+        "only": "content"
       }
     ],
     "/installation": [
@@ -476,12 +1055,60 @@
       {
         "from": "<code>~/.agent-browser/.encryption-key</code> (0600, unix); never",
         "to": "<code>~/.agent-browser/.encryption-key</code>; never"
+      },
+      {
+        "from": "brew install agent-browser agent-browser install # Download Chrome (first time)",
+        "to": "npm install -g agent-browser agent-browser install # Download Chrome from Chrome for Testing (first time)",
+        "only": "content"
+      },
+      {
+        "from": "On Linux, install system dependencies:",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "agent-browser install --with-deps",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "This exits nonzero if the package manager cannot install every required browser library.",
+        "to": "",
+        "only": "content"
+      },
+      {
+        "from": "Running daemons per session, stale .sock / .pid / .version / .stream files (auto-cleaned), version mismatch with the CLI, dashboard process liveness",
+        "to": "Running daemons per session, stale .pid / .version / .stream files (auto-cleaned), version mismatch with the CLI, dashboard process liveness",
+        "only": "content"
+      },
+      {
+        "from": "Encryption key env var or ~/.agent-browser/.encryption-key (with 0600 permissions on unix), state file count and age vs AGENT_BROWSER_STATE_EXPIRE_DAYS, action policy file",
+        "to": "Encryption key env var or ~/.agent-browser/.encryption-key, state file count and age vs AGENT_BROWSER_STATE_EXPIRE_DAYS, action policy file",
+        "only": "content"
+      },
+      {
+        "from": "Env vars for Browserless, Browserbase, Browser Use, Kernel, AgentCore (AWS creds), Appium (for --provider ios), and AI_GATEWAY_API_KEY for chat",
+        "to": "Env vars for Browserless, Browserbase, Browser Use, Kernel, AgentCore (AWS creds), and AI_GATEWAY_API_KEY for chat",
+        "only": "content"
+      },
+      {
+        "from": "Generates a new key at ~/.agent-browser/.encryption-key (0600, unix); never overwrites an existing key",
+        "to": "Generates a new key at ~/.agent-browser/.encryption-key; never overwrites an existing key",
+        "only": "content"
       }
     ],
     "/dashboard": [
       {
         "from": "anthropic/claude-sonnet-4.6",
         "to": "openai/gpt-6-luna-fast"
+      },
+      {
+        "from": "it fetches a tool's input schema with `webmcp list <tool> --frame <frame-id> --json`, then calls `webmcp invoke` with the same `--frame`.",
+        "to": "it fetches a tool's input schema with `webmcp list <tool> --frame <frame-id> --json` when the announced description does not show the arguments, then calls `webmcp invoke` with the same `--frame`."
+      },
+      {
+        "from": "it fetches a tool's input schema with webmcp list <tool> --frame <frame-id> --json, then calls webmcp invoke with the same --frame.",
+        "to": "it fetches a tool's input schema with webmcp list <tool> --frame <frame-id> --json when the announced description does not show the arguments, then calls webmcp invoke with the same --frame."
       }
     ],
     "/": [
@@ -492,25 +1119,193 @@
       {
         "from": "- **Modern apps**: [Network control](/network), [React & Web Vitals](/react), [init scripts](/init-scripts), [Next.js + Vercel](/next), and [eve Extension](/eve) workflows have first-class docs",
         "to": "- **Modern apps**: [Network control](/network), [React & Web Vitals](/react), and [init scripts](/init-scripts) workflows have first-class docs"
+      },
+      {
+        "from": "npm install -g agent-browser      # all platforms\nbrew install agent-browser        # macOS",
+        "to": "npm install -g agent-browser",
+        "only": "markdown"
+      },
+      {
+        "from": "- **Cross-platform**: macOS, Linux, Windows with native binaries",
+        "to": "- **Windows-native**: native Rust binary with Chrome for Testing",
+        "only": "markdown"
+      },
+      {
+        "from": "The daemon starts automatically and persists between commands. By default, it saves configured restore state, closes its headless browser, and exits after one hour without commands or dashboard input. Without `--restore` or another restore key, shutdown discards open tabs and any browser state that a persistent profile does not hold. Headed browsers, Safari and iOS WebDriver sessions, and user-attached browsers are exempt from the default timeout; provider-owned cloud browsers are not. Use `--idle-timeout <time>` or `AGENT_BROWSER_IDLE_TIMEOUT_MS` to tune the timeout, and use `0` to disable it.",
+        "to": "The daemon starts automatically and persists between commands. By default, it saves configured restore state, closes its headless browser, and exits after one hour without commands or dashboard input. Without `--restore` or another restore key, shutdown discards open tabs and any browser state that a persistent profile does not hold. Headed browsers and user-attached browsers are exempt from the default timeout; provider-owned cloud browsers are not. Use `--idle-timeout <time>` or `AGENT_BROWSER_IDLE_TIMEOUT_MS` to tune the timeout, and use `0` to disable it.",
+        "only": "markdown"
+      },
+      {
+        "from": "Native Rust binaries for macOS (ARM64, x64), Linux (ARM64, x64), and Windows (x64).",
+        "to": "A native Rust binary for Windows (x64).",
+        "only": "markdown"
+      },
+      {
+        "from": "npm install -g agent-browser # all platforms brew install agent-browser # macOS agent-browser install # Download Chrome (first time) # or try without installing npx agent-browser open example.com",
+        "to": "npm install -g agent-browser agent-browser install # Download Chrome (first time) # or try without installing npx agent-browser open example.com",
+        "only": "content"
+      },
+      {
+        "from": "Modern apps: Network control, React & Web Vitals, init scripts, Next.js + Vercel, and eve Extension workflows have first-class docs",
+        "to": "Modern apps: Network control, React & Web Vitals, and init scripts workflows have first-class docs",
+        "only": "content"
+      },
+      {
+        "from": "Cross-platform: macOS, Linux, Windows with native binaries",
+        "to": "Windows-native: native Rust binary with Chrome for Testing",
+        "only": "content"
+      },
+      {
+        "from": "The daemon starts automatically and persists between commands. By default, it saves configured restore state, closes its headless browser, and exits after one hour without commands or dashboard input. Without --restore or another restore key, shutdown discards open tabs and any browser state that a persistent profile does not hold. Headed browsers, Safari and iOS WebDriver sessions, and user-attached browsers are exempt from the default timeout; provider-owned cloud browsers are not. Use --idle-timeout <time> or AGENT_BROWSER_IDLE_TIMEOUT_MS to tune the timeout, and use 0 to disable it.",
+        "to": "The daemon starts automatically and persists between commands. By default, it saves configured restore state, closes its headless browser, and exits after one hour without commands or dashboard input. Without --restore or another restore key, shutdown discards open tabs and any browser state that a persistent profile does not hold. Headed browsers and user-attached browsers are exempt from the default timeout; provider-owned cloud browsers are not. Use --idle-timeout <time> or AGENT_BROWSER_IDLE_TIMEOUT_MS to tune the timeout, and use 0 to disable it.",
+        "only": "content"
+      },
+      {
+        "from": "Native Rust binaries for macOS (ARM64, x64), Linux (ARM64, x64), and Windows (x64).",
+        "to": "A native Rust binary for Windows (x64).",
+        "only": "content"
+      },
+      {
+        "from": "/next",
+        "to": "",
+        "only": "links"
+      },
+      {
+        "from": "/eve",
+        "to": "",
+        "only": "links"
       }
     ],
     "/snapshots": [
       {
-        "from": "In native mode, annotated screenshots currently work on the CDP-backed browser path (Chromium/Lightpanda). The Safari/WebDriver backend does not yet support `--annotate`.",
-        "to": "In native mode, annotated screenshots currently work on the CDP-backed browser path (Chromium/Lightpanda)."
+        "from": "<td>Scope to CSS selector</td>",
+        "to": "<td>Scope to CSS selector (every match)</td>"
+      },
+      {
+        "from": "Re-snapshot after interactions to observe changes, and always after navigation:",
+        "to": "Using a ref issued for a document that has since been replaced, in the page or in its iframe (for example by a click that loads a new page), fails with \"Ref @eN is from a document that is no longer loaded\". A snapshot taken while the document is being replaced fails with \"The document changed while the snapshot was being captured\"; run it again. Re-snapshot after interactions to observe changes, and always after navigation:"
+      },
+      {
+        "from": "Only one level of iframe nesting is expanded. Cross-origin iframes that block accessibility tree access and empty iframes are silently omitted.",
+        "to": "Nested iframes are expanded up to 4 levels deep. Cross-origin iframes that block accessibility tree access and empty iframes are silently omitted."
+      },
+      {
+        "from": "The `snapshot` command returns a compact accessibility tree with refs for element interaction.\n\n## Options\n\nFilter output to reduce size:\n\n```bash\nagent-browser snapshot                    # Full accessibility tree\nagent-browser snapshot -i                 # Interactive elements only (recommended)\nagent-browser snapshot -c                 # Compact (remove empty elements)\nagent-browser snapshot -d 3               # Limit depth to 3 levels\nagent-browser snapshot -s \"#main\"         # Scope to CSS selector\nagent-browser snapshot -i -c -d 5         # Combine options\n```\n\n<table>\n  <thead>\n    <tr><th>Option</th><th>Description</th></tr>\n  </thead>\n  <tbody>\n    <tr><td><code>-i, --interactive</code></td><td>Only interactive elements (buttons, links, inputs)</td></tr>\n    <tr><td><code>-u, --urls</code></td><td>Include href URLs for link elements</td></tr>\n    <tr><td><code>-c, --compact</code></td><td>Remove empty structural elements</td></tr>\n    <tr><td><code>-d, --depth</code></td><td>Limit tree depth</td></tr>\n    <tr><td><code>-s, --selector</code></td><td>Scope to CSS selector (every match)</td></tr>\n  </tbody>\n</table>\n\n## Output format\n\nThe default text output is compact and AI-friendly:\n\n```bash\nagent-browser snapshot -i\n# Output:\n# @e1 [heading] \"Example Domain\" [level=1]\n# @e2 [button] \"Submit\"\n# @e3 [input type=\"email\"] placeholder=\"Email\"\n# @e4 [link] \"Learn more\"\n```\n\n## Using refs\n\nRefs from the snapshot map directly to commands:\n\n```bash\nagent-browser click @e2      # Click the Submit button\nagent-browser fill @e3 \"a@b.com\"  # Fill the email input\nagent-browser get text @e1        # Get heading text\n```\n\n## Ref lifecycle\n\nSurviving DOM elements retain their refs across snapshots and same-document updates. Replacing an element or navigating its page or iframe invalidates its refs without recycling IDs. Virtual accessibility nodes have snapshot-local refs. Using a ref issued for a document that has since been replaced, in the page or in its iframe (for example by a click that loads a new page), fails with \"Ref @eN is from a document that is no longer loaded\". A snapshot taken while the document is being replaced fails with \"The document changed while the snapshot was being captured\"; run it again. Re-snapshot after interactions to observe changes, and always after navigation:\n\n```bash\nagent-browser click @e4      # Navigates to new page\nagent-browser snapshot -i    # Get fresh refs\nagent-browser click @e8      # Use a ref from the new snapshot\n```\n\n## Annotated screenshots\n\nFor visual context alongside text snapshots, use `screenshot --annotate` to overlay numbered labels on interactive elements. Each label `[N]` maps to ref `@eN`:\n\nIn native mode, annotated screenshots currently work on the CDP-backed browser path (Chromium/Lightpanda). The Safari/WebDriver backend does not yet support `--annotate`.\n\n```bash\nagent-browser screenshot --annotate ./page.png\n# -> Screenshot saved to ./page.png\n#    [1] @e1 button \"Submit\"\n#    [2] @e2 link \"Home\"\n#    [3] @e3 textbox \"Email\"\nagent-browser click @e2\n```\n\nHeadless Chromium screenshots hide native scrollbars for consistent image output. Pass `--hide-scrollbars false` when launching to keep native scrollbars visible.\n\nAnnotated screenshots also cache refs, so you can interact with elements immediately. This is useful when the text snapshot is insufficient for unlabeled icons, canvas content, or visual layout verification.\n\n## Iframes\n\nSnapshots automatically detect and inline iframe content. Each `Iframe` node in the main frame is resolved and its child accessibility tree is included directly beneath it. Refs assigned to elements inside iframes carry frame context, so interactions work without switching frames first.\n\n```bash\nagent-browser snapshot -i\n# @e1 [heading] \"Checkout\"\n# @e2 [Iframe] \"payment-frame\"\n#   @e3 [input] \"Card number\"\n#   @e4 [button] \"Pay\"\n\nagent-browser fill @e3 \"4111111111111111\"\nagent-browser click @e4\n```\n\nNested iframes are expanded up to 4 levels deep. Cross-origin iframes that block accessibility tree access and empty iframes are silently omitted.\n\nTo scope a snapshot to a single iframe, switch into it first:\n\n```bash\nagent-browser frame @e2\nagent-browser snapshot -i       # Only elements inside that iframe\nagent-browser frame main        # Return to main frame\n```\n\n## Best practices\n\n1. Use `-i` to reduce output to actionable elements\n2. Re-snapshot after page changes to get updated refs\n3. Scope with `-s` for specific page sections\n4. Use `-d` to limit depth on complex pages\n5. Use `screenshot --annotate` when visual context is needed alongside refs\n\n## JSON output\n\nFor programmatic parsing in scripts:\n\n```bash\nagent-browser snapshot --json\n# {\"success\":true,\"data\":{\"snapshot\":\"...\",\"refs\":{\"e1\":{\"role\":\"heading\",\"name\":\"Title\"},...}}}\n```",
+        "to": "The `snapshot` command returns a compact accessibility tree with refs for element interaction.\r\n\r\n## Options\r\n\r\nFilter output to reduce size:\r\n\r\nCompact snapshots (`-c`) keep visible text, status text, and their direct ancestors. Empty sibling branches are removed. Interactive snapshots (`-i`) filter out noninteractive content. MCP snapshots default to interactive; set `interactive: false` to retain visible text and status text.\r\n\r\n```bash\r\nagent-browser snapshot                    # Full accessibility tree\r\nagent-browser snapshot -i                 # Interactive elements only (recommended)\r\nagent-browser snapshot -c                 # Compact (remove empty elements)\r\nagent-browser snapshot -d 3               # Limit depth to 3 levels\r\nagent-browser snapshot -s \"#main\"         # Scope to CSS selector\r\nagent-browser snapshot -i -c -d 5         # Combine options\r\n```\r\n\r\n<table>\r\n  <thead>\r\n    <tr><th>Option</th><th>Description</th></tr>\r\n  </thead>\r\n  <tbody>\r\n    <tr><td><code>-i, --interactive</code></td><td>Only interactive elements (buttons, links, inputs)</td></tr>\r\n    <tr><td><code>-u, --urls</code></td><td>Include href URLs for link elements</td></tr>\r\n    <tr><td><code>-c, --compact</code></td><td>Remove empty structural elements</td></tr>\r\n    <tr><td><code>-d, --depth</code></td><td>Limit tree depth</td></tr>\r\n    <tr><td><code>-s, --selector</code></td><td>Scope to CSS selector (every match)</td></tr>\r\n  </tbody>\r\n</table>\r\n\r\n## Output format\r\n\r\nThe default text output is compact and AI-friendly:\r\n\r\n```bash\r\nagent-browser snapshot -i\r\n# Output:\r\n# @e1 [heading] \"Example Domain\" [level=1]\r\n# @e2 [button] \"Submit\"\r\n# @e3 [input type=\"email\"] placeholder=\"Email\"\r\n# @e4 [link] \"Learn more\"\r\n```\r\n\r\n## Control hints\r\n\r\nControls whose accessible name is empty, or shared with another ref in the same snapshot, carry a hint read from the DOM after the ref. Refs themselves are unchanged:\r\n\r\n```bash\r\nagent-browser snapshot -i\r\n# - link [ref=e1] hint=\"img:cart\"\r\n# - button [ref=e2] hint=\"icon:icon-trash; in:Blue mug\"\r\n# - button [ref=e3] hint=\"icon:fa-heart; in:Blue mug\"\r\n# - button [ref=e4] hint=\"img:pencil; id:edit-btn; in:Blue mug\"\r\n# - textbox \"Email\" [ref=e5] hint=\"name:login-email\"\r\n# - textbox \"Email\" [ref=e6] hint=\"name:newsletter-email\"\r\n```\r\n\r\nParts are joined with `; ` in this order, and each appears only when it is found:\r\n\r\n<table>\r\n  <thead>\r\n    <tr><th>Part</th><th>Source</th></tr>\r\n  </thead>\r\n  <tbody>\r\n    <tr><td><code>icon:</code></td><td>SVG sprite id from <code>&lt;use href=\"#...\"&gt;</code>, the <code>&lt;svg&gt;</code> <code>id</code> or <code>data-icon</code>, or an icon library class such as <code>lucide-trash</code> or <code>fa-heart</code></td></tr>\r\n    <tr><td><code>img:</code></td><td>File name of an image inside the control, without the extension</td></tr>\r\n    <tr><td><code>data-testid:</code>, <code>name:</code>, <code>id:</code></td><td>The first of those attributes set on the control, skipping values that look auto-generated</td></tr>\r\n    <tr><td><code>in:</code></td><td>Text of the nearest table row, list item, or article around the control</td></tr>\r\n  </tbody>\r\n</table>\r\n\r\nHints are on by default in every snapshot mode. In `--json` output the hint sits in the `snapshot` text and the `refs` map keeps its empty `name`. Iframe refs never get a hint.\r\n\r\nA hint is not the accessible name. `find role <role> --name` and stale-ref recovery match on the name only, so act on these elements by ref. A control with no name and nothing to read still prints with no hint.\r\n\r\n## Using refs\r\n\r\nRefs from the snapshot map directly to commands:\r\n\r\n```bash\r\nagent-browser click @e2      # Click the Submit button\r\nagent-browser fill @e3 \"a@b.com\"  # Fill the email input\r\nagent-browser get text @e1        # Get heading text\r\n```\r\n\r\n## Ref lifecycle\r\n\r\nSurviving DOM elements retain their refs across snapshots and same-document updates. Replacing an element or navigating its page or iframe invalidates its refs without recycling IDs. Virtual accessibility nodes have snapshot-local refs. Using a ref issued for a document that has since been replaced, in the page or in its iframe (for example by a click that loads a new page), fails with \"Ref @eN is from a document that is no longer loaded\". A snapshot taken while the document is being replaced fails with \"The document changed while the snapshot was being captured\"; run it again. Re-snapshot after interactions to observe changes, and always after navigation:\r\n\r\n```bash\r\nagent-browser click @e4      # Navigates to new page\r\nagent-browser snapshot -i    # Get fresh refs\r\nagent-browser click @e8      # Use a ref from the new snapshot\r\n```\r\n\r\nA ref keeps pointing at its DOM node while that node exists. If the node was replaced, agent-browser falls back to the one element with the same role and name, but only when the ref was unique in its snapshot. When duplicates make the match ambiguous, the action fails without acting. Run `snapshot` again and use a fresh ref.\r\n\r\nIf a snapshot fails because its scope matches nothing, you can still use refs from the last successful snapshot as long as the document has not changed.\r\n\r\n## Annotated screenshots\r\n\r\nFor visual context alongside text snapshots, use `screenshot --annotate` to overlay numbered labels on interactive elements. Each label `[N]` maps to ref `@eN`:\r\n\r\nAnnotated screenshots are available in CDP-backed browser sessions and Firefox sessions.\r\n\r\n```bash\r\nagent-browser screenshot --annotate ./page.png\r\n# -> Screenshot saved to ./page.png\r\n#    [1] @e1 button \"Submit\"\r\n#    [2] @e2 link \"Home\"\r\n#    [3] @e3 textbox \"Email\"\r\nagent-browser click @e2\r\n```\r\n\r\nHeadless Chromium screenshots hide native scrollbars for consistent image output. Pass `--hide-scrollbars false` when launching to keep native scrollbars visible.\r\n\r\nAnnotated screenshots also cache refs, so you can interact with elements immediately. This is useful when the text snapshot is insufficient for unlabeled icons, canvas content, or visual layout verification.\r\n\r\nIf an annotated capture fails, the previous refs stay in place as long as the document has not changed.\r\n\r\n## Iframes\r\n\r\nPresentational iframes use the same `Iframe` role for snapshots and stale-ref recovery.\r\n\r\nSnapshots automatically detect and inline iframe content. Each `Iframe` node in the main frame is resolved and its child accessibility tree is included directly beneath it. Refs assigned to elements inside iframes carry frame context, so interactions work without switching frames first.\r\n\r\n```bash\r\nagent-browser snapshot -i\r\n# @e1 [heading] \"Checkout\"\r\n# @e2 [Iframe] \"payment-frame\"\r\n#   @e3 [input] \"Card number\"\r\n#   @e4 [button] \"Pay\"\r\n\r\nagent-browser fill @e3 \"4111111111111111\"\r\nagent-browser click @e4\r\n```\r\n\r\nNested iframes are expanded up to 4 levels deep. Cross-origin iframes that block accessibility tree access and empty iframes are silently omitted.\r\n\r\nA cross-origin frame can still share the page's renderer process, for example two ports on the same host. That frame has no CDP session of its own, so agent-browser takes the ref's press point from the browser's own box geometry, which stays correct across origin boundaries, frame nesting, and transformed frames. The browser then names the element and frame that would receive that exact point, and the click is refused unless the receiver is the ref itself, an element inside it, a label for it, or the frame the ref embeds.\r\n\r\nTo scope a snapshot to a single iframe, switch into it first:\r\n\r\n```bash\r\nagent-browser frame @e2\r\nagent-browser snapshot -i       # Only elements inside that iframe\r\nagent-browser frame main        # Return to main frame\r\n```\r\n\r\n## Best practices\r\n\r\n1. Use `-i` to reduce output to actionable elements\r\n2. Re-snapshot after page changes to get updated refs\r\n3. Scope with `-s` for specific page sections\r\n4. Use `-d` to limit depth on complex pages\r\n5. Use `screenshot --annotate` when visual context is needed alongside refs\r\n\r\n## JSON output\r\n\r\nFor programmatic parsing in scripts:\r\n\r\n```bash\r\nagent-browser snapshot --json\r\n# {\"success\":true,\"data\":{\"snapshot\":\"...\",\"refs\":{\"e1\":{\"role\":\"heading\",\"name\":\"Title\"},...}}}\r\n```\r",
+        "only": "markdown"
+      },
+      {
+        "from": "In native mode, annotated screenshots currently work on the CDP-backed browser path (Chromium/Lightpanda). The Safari/WebDriver backend does not yet support --annotate.",
+        "to": "Annotated screenshots are available in CDP-backed browser sessions and Firefox sessions.",
+        "only": "content"
       }
     ],
     "/webmcp": [
       {
-        "from": "Lightpanda, Safari, iOS, and older Chrome builds",
-        "to": "Lightpanda, and older Chrome builds"
+        "from": "Automatic summaries are limited to 16 tools and 4 KiB of JSON, with descriptions shortened to 160 bytes plus a truncation marker.",
+        "to": "Catalogs of up to four tools list full descriptions when they fit in 4 KiB of JSON. Larger catalogs are limited to 16 tools and 4 KiB, with descriptions shortened to 160 bytes plus a truncation marker, and the announcement says how many tools are listed."
+      },
+      {
+        "from": "Summaries contain only names, brief descriptions, origins, and frame IDs. Choose a relevant tool, then fetch its full schema with `agent-browser webmcp list <tool> --frame <frame-id> --json` before invoking it. Schemas and annotations are never included proactively. Unchanged catalogs and pages without tools add no context.",
+        "to": "The announcement names the top-level page's origin and lists each tool's origin, name, frame ID, and description, and tells you to use one when it fits, before driving the DOM. Each record starts with the browser-reported origin that receives the tool's inputs: `[origin <origin>]` when it matches the page's origin, or `[cross-origin <origin>]` when the tool comes from an embedded frame on another origin. Direct `webmcp invoke` examples cover only tools from the page's own origin. Before invoking a cross-origin tool, confirm that its origin matches the user's task. When every tool is listed and the page's own tools share one frame, the call examples carry that frame ID; when the catalog is too large to show any tool, the announcement points to `agent-browser webmcp list --json`. If a description does not show the arguments, fetch the schema with `agent-browser webmcp list <tool> --frame <frame-id> --json` before invoking. Schemas and annotations are never included proactively. Unchanged catalogs and pages without tools add no context."
+      },
+      {
+        "from": "Summaries contain only names, brief descriptions, origins, and frame IDs. Choose a relevant tool, then fetch its full schema with agent-browser webmcp list <tool> --frame <frame-id> --json before invoking it. Schemas and annotations are never included proactively. Unchanged catalogs and pages without tools add no context.",
+        "to": "The announcement names the top-level page's origin and lists each tool's origin, name, frame ID, and description, and tells you to use one when it fits, before driving the DOM. Each record starts with the browser-reported origin that receives the tool's inputs: [origin <origin>] when it matches the page's origin, or [cross-origin <origin>] when the tool comes from an embedded frame on another origin. Direct webmcp invoke examples cover only tools from the page's own origin. Before invoking a cross-origin tool, confirm that its origin matches the user's task. When every tool is listed and the page's own tools share one frame, the call examples carry that frame ID; when the catalog is too large to show any tool, the announcement points to agent-browser webmcp list --json. If a description does not show the arguments, fetch the schema with agent-browser webmcp list <tool> --frame <frame-id> --json before invoking. Schemas and annotations are never included proactively. Unchanged catalogs and pages without tools add no context."
+      },
+      {
+        "from": "they fetch the selected tool's schema with `webmcp list <tool> --frame <frame-id> --json` and invoke it with the same `--frame`.",
+        "to": "they use an announced tool directly, fetch its schema with `webmcp list <tool> --frame <frame-id> --json` when the description does not show the arguments, and invoke it with the same `--frame`."
+      },
+      {
+        "from": "they fetch the selected tool's schema with webmcp list <tool> --frame <frame-id> --json and invoke it with the same --frame.",
+        "to": "they use an announced tool directly, fetch its schema with webmcp list <tool> --frame <frame-id> --json when the description does not show the arguments, and invoke it with the same --frame."
+      },
+      {
+        "from": "\"toolCount\": 1,\n      \"tools\": [{",
+        "to": "\"toolCount\": 1,\n      \"pageOrigin\": \"https://example.com\",\n      \"tools\": [{"
+      },
+      {
+        "from": "JSON exposes updates as `data.webmcp`; CLI and MCP text use the same summaries. An omitted field",
+        "to": "JSON exposes updates as `data.webmcp`; CLI and MCP text use the same summaries. `pageOrigin` is the browser-reported origin of the top-level page and is omitted until the browser reports it. Each tool's `origin` comes from the frame that registered it. A tool whose origin differs from `pageOrigin`, or any tool when `pageOrigin` is missing or opaque (`null`), is announced as cross-origin. An omitted field"
+      },
+      {
+        "from": "JSON exposes updates as data.webmcp; CLI and MCP text use the same summaries. An omitted field",
+        "to": "JSON exposes updates as data.webmcp; CLI and MCP text use the same summaries. pageOrigin is the browser-reported origin of the top-level page and is omitted until the browser reports it. Each tool's origin comes from the frame that registered it. A tool whose origin differs from pageOrigin, or any tool when pageOrigin is missing or opaque (null), is announced as cross-origin. An omitted field"
+      },
+      {
+        "from": "they use an announced tool directly, fetch its schema",
+        "to": "they use an announced tool from the page's own origin directly, check a cross-origin tool's origin against the request before using it, fetch its schema"
+      },
+      {
+        "from": "Lightpanda, Safari, iOS,",
+        "to": "Lightpanda, Firefox,"
+      }
+    ],
+    "/streaming": [
+      {
+        "from": "Browser clients must load from `localhost`, `127.0.0.1`, `::1` or `file://`. Any other origin gets a 403 on the upgrade and needs a proxy.",
+        "to": "Browser clients are checked by the `Origin` and `Host` headers of the upgrade. The `Origin` must have the same host and port as the `Host` the client connected to, and that host must be `localhost`, `127.0.0.1` or `[::1]` (the server itself listens on 127.0.0.1). A page on another port, a `file://` page (browsers send `Origin: null`) and any other origin get a 403 on the upgrade. A custom viewer works when its page and the WebSocket share one authority, for example behind a reverse proxy that forwards the original `Host`; a proxy that rewrites `Host` to the stream address fails the check. Clients that send no `Origin` header, such as a server-side WebSocket client, are not restricted."
+      },
+      {
+        "from": "Browser clients must load from localhost, 127.0.0.1, ::1 or file://. Any other origin gets a 403 on the upgrade and needs a proxy.",
+        "to": "Browser clients are checked by the Origin and Host headers of the upgrade. The Origin must have the same host and port as the Host the client connected to, and that host must be localhost, 127.0.0.1 or [::1] (the server itself listens on 127.0.0.1). A page on another port, a file:// page (browsers send Origin: null) and any other origin get a 403 on the upgrade. A custom viewer works when its page and the WebSocket share one authority, for example behind a reverse proxy that forwards the original Host; a proxy that rewrites Host to the stream address fails the check. Clients that send no Origin header, such as a server-side WebSocket client, are not restricted."
+      }
+    ],
+    "/diffing": [
+      {
+        "from": "Without `--baseline`, the command automatically compares against the most recent snapshot taken in the current session.",
+        "to": "Without `--baseline`, the command automatically compares against the most recent snapshot taken on this tab."
+      },
+      {
+        "from": "Without --baseline, the command automatically compares against the most recent snapshot taken in the current session.",
+        "to": "Without --baseline, the command automatically compares against the most recent snapshot taken on this tab."
+      }
+    ],
+    "/profiler": [
+      {
+        "from": "  ],\n  \"metadata\": {\n    \"clock-domain\": \"LINUX_CLOCK_MONOTONIC\"\n  }",
+        "to": "  ]",
+        "only": "markdown"
+      },
+      {
+        "from": "The `metadata.clock-domain` field reflects the host platform (Linux or macOS). On Windows it is omitted.",
+        "to": "The `metadata.clock-domain` field is omitted on Windows.",
+        "only": "markdown"
+      },
+      {
+        "from": "{ \"traceEvents\": [ { \"cat\": \"devtools.timeline\", \"name\": \"RunTask\", \"ph\": \"X\", \"ts\": 12345, \"dur\": 100, \"pid\": 1, \"tid\": 1 } ], \"metadata\": { \"clock-domain\": \"LINUX_CLOCK_MONOTONIC\" } }",
+        "to": "{ \"traceEvents\": [ { \"cat\": \"devtools.timeline\", \"name\": \"RunTask\", \"ph\": \"X\", \"ts\": 12345, \"dur\": 100, \"pid\": 1, \"tid\": 1 } ] }",
+        "only": "content"
+      },
+      {
+        "from": "The metadata.clock-domain field reflects the host platform (Linux or macOS). On Windows it is omitted.",
+        "to": "The metadata.clock-domain field is omitted on Windows.",
+        "only": "content"
+      }
+    ],
+    "/recording": [
+      {
+        "from": "Recording pipes frames into `ffmpeg`, which must be on `PATH` with the `libvpx` and `libx264` encoders (the default builds from Homebrew and Debian/Ubuntu include both):\n\n```bash\nbrew install ffmpeg        # macOS\nsudo apt install ffmpeg    # Debian/Ubuntu",
+        "to": "Recording pipes frames into `ffmpeg`, which must be on `PATH` with the `libvpx` and `libx264` encoders (the Windows builds from [ffmpeg.org](https://ffmpeg.org/download.html) include both):\n\n```powershell\nwinget install --id Gyan.FFmpeg",
+        "only": "markdown"
+      },
+      {
+        "from": "Recording pipes frames into ffmpeg, which must be on PATH with the libvpx and libx264 encoders (the default builds from Homebrew and Debian/Ubuntu include both):",
+        "to": "Recording pipes frames into ffmpeg, which must be on PATH with the libvpx and libx264 encoders (the Windows builds from ffmpeg.org include both):",
+        "only": "content"
+      },
+      {
+        "from": "brew install ffmpeg # macOS sudo apt install ffmpeg # Debian/Ubuntu agent-browser doctor # reports ffmpeg and its encoders under \"Recording\"",
+        "to": "winget install --id Gyan.FFmpeg agent-browser doctor # reports ffmpeg and its encoders under \"Recording\"",
+        "only": "content"
       }
     ]
   },
   "resources": {
     "/schema.json": {
-      "size": 9813,
-      "sha256": "2b250f5cd22c2e91efc2d924be140efe6c4197c3e0e5b2bab3f439134b6dbe12"
+      "size": 10233,
+      "sha256": "635ee6a8c9c12e75a3d942ee750fe0221ac3e39fe42dfd5b783a2a64bf3aeb50"
     }
   }
 }

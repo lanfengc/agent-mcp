@@ -26,7 +26,8 @@ export const normalize = (value) => value.replace(/\s+/g, " ").trim();
 
 /**
  * Intentional edits to original content since the pinned baseline. Each `from`
- * must still occur in the baseline page, so stale entries fail.
+ * must still occur in the baseline page, so stale entries fail. Use `only` for
+ * Markdown layout changes, exact rendered samples, or removed link targets.
  */
 const edits = JSON.parse(
   await readFile(new URL("fixtures/docs-edits.json", import.meta.url), "utf8"),
@@ -34,22 +35,39 @@ const edits = JSON.parse(
 
 function applyEdits(page) {
   const pageEdits = edits.pages[page.path] ?? [];
-  let { content, modernMarkdown, legacyMarkdown } = page;
-  for (const { from, to } of pageEdits) {
-    const found = [modernMarkdown, legacyMarkdown, ...content].some(
+  let { content, modernMarkdown, legacyMarkdown, links } = page;
+  for (const { from, to, only } of pageEdits) {
+    if (only === "links") {
+      const retained = links.filter((link) => link.type !== "link" || link.url !== from);
+      if (retained.length === links.length || to !== "")
+        throw new Error(`docs-edits.json: ${page.path} has no link removal for ${JSON.stringify(from)}`);
+      links = retained;
+      continue;
+    }
+    if (only === "content") {
+      if (!content.includes(from))
+        throw new Error(`docs-edits.json: ${page.path} has no content sample ${JSON.stringify(from)}`);
+      content = content.map((sample) => (sample === from ? to : sample));
+      continue;
+    }
+    const candidates = only === "markdown"
+      ? [modernMarkdown, legacyMarkdown]
+      : [modernMarkdown, legacyMarkdown, ...content];
+    const found = candidates.some(
       (value) => value.includes(from) || normalize(value).includes(normalize(from)),
     );
     if (!found)
       throw new Error(`docs-edits.json: ${page.path} has no ${JSON.stringify(from)}`);
     modernMarkdown = modernMarkdown.replaceAll(from, to);
     legacyMarkdown = legacyMarkdown.replaceAll(from, to);
-    content = content.map((sample) =>
-      sample.includes(from)
-        ? sample.replaceAll(from, to)
-        : normalize(sample).replaceAll(normalize(from), normalize(to)),
-    );
+    if (only !== "markdown")
+      content = content.map((sample) =>
+        sample.includes(from)
+          ? sample.replaceAll(from, to)
+          : normalize(sample).replaceAll(normalize(from), normalize(to)),
+      );
   }
-  return { ...page, content, modernMarkdown, legacyMarkdown };
+  return { ...page, content, modernMarkdown, legacyMarkdown, links };
 }
 
 for (const path of Object.keys(edits.pages))
@@ -79,6 +97,16 @@ export const addedPages = [
     ogDescription: "Browser automation CLI for AI agents",
     ogAlt: "Modern Web Guidance - agent-browser",
     twitterTitle: "Modern Web Guidance | agent-browser",
+  },
+  {
+    path: "/engines/firefox",
+    markdownTitle: "Firefox",
+    title: "Firefox | agent-browser",
+    description: "Browser automation CLI for AI agents",
+    ogTitle: "Firefox | agent-browser",
+    ogDescription: "Browser automation CLI for AI agents",
+    ogAlt: "Firefox - agent-browser",
+    twitterTitle: "Firefox | agent-browser",
   },
 ];
 

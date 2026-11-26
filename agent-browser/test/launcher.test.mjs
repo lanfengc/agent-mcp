@@ -168,6 +168,23 @@ test('Windows launcher runs the binary from the platform package', async (t) => 
   assert.deepEqual(result.stdout.trim().split('\n'), ['win32-package-ran', ...args]);
 });
 
+test('launcher identifies an empty platform executable', async (t) => {
+  const packageRoot = await createPackage(t);
+  const packageName = '@agent-browser/cli-win32-x64-msvc';
+  const platformDir = join(packageRoot, 'node_modules', ...packageName.split('/'));
+  const emptyBinary = join(platformDir, 'bin', 'agent-browser.exe');
+  await mkdir(dirname(emptyBinary), { recursive: true });
+  await writeFile(join(platformDir, 'package.json'), JSON.stringify({ name: packageName }));
+  await writeFile(emptyBinary, '');
+
+  const result = spawnSync(process.execPath, [join(packageRoot, 'bin', 'agent-browser.js'), '--version'], {
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /0 bytes/);
+  assert.ok(result.stderr.includes(emptyBinary), result.stderr);
+});
+
 test('launcher reports a missing platform package', async (t) => {
   const result = await runLauncher(t, { platform: 'win32', arch: 'arm64', args: ['--version'] });
 

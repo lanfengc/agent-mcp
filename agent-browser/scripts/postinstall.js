@@ -12,7 +12,8 @@
  * (bin/agent-browser.js) then performs the same linking on its first run.
  */
 
-import { existsSync, mkdirSync, createWriteStream, realpathSync, unlinkSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, createWriteStream, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'fs';
+import { pipeline } from 'stream/promises';
 import { basename, dirname, isAbsolute, join, sep } from 'path';
 import { fileURLToPath } from 'url';
 import { tmpdir } from 'os';
@@ -38,36 +39,50 @@ const version = packageJson.version;
 // GitHub release URL
 const GITHUB_REPO = 'vercel-labs/agent-browser';
 const DOWNLOAD_URL = `https://github.com/${GITHUB_REPO}/releases/download/v${version}/${binaryName}`;
+const REDIRECT_STATUSES = new Set([301, 302, 307, 308]);
+const MAX_REDIRECTS = 20;
 
 async function downloadFile(url, dest) {
+  const staged = `${dest}.download-${process.pid}`;
+  try {
+    await fetchToFile(url, staged);
+    if (statSync(staged).size === 0) {
+      throw new Error('Downloaded file is empty');
+    }
+    renameSync(staged, dest);
+  } finally {
+    rmSync(staged, { force: true });
+  }
+}
+
+function fetchToFile(url, staged) {
   return new Promise((resolve, reject) => {
-    const file = createWriteStream(dest);
-    
-    const request = (url) => {
-      get(url, (response) => {
-        // Handle redirects
-        if (response.statusCode === 301 || response.statusCode === 302) {
-          request(response.headers.location);
-          return;
-        }
-        
-        if (response.statusCode !== 200) {
-          reject(new Error(`Failed to download: HTTP ${response.statusCode}`));
-          return;
-        }
-        
-        response.pipe(file);
-        file.on('finish', () => {
-          file.close();
-          resolve();
-        });
-      }).on('error', (err) => {
-        unlinkSync(dest);
+    const request = (target, redirects) => {
+      try {
+        get(target, (response) => {
+          try {
+            if (REDIRECT_STATUSES.has(response.statusCode) && response.headers.location) {
+              response.resume();
+              if (redirects >= MAX_REDIRECTS) {
+                throw new Error(`Failed to download: more than ${MAX_REDIRECTS} redirects`);
+              }
+              request(new URL(response.headers.location, target).href, redirects + 1);
+              return;
+            }
+            if (response.statusCode !== 200) {
+              response.resume();
+              throw new Error(`Failed to download: HTTP ${response.statusCode}`);
+            }
+            pipeline(response, createWriteStream(staged)).then(resolve, reject);
+          } catch (err) {
+            reject(err);
+          }
+        }).on('error', reject);
+      } catch (err) {
         reject(err);
-      });
+      }
     };
-    
-    request(url);
+    request(url, 0);
   });
 }
 

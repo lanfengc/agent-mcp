@@ -17,18 +17,18 @@ See the [Obscura README](https://github.com/h4ckf0r0day/obscura) for the availab
 
 ## Usage
 
-Use the `--engine` flag to select Obscura:
+Set `--engine` on the command that launches the browser. Later commands in the same session use Obscura without the flag:
 
-```bash
+```powershell
 agent-browser --engine obscura open example.com
-agent-browser --engine obscura snapshot
-agent-browser --engine obscura screenshot
+agent-browser snapshot
+agent-browser screenshot
 ```
 
 Or set it as the default via environment variable:
 
-```bash
-export AGENT_BROWSER_ENGINE=obscura
+```powershell
+$env:AGENT_BROWSER_ENGINE = "obscura"
 agent-browser open example.com
 ```
 
@@ -44,7 +44,7 @@ Or in `~/.agent-browser/config.json` or a file loaded with `--config`:
 
 If the `obscura` binary is not in your `PATH`, use `--executable-path`:
 
-```bash
+```powershell
 agent-browser --engine obscura --executable-path "C:\Tools\obscura\obscura.exe" open example.com
 ```
 
@@ -52,8 +52,9 @@ agent-browser --engine obscura --executable-path "C:\Tools\obscura\obscura.exe" 
 
 Obscura ships an optional stealth mode that presents a privacy-first, consistent browser fingerprint and blocks known trackers. Enable it for the Obscura engine by setting `AGENT_BROWSER_OBSCURA_STEALTH`:
 
-```bash
-AGENT_BROWSER_OBSCURA_STEALTH=1 agent-browser --engine obscura open example.com
+```powershell
+$env:AGENT_BROWSER_OBSCURA_STEALTH = "1"
+agent-browser --engine obscura open example.com
 ```
 
 When set, agent-browser launches `obscura serve` with `--stealth`. Accepted values are `1`, `true`, `yes`, and `on`. Stealth is off by default and requires an Obscura build with stealth support; disabling it does not imply Chrome parity.

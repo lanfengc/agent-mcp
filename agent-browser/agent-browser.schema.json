@@ -104,10 +104,6 @@
       "type": "string",
       "description": "Provider to use, such as 'browserbase'."
     },
-    "device": {
-      "type": "string",
-      "description": "Device name or identifier for emulation or providers (e.g., 'iPhone 16 Pro')."
-    },
     "hideScrollbars": {
       "type": "boolean",
       "description": "Hide native scrollbars in headless Chromium screenshots. Defaults to true."
@@ -142,7 +138,11 @@
     },
     "cdp": {
       "type": "string",
-      "description": "Chrome DevTools Protocol endpoint URL."
+      "description": "Chrome DevTools Protocol or Firefox WebDriver BiDi endpoint URL."
+    },
+    "cdpHeaders": {
+      "type": "string",
+      "description": "WebSocket discovery and handshake headers supplied as a JSON-formatted string. Headers follow their CDP endpoint."
     },
     "autoConnect": {
       "type": "boolean",
@@ -176,10 +176,11 @@
     },
     "allowedDomains": {
       "type": "array",
+      "minItems": 1,
       "items": {
         "type": "string"
       },
-      "description": "Allowed domain patterns (e.g., ['example.com', '*.example.com'])."
+      "description": "Allowed domain patterns (e.g., ['example.com', '*.example.com']). Requires a fresh controllable browser context, so CDP, auto-connect, Chrome profiles, restore/state replay, and direct-page provider plugins are not supported."
     },
     "capture": {
       "type": "array",
@@ -203,7 +204,7 @@
     },
     "engine": {
       "type": "string",
-      "enum": ["chrome", "lightpanda", "obscura"],
+      "enum": ["chrome", "lightpanda", "firefox", "obscura"],
       "default": "chrome",
       "description": "Browser engine to use. Obscura is experimental and does not support proxy bypass rules."
     },

@@ -1,19 +1,27 @@
+#![cfg(unix)]
+
 use serde_json::{json, Value};
 use std::process::Command;
 use tempfile::TempDir;
 
 #[test]
-fn mcp_batch_rejects_unknown_cookie_subcommands() {
+fn mcp_batch_rejects_invalid_commands() {
     let home = TempDir::new().unwrap();
     let session = "mcp-cookie-parse-test";
     let batch_args = json!({
         "session": session,
-        "commands": [["cookies", "delete", "foo"]]
+        "commands": [["cookies", "delete", "foo"], ["close", "--all"]]
     })
     .to_string();
     let mut command = Command::new(env!("CARGO_BIN_EXE_agent-browser"));
     command
         .env_clear()
+        .envs(
+            ["SystemRoot", "windir", "TEMP", "TMP"]
+                .into_iter()
+                .filter(|_| cfg!(windows))
+                .filter_map(|key| std::env::var_os(key).map(|value| (key, value))),
+        )
         .env("PATH", std::env::var_os("PATH").unwrap_or_default())
         .env(
             "SystemRoot",
@@ -32,8 +40,18 @@ fn mcp_batch_rejects_unknown_cookie_subcommands() {
     let batch: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(batch["isError"], true, "{batch}");
     assert_eq!(batch["structuredContent"]["exitCode"], 1, "{batch}");
-    let error = batch["structuredContent"]["response"][0]["error"]
-        .as_str()
-        .unwrap_or_else(|| panic!("missing error string: {batch}"));
-    assert!(error.contains("Unknown subcommand: delete"), "{batch}");
+    assert!(
+        batch["structuredContent"]["response"][0]["error"]
+            .as_str()
+            .unwrap_or_else(|| panic!("{batch}"))
+            .contains("Unknown subcommand: delete"),
+        "{batch}"
+    );
+    assert!(
+        batch["structuredContent"]["response"][1]["error"]
+            .as_str()
+            .unwrap_or_else(|| panic!("{batch}"))
+            .contains("close --all is only supported outside a batch"),
+        "{batch}"
+    );
 }

@@ -44,9 +44,21 @@ pub async fn run_daemon(session: &str) {
     // Settings are read before stderr goes away and before any file marks this
     // daemon as running: a stored security setting that cannot be used must
     // stop the start with a message the parent can show.
+    if let Err(e) = super::network::check_allowed_domains_env() {
+        eprintln!("{}", e);
+        process::exit(1);
+    }
     let store: Arc<dyn Store> = Arc::new(FsStore::new(&socket_dir, session));
     let settings = match Running::boot(store.as_ref(), session) {
         Ok(settings) => settings,
+        Err(e) => {
+            eprintln!("{}", e);
+            process::exit(1);
+        }
+    };
+
+    let listener = match bind_listener(&socket_dir, session).await {
+        Ok(listener) => listener,
         Err(e) => {
             eprintln!("{}", e);
             process::exit(1);
@@ -59,16 +71,13 @@ pub async fn run_daemon(session: &str) {
     let version_path = SessionFile::Version.path_in(&socket_dir, session);
     let _ = fs::write(&version_path, env!("CARGO_PKG_VERSION"));
 
-    #[cfg(windows)]
-    {
-        let _ = fs::remove_file(SessionFile::Port.path_in(&socket_dir, session));
-    }
-
     let stream_path = SessionFile::Stream.path_in(&socket_dir, session);
     let _ = fs::remove_file(&stream_path);
     let _ = fs::remove_file(SessionFile::Engine.path_in(&socket_dir, session));
     let _ = fs::remove_file(SessionFile::Provider.path_in(&socket_dir, session));
     let _ = fs::remove_file(SessionFile::Extensions.path_in(&socket_dir, session));
+
+    let _ = fs::remove_file(SessionFile::Port.path_in(&socket_dir, session));
 
     if let Ok(days_str) = env::var("AGENT_BROWSER_STATE_EXPIRE_DAYS") {
         if let Ok(days) = days_str.parse::<u64>() {
@@ -108,7 +117,7 @@ pub async fn run_daemon(session: &str) {
     let autosave_interval_ms = autosave_interval_ms_from_env();
 
     let result = run_socket_server(
-        &socket_dir,
+        listener,
         session,
         stream_client,
         stream_server_instance,
@@ -127,6 +136,37 @@ pub async fn run_daemon(session: &str) {
     if let Err(e) = result {
         let _ = writeln!(std::io::stderr(), "Daemon error: {}", e);
         process::exit(1);
+    }
+}
+
+/// Binds the listening endpoint without touching a live daemon's files. A port
+/// file that still accepts means another daemon owns the session.
+#[cfg(windows)]
+async fn bind_listener(
+    socket_dir: &std::path::Path,
+    session: &str,
+) -> Result<tokio::net::TcpListener, String> {
+    use tokio::net::TcpListener;
+
+    let live_port = fs::read_to_string(SessionFile::Port.path_in(socket_dir, session))
+        .ok()
+        .and_then(|s| s.trim().parse::<u16>().ok());
+    if let Some(port) = live_port {
+        if let Ok(addr) = format!("127.0.0.1:{}", port).parse() {
+            if std::net::TcpStream::connect_timeout(&addr, Duration::from_millis(50)).is_ok() {
+                return Err("Failed to bind TCP: Address already in use".to_string());
+            }
+        }
+    }
+
+    // Try the hash-derived port first; if it is blocked (e.g. Windows Hyper-V
+    // excluded port range), fall back to an OS-assigned ephemeral port.
+    let preferred_port = get_port_for_session(session);
+    match TcpListener::bind(format!("127.0.0.1:{}", preferred_port)).await {
+        Ok(l) => Ok(l),
+        Err(_) => TcpListener::bind("127.0.0.1:0")
+            .await
+            .map_err(|e| format!("Failed to bind TCP: {}", e)),
     }
 }
 
@@ -164,7 +204,7 @@ fn autosave_interval_ms_from_env() -> u64 {
 
 #[cfg(windows)]
 async fn run_socket_server(
-    socket_dir: &std::path::Path,
+    listener: tokio::net::TcpListener,
     session: &str,
     stream_client: Option<Arc<RwLock<Option<Arc<CdpClient>>>>>,
     stream_server: Option<Arc<StreamServer>>,
@@ -172,8 +212,6 @@ async fn run_socket_server(
     autosave_interval_ms: u64,
     startup: Startup,
 ) -> Result<(), String> {
-    use tokio::net::TcpListener;
-
     // Auto-shutdown the daemon after this many ms of inactivity (no commands
     // or dashboard input received). Applies a default when
     // AGENT_BROWSER_IDLE_TIMEOUT_MS is unset; an explicit 0 disables idle
@@ -184,21 +222,12 @@ async fn run_socket_server(
     idle_activity.set_timeout(idle_timeout);
     let idle_timeout_ms = idle_timeout.map(|t| t.ms);
 
-    let preferred_port = get_port_for_session(session);
-    // Try the hash-derived port first; if it is blocked (e.g. Windows Hyper-V
-    // excluded port range), fall back to an OS-assigned ephemeral port.
-    let listener = match TcpListener::bind(format!("127.0.0.1:{}", preferred_port)).await {
-        Ok(l) => l,
-        Err(_) => TcpListener::bind("127.0.0.1:0")
-            .await
-            .map_err(|e| format!("Failed to bind TCP: {}", e))?,
-    };
     let actual_port = listener
         .local_addr()
         .map_err(|e| format!("Failed to get local address: {}", e))?
         .port();
 
-    let port_path = SessionFile::Port.path_in(socket_dir, session);
+    let port_path = SessionFile::Port.path_in(&get_daemon_socket_dir(), session);
     let _ = fs::write(&port_path, actual_port.to_string());
     repair_stored_security(store.as_ref(), &security);
 
@@ -339,10 +368,11 @@ fn spawn_background_tick_if_idle(
             .browser
             .as_mut()
             .map(|mgr| mgr.has_process_exited())
+            .or_else(|| state.firefox.as_mut().map(|ff| ff.has_exited()))
             .unwrap_or(false);
         if process_exited {
             let _ = close_current_browser(&mut state).await;
-        } else if state.browser.is_some() {
+        } else if state.browser.is_some() || state.firefox.is_some() {
             if let Err(error) = state.drain_cdp_events_background().await {
                 let _ = writeln!(
                     std::io::stderr(),
@@ -351,6 +381,7 @@ fn spawn_background_tick_if_idle(
                 );
             } else {
                 maybe_autosave_restore_state(&mut state, autosave_interval_ms).await;
+                state.sync_firefox_live().await;
             }
         }
     });
@@ -521,6 +552,48 @@ mod tests {
     #[allow(unused_imports)]
     use super::*;
     use crate::session_settings::{resolve_idle_timeout, IdleTimeout, MemStore};
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_socket_is_unreachable_until_published() {
+        let dir = tempfile::tempdir().unwrap();
+        let socket_path = dir.path().join("pub.sock");
+
+        let listener = bind_listener(dir.path(), &socket_path, "pub")
+            .await
+            .unwrap();
+        assert!(
+            std::os::unix::net::UnixStream::connect(&socket_path).is_err(),
+            "a bound socket must not accept before the pid and version are written"
+        );
+
+        publish_listener(&socket_path).unwrap();
+        let client = std::thread::spawn({
+            let socket_path = socket_path.clone();
+            move || std::os::unix::net::UnixStream::connect(socket_path).is_ok()
+        });
+        let (_stream, _) = listener.accept().await.unwrap();
+        assert!(client.join().unwrap());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_losing_bind_leaves_live_socket_alone() {
+        let dir = tempfile::tempdir().unwrap();
+        let socket_path = dir.path().join("live.sock");
+
+        let _live = bind_listener(dir.path(), &socket_path, "live")
+            .await
+            .unwrap();
+        publish_listener(&socket_path).unwrap();
+
+        let err = bind_listener(dir.path(), &socket_path, "live")
+            .await
+            .err()
+            .expect("second bind must lose to the live daemon");
+        assert!(err.contains("Address already in use"));
+        assert!(std::os::unix::net::UnixStream::connect(&socket_path).is_ok());
+    }
 
     #[test]
     fn test_a_ready_daemon_restores_settings_a_sweep_removed() {

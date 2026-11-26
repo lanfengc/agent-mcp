@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.1](https://github.com/vercel-labs/agent-desktop/compare/v1.3.0...v1.3.1) (2026-11-13)
+
+* Sync the Windows build and package versions with the upstream release. The upstream fixes apply to Linux dependencies and macOS sandboxes.
+
 ## [1.3.0](https://github.com/vercel-labs/agent-desktop/compare/v1.2.0...v1.3.0) (2026-11-11)
 
 ### ⚠ BREAKING CHANGES
